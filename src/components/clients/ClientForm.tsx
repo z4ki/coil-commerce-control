@@ -54,7 +54,15 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
       updateClient(client.id, data);
       toast.success(`${data.name} has been updated`);
     } else {
-      addClient(data);
+      // Ensure all required properties are passed
+      const newClient = {
+        name: data.name,
+        company: data.company,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+      };
+      addClient(newClient);
       toast.success(`${data.name} has been added`);
     }
 

@@ -118,12 +118,15 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       return;
     }
 
+    // Ensure all required fields are provided
     const invoiceData = {
-      ...data,
+      invoiceNumber: data.invoiceNumber,
+      clientId: data.clientId,
       date: parseDateInput(data.date),
       dueDate: parseDateInput(data.dueDate),
       salesIds: selectedSales,
       totalAmount: totalAmount,
+      isPaid: data.isPaid,
     };
 
     if (invoice) {

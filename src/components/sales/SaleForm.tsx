@@ -62,9 +62,13 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   });
 
   const onSubmit = (data: FormValues) => {
+    // Create a complete sale object with all required fields
     const saleData = {
-      ...data,
+      clientId: data.clientId,
       date: parseDateInput(data.date),
+      quantity: data.quantity,
+      pricePerTon: data.pricePerTon,
+      isInvoiced: data.isInvoiced,
     };
 
     if (sale) {

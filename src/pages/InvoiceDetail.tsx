@@ -1,0 +1,250 @@
+
+import React, { useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useAppContext } from '../context/AppContext';
+import MainLayout from '../components/layout/MainLayout';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { ArrowLeft, Download, Edit, Printer, Trash2 } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/format';
+import StatusBadge from '../components/ui/StatusBadge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import InvoiceForm from '../components/invoices/InvoiceForm';
+import { toast } from 'sonner';
+
+const InvoiceDetail = () => {
+  const { invoiceId } = useParams<{ invoiceId: string }>();
+  const navigate = useNavigate();
+  const [showEditDialog, setShowEditDialog] = React.useState(false);
+  
+  const {
+    getInvoiceById,
+    deleteInvoice,
+    getClientById,
+    getSaleById,
+    updateInvoice,
+  } = useAppContext();
+
+  const invoice = getInvoiceById(invoiceId || '');
+  const client = invoice ? getClientById(invoice.clientId) : undefined;
+  const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
+  
+  const handleDeleteInvoice = () => {
+    if (window.confirm('Are you sure you want to delete this invoice?')) {
+      deleteInvoice(invoiceId || '');
+      toast.success('Invoice has been deleted');
+      navigate('/invoices');
+    }
+  };
+
+  const handleTogglePaid = () => {
+    if (!invoice) return;
+    
+    updateInvoice(invoice.id, { 
+      isPaid: !invoice.isPaid,
+      paidAt: !invoice.isPaid ? new Date() : undefined
+    });
+    
+    toast.success(invoice.isPaid 
+      ? 'Invoice marked as unpaid' 
+      : 'Invoice marked as paid'
+    );
+  };
+  
+  if (!invoice || !client) {
+    return (
+      <MainLayout title="Invoice Not Found">
+        <div className="flex flex-col items-center justify-center h-full space-y-4">
+          <h2 className="text-2xl font-semibold">Invoice not found</h2>
+          <p className="text-muted-foreground">The invoice you're looking for doesn't exist or has been deleted.</p>
+          <Link to="/invoices">
+            <Button>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Return to Invoices
+            </Button>
+          </Link>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  return (
+    <MainLayout title="Invoice Details">
+      <div className="space-y-6">
+        {/* Back button and actions */}
+        <div className="flex justify-between items-center">
+          <Link to="/invoices">
+            <Button variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              All Invoices
+            </Button>
+          </Link>
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={handleTogglePaid}>
+              Mark as {invoice.isPaid ? 'Unpaid' : 'Paid'}
+            </Button>
+            <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteInvoice}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </div>
+
+        {/* Invoice Card */}
+        <Card className="border-t-4 border-t-primary">
+          <CardHeader className="flex flex-row items-start justify-between">
+            <div>
+              <CardTitle className="text-xl">Invoice #{invoice.invoiceNumber}</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Status: <StatusBadge 
+                  status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
+                  className="ml-1"
+                />
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Issue Date</p>
+              <p className="font-medium">{formatDate(invoice.date)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Due Date</p>
+              <p className={`font-medium ${isOverdue ? 'text-destructive' : ''}`}>
+                {formatDate(invoice.dueDate)}
+              </p>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="space-y-6">
+            {/* Client and Company Info */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground mb-2">Billed To:</h3>
+                <p className="font-medium">{client.name}</p>
+                <p>{client.company}</p>
+                <p className="text-sm text-muted-foreground mt-1">{client.email}</p>
+                <p className="text-sm text-muted-foreground">{client.phone}</p>
+                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{client.address}</p>
+              </div>
+              
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground mb-2">From:</h3>
+                <p className="font-medium">PPGI Coils Manufacturing</p>
+                <p>123 Factory Road</p>
+                <p>Industrial Zone</p>
+                <p>Manufacturing City, 10001</p>
+                <p className="text-sm text-muted-foreground mt-1">contact@ppgicoils.com</p>
+                <p className="text-sm text-muted-foreground">+1 (555) 987-6543</p>
+              </div>
+            </div>
+            
+            {/* Sales Table */}
+            <div>
+              <h3 className="font-medium mb-3">Invoice Items</h3>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Quantity (tons)</TableHead>
+                      <TableHead>Price/Ton</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoice.salesIds.map((saleId) => {
+                      const sale = getSaleById(saleId);
+                      if (!sale) return null;
+                      
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{formatDate(sale.date)}</TableCell>
+                          <TableCell>PPGI Coil Sale</TableCell>
+                          <TableCell>{sale.quantity}</TableCell>
+                          <TableCell>{formatCurrency(sale.pricePerTon)}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(sale.totalAmount)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+            
+            {/* Total and Payment Status */}
+            <div className="flex flex-col items-end space-y-2">
+              <div className="flex justify-between w-full max-w-xs">
+                <span className="text-muted-foreground">Subtotal:</span>
+                <span className="font-medium">{formatCurrency(invoice.totalAmount)}</span>
+              </div>
+              <div className="flex justify-between w-full max-w-xs">
+                <span className="text-muted-foreground">Tax (0%):</span>
+                <span className="font-medium">{formatCurrency(0)}</span>
+              </div>
+              <div className="flex justify-between w-full max-w-xs pt-2 border-t">
+                <span className="font-medium">Total:</span>
+                <span className="font-bold text-lg">{formatCurrency(invoice.totalAmount)}</span>
+              </div>
+              
+              {invoice.isPaid && (
+                <div className="flex justify-between w-full max-w-xs text-success mt-2 pt-3 border-t">
+                  <span>Payment Received:</span>
+                  <span>{invoice.paidAt ? formatDate(invoice.paidAt) : 'Paid'}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+          
+          <CardFooter className="flex justify-between bg-muted/50 rounded-b-lg">
+            <p className="text-sm text-muted-foreground">
+              Thank you for your business!
+            </p>
+            <div className="flex space-x-2">
+              <Button size="sm" variant="outline">
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+              </Button>
+              <Button size="sm" variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+
+      {/* Edit Invoice Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[800px]">
+          <DialogHeader>
+            <DialogTitle>Edit Invoice</DialogTitle>
+          </DialogHeader>
+          <InvoiceForm 
+            invoice={invoice} 
+            onSuccess={() => setShowEditDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </MainLayout>
+  );
+};
+
+export default InvoiceDetail;

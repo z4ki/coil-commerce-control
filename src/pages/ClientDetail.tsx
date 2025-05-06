@@ -185,8 +185,7 @@ const ClientDetail = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
-                        <TableHead>Quantity (tons)</TableHead>
-                        <TableHead>Price/Ton</TableHead>
+                        <TableHead>Items</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -196,8 +195,7 @@ const ClientDetail = () => {
                         clientSales.map((sale) => (
                           <TableRow key={sale.id}>
                             <TableCell>{formatDate(sale.date)}</TableCell>
-                            <TableCell>{sale.quantity}</TableCell>
-                            <TableCell>{formatCurrency(sale.pricePerTon)}</TableCell>
+                            <TableCell>{sale.items.length} items</TableCell>
                             <TableCell className="text-right font-medium">
                               {formatCurrency(sale.totalAmount)}
                             </TableCell>
@@ -210,7 +208,7 @@ const ClientDetail = () => {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
+                          <TableCell colSpan={4} className="h-24 text-center">
                             No sales recorded for this client.
                           </TableCell>
                         </TableRow>

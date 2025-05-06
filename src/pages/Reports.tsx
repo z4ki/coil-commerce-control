@@ -313,7 +313,7 @@ const Reports = () => {
                       <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Client</TableHead>
-                        <TableHead>Quantity (tons)</TableHead>
+                        <TableHead>Items</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -331,7 +331,7 @@ const Reports = () => {
                                 <div className="font-medium">{client.name}</div>
                                 <div className="text-xs text-muted-foreground">{client.company}</div>
                               </TableCell>
-                              <TableCell>{sale.quantity} tons</TableCell>
+                              <TableCell>{sale.items.length} items</TableCell>
                               <TableCell className="text-right">
                                 {formatCurrency(sale.totalAmount)}
                               </TableCell>

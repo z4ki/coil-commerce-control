@@ -162,8 +162,7 @@ const InvoiceDetail = () => {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Quantity (tons)</TableHead>
-                      <TableHead>Price/Ton</TableHead>
+                      <TableHead>Items</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -176,8 +175,7 @@ const InvoiceDetail = () => {
                         <TableRow key={sale.id}>
                           <TableCell>{formatDate(sale.date)}</TableCell>
                           <TableCell>PPGI Coil Sale</TableCell>
-                          <TableCell>{sale.quantity}</TableCell>
-                          <TableCell>{formatCurrency(sale.pricePerTon)}</TableCell>
+                          <TableCell>{sale.items.length} items</TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(sale.totalAmount)}
                           </TableCell>

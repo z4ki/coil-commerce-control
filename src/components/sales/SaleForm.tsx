@@ -1,6 +1,5 @@
-
-import React, { useEffect } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAppContext } from '../../context/AppContext';
@@ -14,6 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -21,36 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
-import { Sale, SaleItem } from '../../types';
 import { formatDateInput, parseDateInput } from '../../utils/format';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Sale } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import SaleItemForm from './SaleItemForm';
+import { Trash2, Plus } from 'lucide-react';
 
-const saleItemSchema = z.object({
-  id: z.string().optional(),
-  description: z.string().min(1, { message: 'Description is required' }),
-  quantity: z.coerce
-    .number()
-    .positive({ message: 'Quantity must be positive' }),
-  pricePerTon: z.coerce
-    .number()
-    .positive({ message: 'Price per ton must be positive' }),
-  totalAmount: z.number().optional(),
-});
-
-// Update the schema to use array instead of tuple
 const formSchema = z.object({
   clientId: z.string().min(1, { message: 'Please select a client' }),
   date: z.string().min(1, { message: 'Date is required' }),
-  items: z.array(saleItemSchema).nonempty({
-    message: 'At least one item is required',
-  }),
+  items: z.array(z.object({
+    id: z.string(),
+    description: z.string().min(1, { message: 'Description is required' }),
+    quantity: z.coerce.number().positive({ message: 'Quantity must be positive' }),
+    pricePerTon: z.coerce.number().positive({ message: 'Price must be positive' }),
+  })),
   notes: z.string().optional(),
-  isInvoiced: z.boolean().default(false),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -62,64 +48,81 @@ interface SaleFormProps {
 
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const { addSale, updateSale, clients } = useAppContext();
-
-  // Convert sale items to form values format
-  const getInitialItems = () => {
-    if (sale?.items?.length) {
-      return sale.items.map(item => ({
-        id: item.id,
-        description: item.description,
-        quantity: item.quantity,
-        pricePerTon: item.pricePerTon,
-      }));
-    }
-    // Default empty item
-    return [{ 
-      id: uuidv4(),
-      description: 'PPGI Coil', 
-      quantity: 0, 
-      pricePerTon: 0 
-    }];
-  };
+  const [items, setItems] = useState(
+    sale?.items.map(item => ({
+      id: item.id,
+      description: item.description,
+      quantity: item.quantity,
+      pricePerTon: item.pricePerTon,
+    })) || [{ id: uuidv4(), description: '', quantity: 1, pricePerTon: 0 }]
+  );
 
   const defaultValues: FormValues = {
     clientId: sale?.clientId || '',
     date: formatDateInput(sale?.date || new Date()),
-    items: getInitialItems(),
+    items: items,
     notes: sale?.notes || '',
-    isInvoiced: sale?.isInvoiced || false,
   };
 
-  const methods = useForm<FormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
 
-  const { watch, setValue } = methods;
-  const items = watch('items');
-  
-  // Calculate total amount
-  const totalAmount = items.reduce((sum, item) => {
-    return sum + (item.quantity * item.pricePerTon);
-  }, 0);
+  const addItem = () => {
+    const newItems = [
+      ...items,
+      { id: uuidv4(), description: '', quantity: 1, pricePerTon: 0 },
+    ];
+    setItems(newItems);
+    form.setValue('items', newItems);
+  };
+
+  const removeItem = (id: string) => {
+    if (items.length === 1) {
+      toast.error('You must have at least one item');
+      return;
+    }
+    
+    const newItems = items.filter(item => item.id !== id);
+    setItems(newItems);
+    form.setValue('items', newItems);
+  };
+
+  const updateItem = (id: string, field: string, value: string | number) => {
+    const newItems = items.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    });
+    
+    setItems(newItems);
+    form.setValue('items', newItems);
+  };
+
+  const calculateTotal = () => {
+    return items.reduce((sum, item) => {
+      const quantity = parseFloat(item.quantity.toString()) || 0;
+      const price = parseFloat(item.pricePerTon.toString()) || 0;
+      return sum + (quantity * price);
+    }, 0);
+  };
 
   const onSubmit = (data: FormValues) => {
-    // Create sale items with generated IDs and calculated totals
-    const saleItems: SaleItem[] = data.items.map(item => ({
-      id: item.id || uuidv4(),
-      description: item.description,
-      quantity: item.quantity,
-      pricePerTon: item.pricePerTon,
-      totalAmount: item.quantity * item.pricePerTon
+    // Calculate total amount for each item
+    const itemsWithTotal = data.items.map(item => ({
+      ...item,
+      totalAmount: item.quantity * item.pricePerTon,
     }));
-
-    // Create a complete sale object with all required fields
+    
     const saleData = {
       clientId: data.clientId,
       date: parseDateInput(data.date),
-      items: saleItems,
+      items: itemsWithTotal,
       notes: data.notes,
-      isInvoiced: data.isInvoiced,
+      isInvoiced: sale?.isInvoiced || false,
+      invoiceId: sale?.invoiceId,
     };
 
     if (sale) {
@@ -127,7 +130,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       toast.success('Sale has been updated');
     } else {
       addSale(saleData);
-      toast.success('Sale has been added');
+      toast.success('Sale has been recorded');
     }
 
     if (onSuccess) {
@@ -135,30 +138,12 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     }
   };
 
-  const addItem = () => {
-    const newItems = [...items, { 
-      id: uuidv4(),
-      description: 'PPGI Coil', 
-      quantity: 0, 
-      pricePerTon: 0 
-    }];
-    setValue('items', newItems);
-  };
-
-  const removeItem = (index: number) => {
-    if (items.length > 1) {
-      const newItems = [...items];
-      newItems.splice(index, 1);
-      setValue('items', newItems);
-    }
-  };
-
   return (
-    <FormProvider {...methods}>
-      <Form {...methods}>
-        <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-4">
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
-            control={methods.control}
+            control={form.control}
             name="clientId"
             render={({ field }) => (
               <FormItem>
@@ -166,6 +151,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}
+                  value={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -186,11 +172,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           />
 
           <FormField
-            control={methods.control}
+            control={form.control}
             name="date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Date</FormLabel>
+                <FormLabel>Sale Date</FormLabel>
                 <FormControl>
                   <Input type="date" {...field} />
                 </FormControl>
@@ -198,83 +184,158 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
               </FormItem>
             )}
           />
+        </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium">Items</h3>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                onClick={addItem}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add Item
-              </Button>
-            </div>
-            
-            {items.map((item, index) => (
-              <SaleItemForm
-                key={item.id || index}
-                index={index}
-                onRemove={() => removeItem(index)}
-                isRemoveDisabled={items.length <= 1}
-              />
-            ))}
-            
-            <div className="flex justify-end text-md font-medium pt-2">
-              <span>Total: ${totalAmount.toFixed(2)}</span>
-            </div>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium">Items</h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addItem}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Item
+            </Button>
           </div>
 
-          <FormField
-            control={methods.control}
-            name="notes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Notes</FormLabel>
-                <FormControl>
-                  <Textarea 
-                    placeholder="Any additional notes about this sale" 
-                    {...field} 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className="grid grid-cols-1 gap-4 p-4 border rounded-md sm:grid-cols-12"
+            >
+              <div className="sm:col-span-5">
+                <FormField
+                  control={form.control}
+                  name={`items.${index}.description`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            updateItem(item.id, 'description', e.target.value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-          <FormField
-            control={methods.control}
-            name="isInvoiced"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>Mark as Invoiced</FormLabel>
-                  <p className="text-sm text-muted-foreground">
-                    Check this if an invoice has already been created for this sale.
-                  </p>
+              <div className="sm:col-span-2">
+                <FormField
+                  control={form.control}
+                  name={`items.${index}.quantity`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity (tons)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            updateItem(
+                              item.id,
+                              'quantity',
+                              e.target.valueAsNumber || 0
+                            );
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="sm:col-span-3">
+                <FormField
+                  control={form.control}
+                  name={`items.${index}.pricePerTon`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price per Ton</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            updateItem(
+                              item.id,
+                              'pricePerTon',
+                              e.target.valueAsNumber || 0
+                            );
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex items-end justify-between sm:col-span-2">
+                <div className="text-sm">
+                  <span className="block text-muted-foreground">Subtotal</span>
+                  <span className="font-medium">
+                    ${(item.quantity * item.pricePerTon).toFixed(2)}
+                  </span>
                 </div>
-              </FormItem>
-            )}
-          />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive"
+                  onClick={() => removeItem(item.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" type="button" onClick={onSuccess}>
-              Cancel
-            </Button>
-            <Button type="submit">
-              {sale ? 'Update' : 'Add'} Sale
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </FormProvider>
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Any additional notes about this sale"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex items-center justify-end space-x-2 border-t pt-4">
+          <span className="text-muted-foreground">Total:</span>
+          <span className="text-xl font-bold">
+            ${calculateTotal().toFixed(2)}
+          </span>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" type="button" onClick={onSuccess}>
+            Cancel
+          </Button>
+          <Button type="submit">{sale ? 'Update' : 'Create'} Sale</Button>
+        </div>
+      </form>
+    </Form>
   );
 };
 

@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -9,7 +8,8 @@ import {
   DebtSummary,
   SalesFilter,
   InvoiceFilter,
-  SaleItem
+  SaleItem,
+  Payment
 } from '../types';
 
 interface AppContextProps {
@@ -38,6 +38,14 @@ interface AppContextProps {
   getInvoicesByClient: (clientId: string) => Invoice[];
   getInvoicesByFilter: (filter: InvoiceFilter) => Invoice[];
   
+  // Payments
+  payments: Payment[];
+  addPayment: (invoiceId: string, payment: Omit<Payment, 'id' | 'invoiceId'>) => Payment;
+  updatePayment: (id: string, payment: Partial<Payment>) => void;
+  deletePayment: (id: string) => void;
+  getPaymentsByInvoice: (invoiceId: string) => Payment[];
+  getInvoiceRemainingAmount: (invoiceId: string) => number;
+  
   // Summaries
   getSalesSummary: () => SalesSummary;
   getDebtSummary: () => DebtSummary;
@@ -62,6 +70,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const [clients, setClients] = useState<Client[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   // Client functions
   const addClient = (client: Omit<Client, 'id' | 'createdAt'>) => {
@@ -243,6 +252,106 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     });
   };
 
+  // Payment functions
+  const addPayment = (invoiceId: string, paymentData: Omit<Payment, 'id' | 'invoiceId'>) => {
+    const newPayment = {
+      ...paymentData,
+      id: uuidv4(),
+      invoiceId,
+    };
+    
+    setPayments([...payments, newPayment]);
+    
+    // Check if invoice is now fully paid
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (invoice) {
+      const invoicePayments = [...payments, newPayment].filter(p => p.invoiceId === invoiceId);
+      const totalPaid = invoicePayments.reduce((sum, payment) => sum + payment.amount, 0);
+      
+      // Update invoice paid status if fully paid
+      if (totalPaid >= invoice.totalAmount && !invoice.isPaid) {
+        updateInvoice(invoiceId, { 
+          isPaid: true,
+          paidAt: new Date()
+        });
+      }
+    }
+    
+    return newPayment;
+  };
+  
+  const updatePayment = (id: string, paymentData: Partial<Payment>) => {
+    const payment = payments.find(p => p.id === id);
+    if (!payment) return;
+    
+    setPayments(
+      payments.map(p => (p.id === id ? { ...p, ...paymentData } : p))
+    );
+    
+    // Check if invoice paid status needs to be updated
+    const invoice = invoices.find(inv => inv.id === payment.invoiceId);
+    if (invoice) {
+      const invoicePayments = payments.map(p => 
+        p.id === id ? { ...p, ...paymentData } : p
+      ).filter(p => p.invoiceId === payment.invoiceId);
+      
+      const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      // Update invoice paid status based on payment total
+      if (totalPaid >= invoice.totalAmount && !invoice.isPaid) {
+        updateInvoice(invoice.id, { 
+          isPaid: true,
+          paidAt: new Date()
+        });
+      } else if (totalPaid < invoice.totalAmount && invoice.isPaid) {
+        updateInvoice(invoice.id, { 
+          isPaid: false,
+          paidAt: undefined
+        });
+      }
+    }
+  };
+  
+  const deletePayment = (id: string) => {
+    const payment = payments.find(p => p.id === id);
+    if (!payment) return;
+    
+    setPayments(payments.filter(p => p.id !== id));
+    
+    // Check if invoice paid status needs to be updated
+    const invoice = invoices.find(inv => inv.id === payment.invoiceId);
+    if (invoice && invoice.isPaid) {
+      const invoicePayments = payments.filter(p => 
+        p.id !== id && p.invoiceId === payment.invoiceId
+      );
+      
+      const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      // Update invoice paid status if no longer fully paid
+      if (totalPaid < invoice.totalAmount) {
+        updateInvoice(invoice.id, { 
+          isPaid: false,
+          paidAt: undefined
+        });
+      }
+    }
+  };
+  
+  const getPaymentsByInvoice = (invoiceId: string) => {
+    return payments.filter(payment => payment.invoiceId === invoiceId);
+  };
+  
+  const getInvoiceRemainingAmount = (invoiceId: string) => {
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (!invoice) return 0;
+    
+    const totalPaid = payments
+      .filter(p => p.invoiceId === invoiceId)
+      .reduce((sum, p) => sum + p.amount, 0);
+    
+    return Math.max(0, invoice.totalAmount - totalPaid);
+  };
+
   // Summary functions
   const getSalesSummary = (): SalesSummary => {
     const totalSales = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
@@ -349,6 +458,14 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     getInvoiceById,
     getInvoicesByClient,
     getInvoicesByFilter,
+    
+    // Payments
+    payments,
+    addPayment,
+    updatePayment,
+    deletePayment,
+    getPaymentsByInvoice,
+    getInvoiceRemainingAmount,
     
     // Summaries
     getSalesSummary,

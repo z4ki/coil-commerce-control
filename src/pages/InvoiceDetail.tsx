@@ -19,17 +19,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Download, Edit, Printer, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Edit, Printer, Trash2, DollarSign, PenLine, Wallet } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InvoiceForm from '../components/invoices/InvoiceForm';
+import PaymentForm from '../components/invoices/PaymentForm';
 import { toast } from 'sonner';
 
 const InvoiceDetail = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
   const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   
   const {
     getInvoiceById,
@@ -37,11 +40,17 @@ const InvoiceDetail = () => {
     getClientById,
     getSaleById,
     updateInvoice,
+    getPaymentsByInvoice,
+    getInvoiceRemainingAmount,
+    deletePayment,
   } = useAppContext();
 
   const invoice = getInvoiceById(invoiceId || '');
   const client = invoice ? getClientById(invoice.clientId) : undefined;
   const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
+  const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
+  const remainingAmount = invoice ? getInvoiceRemainingAmount(invoice.id) : 0;
+  const totalPaid = invoice ? invoice.totalAmount - remainingAmount : 0;
   
   const handleDeleteInvoice = () => {
     if (window.confirm('Are you sure you want to delete this invoice?')) {
@@ -63,6 +72,28 @@ const InvoiceDetail = () => {
       ? 'Invoice marked as unpaid' 
       : 'Invoice marked as paid'
     );
+  };
+  
+  const handleDeletePayment = (paymentId: string) => {
+    if (window.confirm('Are you sure you want to delete this payment?')) {
+      deletePayment(paymentId);
+      toast.success('Payment has been deleted');
+    }
+  };
+  
+  const handleEditPayment = (paymentId: string) => {
+    setSelectedPaymentId(paymentId);
+    setShowPaymentDialog(true);
+  };
+  
+  const getPaymentMethodLabel = (method: string) => {
+    switch (method) {
+      case 'cash': return 'Cash';
+      case 'bank_transfer': return 'Bank Transfer';
+      case 'check': return 'Check';
+      case 'credit_card': return 'Credit Card';
+      default: return method;
+    }
   };
   
   if (!invoice || !client) {
@@ -94,6 +125,10 @@ const InvoiceDetail = () => {
             </Button>
           </Link>
           <div className="flex space-x-2">
+            <Button variant="outline" onClick={() => setShowPaymentDialog(true)}>
+              <Wallet className="mr-2 h-4 w-4" />
+              Add Payment
+            </Button>
             <Button variant="outline" onClick={handleTogglePaid}>
               Mark as {invoice.isPaid ? 'Unpaid' : 'Paid'}
             </Button>
@@ -187,8 +222,65 @@ const InvoiceDetail = () => {
               </div>
             </div>
             
+            {/* Payments Table */}
+            <div>
+              <h3 className="font-medium mb-3">Payment History</h3>
+              {payments.length > 0 ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead>Notes</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>{formatDate(payment.date)}</TableCell>
+                          <TableCell>{getPaymentMethodLabel(payment.method)}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">
+                            {payment.notes || '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(payment.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-1">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleEditPayment(payment.id)}
+                              >
+                                <PenLine className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive"
+                                onClick={() => handleDeletePayment(payment.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground p-4 border rounded-md bg-muted/30">
+                  No payments have been recorded for this invoice yet.
+                </p>
+              )}
+            </div>
+            
             {/* Total and Payment Status */}
-            <div className="flex flex-col items-end space-y-2">
+            <div className="flex flex-col items-end space-y-2 border-t pt-4">
               <div className="flex justify-between w-full max-w-xs">
                 <span className="text-muted-foreground">Subtotal:</span>
                 <span className="font-medium">{formatCurrency(invoice.totalAmount)}</span>
@@ -202,9 +294,25 @@ const InvoiceDetail = () => {
                 <span className="font-bold text-lg">{formatCurrency(invoice.totalAmount)}</span>
               </div>
               
+              <div className="flex justify-between w-full max-w-xs mt-4">
+                <span className="text-green-600">Paid:</span>
+                <span className="font-medium text-green-600">{formatCurrency(totalPaid)}</span>
+              </div>
+              
+              {remainingAmount > 0 && (
+                <div className="flex justify-between w-full max-w-xs">
+                  <span className={isOverdue ? 'text-red-600' : ''}>
+                    Remaining:
+                  </span>
+                  <span className={`font-bold ${isOverdue ? 'text-red-600' : ''}`}>
+                    {formatCurrency(remainingAmount)}
+                  </span>
+                </div>
+              )}
+              
               {invoice.isPaid && (
-                <div className="flex justify-between w-full max-w-xs text-success mt-2 pt-3 border-t">
-                  <span>Payment Received:</span>
+                <div className="flex justify-between w-full max-w-xs text-green-600 mt-2 pt-3 border-t">
+                  <span>Payment Completed:</span>
                   <span>{invoice.paidAt ? formatDate(invoice.paidAt) : 'Paid'}</span>
                 </div>
               )}
@@ -238,6 +346,28 @@ const InvoiceDetail = () => {
           <InvoiceForm 
             invoice={invoice} 
             onSuccess={() => setShowEditDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      
+      {/* Add/Edit Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedPaymentId ? 'Edit Payment' : 'Record Payment'}
+            </DialogTitle>
+          </DialogHeader>
+          <PaymentForm 
+            invoiceId={invoice.id}
+            remainingAmount={remainingAmount}
+            payment={selectedPaymentId ? 
+              payments.find(p => p.id === selectedPaymentId) : 
+              undefined}
+            onSuccess={() => {
+              setShowPaymentDialog(false);
+              setSelectedPaymentId(null);
+            }}
           />
         </DialogContent>
       </Dialog>

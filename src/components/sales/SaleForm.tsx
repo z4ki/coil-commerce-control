@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { Sale, SaleItem } from '../../types';
 import { formatDateInput, parseDateInput } from '../../utils/format';
 import { toast } from 'sonner';
@@ -47,6 +48,7 @@ const formSchema = z.object({
   items: z.array(saleItemSchema).nonempty({
     message: 'At least one item is required',
   }),
+  notes: z.string().optional(),
   isInvoiced: z.boolean().default(false),
 });
 
@@ -83,6 +85,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     clientId: sale?.clientId || '',
     date: formatDateInput(sale?.date || new Date()),
     items: getInitialItems(),
+    notes: sale?.notes || '',
     isInvoiced: sale?.isInvoiced || false,
   };
 
@@ -114,6 +117,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       clientId: data.clientId,
       date: parseDateInput(data.date),
       items: saleItems,
+      notes: data.notes,
       isInvoiced: data.isInvoiced,
     };
 
@@ -220,6 +224,23 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
               <span>Total: ${totalAmount.toFixed(2)}</span>
             </div>
           </div>
+
+          <FormField
+            control={methods.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Notes</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    placeholder="Any additional notes about this sale" 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={methods.control}

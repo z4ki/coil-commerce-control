@@ -3,11 +3,15 @@
 export interface Client {
   id: string;
   name: string;
-  company: string;
-  email: string;
-  phone: string;
+  company: string; // maps to company_name in DB
+  email: string; // maps to contact_email in DB
+  phone: string; // maps to contact_phone in DB
   address: string;
-  createdAt: Date;
+  nif?: string;
+  nis?: string;
+  rc?: string;
+  ai?: string;
+  createdAt: Date; // maps to created_at in DB
 }
 
 // Article in a Sale
@@ -23,11 +27,12 @@ export interface SaleItem {
 export interface Sale {
   id: string;
   clientId: string;
-  date: Date;
+  date: Date; // maps to sale_date in DB
   items: SaleItem[];
   totalAmount: number;
   isInvoiced: boolean;
   invoiceId?: string;
+  notes?: string;
   createdAt: Date;
 }
 
@@ -36,13 +41,23 @@ export interface Invoice {
   id: string;
   invoiceNumber: string;
   clientId: string;
-  date: Date;
+  date: Date; // maps to issue_date in DB
   dueDate: Date;
   totalAmount: number;
   isPaid: boolean;
   paidAt?: Date;
   salesIds: string[];
   createdAt: Date;
+}
+
+// Payment Model
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  date: Date; // maps to payment_date in DB
+  amount: number; // maps to amount_paid in DB
+  method: string; // maps to payment_method in DB
+  notes?: string;
 }
 
 // Dashboard Summary Types

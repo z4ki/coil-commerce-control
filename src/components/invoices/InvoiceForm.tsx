@@ -255,8 +255,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                     <TableRow>
                       <TableHead className="w-12">Select</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead>Quantity (tons)</TableHead>
-                      <TableHead>Price/Ton</TableHead>
+                      <TableHead>Items</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -270,8 +269,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                           />
                         </TableCell>
                         <TableCell>{formatDate(sale.date)}</TableCell>
-                        <TableCell>{sale.quantity}</TableCell>
-                        <TableCell>{formatCurrency(sale.pricePerTon)}</TableCell>
+                        <TableCell>{sale.items.length} item(s)</TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(sale.totalAmount)}
                         </TableCell>

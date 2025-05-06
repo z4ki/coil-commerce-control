@@ -24,6 +24,10 @@ const formSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
   phone: z.string().min(5, { message: 'Phone must be at least 5 characters' }),
   address: z.string().min(5, { message: 'Address must be at least 5 characters' }),
+  nif: z.string().optional(),
+  nis: z.string().optional(),
+  rc: z.string().optional(),
+  ai: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -42,6 +46,10 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
     email: client?.email || '',
     phone: client?.phone || '',
     address: client?.address || '',
+    nif: client?.nif || '',
+    nis: client?.nis || '',
+    rc: client?.rc || '',
+    ai: client?.ai || '',
   };
 
   const form = useForm<FormValues>({
@@ -55,12 +63,16 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
       toast.success(`${data.name} has been updated`);
     } else {
       // Ensure all required properties are passed
-      const newClient = {
+      const newClient: Omit<Client, 'id' | 'createdAt'> = {
         name: data.name,
         company: data.company,
         email: data.email,
         phone: data.phone,
         address: data.address,
+        nif: data.nif,
+        nis: data.nis,
+        rc: data.rc,
+        ai: data.ai,
       };
       addClient(newClient);
       toast.success(`${data.name} has been added`);
@@ -145,6 +157,67 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             </FormItem>
           )}
         />
+
+        {/* Tax identifiers section */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="nif"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>NIF (Tax ID)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Tax Identification Number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="nis"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>NIS (Statistical ID)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Statistical Identification Number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="rc"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>RC (Commercial Register)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Commercial Register Number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="ai"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>AI (Tax Article)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Tax Article Number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="outline" type="button" onClick={onSuccess}>

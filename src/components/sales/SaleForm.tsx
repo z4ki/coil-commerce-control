@@ -42,6 +42,7 @@ const saleItemSchema = z.object({
   totalAmount: z.number().optional(),
 });
 
+// Update the schema to use array instead of tuple
 const formSchema = z.object({
   clientId: z.string().min(1, { message: 'Please select a client' }),
   date: z.string().min(1, { message: 'Date is required' }),

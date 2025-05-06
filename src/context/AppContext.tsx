@@ -8,7 +8,8 @@ import {
   SalesSummary, 
   DebtSummary,
   SalesFilter,
-  InvoiceFilter
+  InvoiceFilter,
+  SaleItem
 } from '../types';
 
 interface AppContextProps {
@@ -87,7 +88,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Sale functions
   const addSale = (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt'>) => {
-    const totalAmount = sale.quantity * sale.pricePerTon;
+    // Calculate total amount from all items
+    const totalAmount = sale.items.reduce((sum, item) => sum + (item.quantity * item.pricePerTon), 0);
+    
     const newSale = {
       ...sale,
       id: uuidv4(),
@@ -103,12 +106,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       sales.map((s) => {
         if (s.id === id) {
           const updatedSale = { ...s, ...saleUpdate };
-          // Recalculate total amount if quantity or price changes
-          if (saleUpdate.quantity !== undefined || saleUpdate.pricePerTon !== undefined) {
-            const quantity = saleUpdate.quantity !== undefined ? saleUpdate.quantity : s.quantity;
-            const pricePerTon = saleUpdate.pricePerTon !== undefined ? saleUpdate.pricePerTon : s.pricePerTon;
-            updatedSale.totalAmount = quantity * pricePerTon;
+          
+          // Recalculate total amount if items changed
+          if (saleUpdate.items) {
+            updatedSale.totalAmount = saleUpdate.items.reduce(
+              (sum, item) => sum + (item.quantity * item.pricePerTon), 
+              0
+            );
           }
+          
           return updatedSale;
         }
         return s;

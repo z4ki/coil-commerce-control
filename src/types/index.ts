@@ -10,13 +10,21 @@ export interface Client {
   createdAt: Date;
 }
 
+// Article in a Sale
+export interface SaleItem {
+  id: string;
+  description: string;
+  quantity: number; // in tons
+  pricePerTon: number;
+  totalAmount: number;
+}
+
 // Sale Model
 export interface Sale {
   id: string;
   clientId: string;
   date: Date;
-  quantity: number; // in tons
-  pricePerTon: number;
+  items: SaleItem[];
   totalAmount: number;
   isInvoiced: boolean;
   invoiceId?: string;

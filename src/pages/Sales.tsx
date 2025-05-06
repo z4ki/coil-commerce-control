@@ -24,7 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, FileCheck, FileX } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Sale } from '../types';
@@ -36,6 +41,7 @@ const Sales = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [expandedSales, setExpandedSales] = useState<{[key: string]: boolean}>({});
 
   const handleDeleteSale = (sale: Sale) => {
     if (window.confirm('Are you sure you want to delete this sale?')) {
@@ -57,6 +63,13 @@ const Sales = () => {
       updateSale(sale.id, { isInvoiced: true });
       toast.success('Sale marked as invoiced');
     }
+  };
+
+  const toggleSaleExpansion = (saleId: string) => {
+    setExpandedSales(prev => ({
+      ...prev,
+      [saleId]: !prev[saleId]
+    }));
   };
 
   const filteredSales = sales.filter((sale) => {
@@ -103,10 +116,10 @@ const Sales = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[30px]"></TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Client</TableHead>
-                    <TableHead>Quantity (tons)</TableHead>
-                    <TableHead>Price/Ton</TableHead>
+                    <TableHead>Items</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-[150px]">Actions</TableHead>
@@ -116,61 +129,111 @@ const Sales = () => {
                   {filteredSales.length > 0 ? (
                     filteredSales.map((sale) => {
                       const client = getClientById(sale.clientId);
+                      const isExpanded = expandedSales[sale.id] || false;
                       return (
-                        <TableRow key={sale.id}>
-                          <TableCell>{formatDate(sale.date)}</TableCell>
-                          <TableCell>
-                            <div className="font-medium">{client?.name}</div>
-                            <div className="text-xs text-muted-foreground">{client?.company}</div>
-                          </TableCell>
-                          <TableCell>{sale.quantity}</TableCell>
-                          <TableCell>{formatCurrency(sale.pricePerTon)}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(sale.totalAmount)}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge 
-                              status={sale.isInvoiced ? 'invoiced' : 'not-invoiced'} 
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
+                        <React.Fragment key={sale.id}>
+                          <TableRow>
+                            <TableCell className="p-0 pl-4">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => {
-                                  setSelectedSale(sale);
-                                  setShowAddDialog(true);
-                                }}
+                                onClick={() => toggleSaleExpansion(sale.id)}
                               >
-                                <Edit className="h-4 w-4" />
-                                <span className="sr-only">Edit</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteSale(sale)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => toggleInvoiceStatus(sale)}
-                                disabled={sale.isInvoiced && !!sale.invoiceId}
-                                title={sale.isInvoiced ? "Mark as not invoiced" : "Mark as invoiced"}
-                              >
-                                {sale.isInvoiced ? (
-                                  <FileX className="h-4 w-4" />
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
                                 ) : (
-                                  <FileCheck className="h-4 w-4" />
+                                  <ChevronRight className="h-4 w-4" />
                                 )}
-                                <span className="sr-only">Toggle Invoice Status</span>
                               </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                            </TableCell>
+                            <TableCell>{formatDate(sale.date)}</TableCell>
+                            <TableCell>
+                              <div className="font-medium">{client?.name}</div>
+                              <div className="text-xs text-muted-foreground">{client?.company}</div>
+                            </TableCell>
+                            <TableCell>{sale.items.length} item(s)</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(sale.totalAmount)}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge 
+                                status={sale.isInvoiced ? 'invoiced' : 'not-invoiced'} 
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setSelectedSale(sale);
+                                    setShowAddDialog(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  <span className="sr-only">Edit</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteSale(sale)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Delete</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => toggleInvoiceStatus(sale)}
+                                  disabled={sale.isInvoiced && !!sale.invoiceId}
+                                  title={sale.isInvoiced ? "Mark as not invoiced" : "Mark as invoiced"}
+                                >
+                                  {sale.isInvoiced ? (
+                                    <FileX className="h-4 w-4" />
+                                  ) : (
+                                    <FileCheck className="h-4 w-4" />
+                                  )}
+                                  <span className="sr-only">Toggle Invoice Status</span>
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Expanded item details */}
+                          {isExpanded && (
+                            <TableRow className="bg-muted/50">
+                              <TableCell colSpan={7} className="py-2">
+                                <div className="pl-8 pr-4">
+                                  <h4 className="text-sm font-medium mb-2">Sale Items:</h4>
+                                  <div className="rounded border bg-background">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Description</TableHead>
+                                          <TableHead>Quantity (tons)</TableHead>
+                                          <TableHead>Price/Ton</TableHead>
+                                          <TableHead className="text-right">Total</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {sale.items.map((item) => (
+                                          <TableRow key={item.id}>
+                                            <TableCell>{item.description}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
+                                            <TableCell className="text-right">
+                                              {formatCurrency(item.totalAmount)}
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   ) : (
@@ -191,7 +254,7 @@ const Sales = () => {
 
       {/* Add/Edit Sale Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle>
               {selectedSale ? 'Edit Sale' : 'Add New Sale'}

@@ -98,7 +98,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           name={`items.${index}.pricePerTon`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Price per Ton (DZD)</FormLabel>
+              <FormLabel>Price per Ton (DZD) - HT</FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
@@ -117,10 +117,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
       
       <div className="mt-3 flex justify-between">
         <div className="text-sm">
-          <span className="font-medium">HT (Hors Taxe):</span> {itemTotal.toFixed(2)} DZD
-        </div>
-        <div className="text-sm">
-          <span className="font-medium">TTC (19%):</span> {(itemTotal * 1.19).toFixed(2)} DZD
+          <span className="font-medium">Item Total (HT):</span> {itemTotal.toFixed(2)} DZD
         </div>
       </div>
     </div>

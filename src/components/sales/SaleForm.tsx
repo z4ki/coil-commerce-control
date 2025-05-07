@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useState, useEffect } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAppContext } from '../../context/AppContext';
@@ -26,7 +26,7 @@ import { formatDateInput, parseDateInput, formatCurrency } from '../../utils/for
 import { toast } from 'sonner';
 import { Sale, SaleItem } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Trash2, Plus, FileText, Download } from 'lucide-react';
+import { Plus, FileText, Download } from 'lucide-react';
 import SaleItemForm from './SaleItemForm';
 
 // Tax rate constant
@@ -41,7 +41,7 @@ const formSchema = z.object({
     coilRef: z.string().optional(),
     quantity: z.coerce.number().positive({ message: 'Quantity must be positive' }),
     pricePerTon: z.coerce.number().positive({ message: 'Price must be positive' }),
-  })),
+  })).min(1, { message: 'At least one item is required' }),
   transportationFee: z.coerce.number().min(0).default(0),
   notes: z.string().optional(),
 });
@@ -78,6 +78,14 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     defaultValues,
   });
 
+  // Debug logging for form state
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      console.log("Form values:", value);
+    });
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+
   const addItem = () => {
     const newItems = [
       ...items,
@@ -100,11 +108,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
   // Calculate subtotal (HT) - sum of all items before tax
   const calculateSubtotal = () => {
-    return items.reduce((sum, item) => {
+    return form.watch('items')?.reduce((sum, item) => {
       const quantity = parseFloat(item.quantity?.toString() || '0');
       const price = parseFloat(item.pricePerTon?.toString() || '0');
       return sum + (quantity * price);
-    }, 0);
+    }, 0) || 0;
   };
 
   // Calculate tax amount
@@ -124,37 +132,56 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   };
 
   const onSubmit = (data: FormValues) => {
-    // Ensure all required properties are set for each SaleItem
-    const itemsWithTotal: SaleItem[] = data.items.map(item => ({
-      id: item.id,
-      description: item.description,
-      coilRef: item.coilRef || '',
-      quantity: item.quantity,
-      pricePerTon: item.pricePerTon,
-      totalAmount: item.quantity * item.pricePerTon,
-    }));
+    console.log("Submitting form with data:", data);
     
-    const saleData = {
-      clientId: data.clientId,
-      date: parseDateInput(data.date),
-      items: itemsWithTotal,
-      notes: data.notes,
-      isInvoiced: sale?.isInvoiced || false,
-      invoiceId: sale?.invoiceId,
-      transportationFee: data.transportationFee,
-      taxRate: TAX_RATE,
-    };
-
-    if (sale) {
-      updateSale(sale.id, saleData);
-      toast.success('Sale has been updated');
-    } else {
-      addSale(saleData);
-      toast.success('Sale has been recorded');
+    if (!data.clientId) {
+      toast.error('Please select a client');
+      return;
     }
+    
+    if (!data.items || data.items.length === 0) {
+      toast.error('At least one item is required');
+      return;
+    }
+    
+    try {
+      // Ensure all required properties are set for each SaleItem
+      const itemsWithTotal: SaleItem[] = data.items.map(item => ({
+        id: item.id,
+        description: item.description,
+        coilRef: item.coilRef || '',
+        quantity: item.quantity,
+        pricePerTon: item.pricePerTon,
+        totalAmount: item.quantity * item.pricePerTon,
+      }));
+      
+      const saleData = {
+        clientId: data.clientId,
+        date: parseDateInput(data.date),
+        items: itemsWithTotal,
+        notes: data.notes,
+        isInvoiced: sale?.isInvoiced || false,
+        invoiceId: sale?.invoiceId,
+        transportationFee: data.transportationFee,
+        taxRate: TAX_RATE,
+      };
+      
+      console.log("Sale data being saved:", saleData);
 
-    if (onSuccess) {
-      onSuccess();
+      if (sale) {
+        updateSale(sale.id, saleData);
+        toast.success('Sale has been updated');
+      } else {
+        addSale(saleData);
+        toast.success('Sale has been recorded');
+      }
+
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error("Error saving sale:", error);
+      toast.error('Failed to save sale. Please check your inputs and try again.');
     }
   };
 
@@ -167,7 +194,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   };
 
   return (
-    <Form {...form}>
+    <FormProvider {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
@@ -327,7 +354,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           </div>
         </div>
       </form>
-    </Form>
+    </FormProvider>
   );
 };
 

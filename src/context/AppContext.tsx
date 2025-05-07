@@ -68,7 +68,22 @@ interface AppProviderProps {
 }
 
 export const AppProvider = ({ children }: AppProviderProps) => {
-  const [clients, setClients] = useState<Client[]>([]);
+  // Initialize with some example data for testing
+  const [clients, setClients] = useState<Client[]>([
+    {
+      id: "client-1",
+      name: "Test Client",
+      company: "Test Company",
+      email: "client@example.com",
+      phone: "123456789",
+      address: "Test Address",
+      nif: "NIF12345",
+      nis: "NIS12345",
+      rc: "RC12345",
+      ai: "AI12345",
+      createdAt: new Date()
+    }
+  ]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -98,6 +113,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Sale functions
   const addSale = (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt'>) => {
+    console.log("Adding new sale:", sale);
+    
     // Calculate base total amount from all items
     const itemsTotal = sale.items.reduce((sum, item) => sum + (item.quantity * item.pricePerTon), 0);
     
@@ -116,11 +133,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       totalAmount,
       createdAt: new Date()
     };
+    
+    console.log("New sale created:", newSale);
     setSales([...sales, newSale]);
     return newSale;
   };
 
   const updateSale = (id: string, saleUpdate: Partial<Sale>) => {
+    console.log("Updating sale:", id, saleUpdate);
+    
     setSales(
       sales.map((s) => {
         if (s.id === id) {
@@ -144,6 +165,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
             updatedSale.totalAmount = itemsTotal + taxAmount + transportationFee;
           }
           
+          console.log("Updated sale:", updatedSale);
           return updatedSale;
         }
         return s;
@@ -184,6 +206,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Invoice functions
   const addInvoice = (invoice: Omit<Invoice, 'id' | 'createdAt'>) => {
+    console.log("Adding new invoice:", invoice);
+    
     const newInvoice = {
       ...invoice,
       id: uuidv4(),
@@ -201,11 +225,14 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       );
     }
     
+    console.log("New invoice created:", newInvoice);
     setInvoices([...invoices, newInvoice]);
     return newInvoice;
   };
 
   const updateInvoice = (id: string, invoiceUpdate: Partial<Invoice>) => {
+    console.log("Updating invoice:", id, invoiceUpdate);
+    
     // Update invoice
     setInvoices(
       invoices.map((inv) => (inv.id === id ? { ...inv, ...invoiceUpdate } : inv))

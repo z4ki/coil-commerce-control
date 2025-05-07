@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { formatDateInput, parseDateInput } from '../../utils/format';
 import { toast } from 'sonner';
-import { Sale } from '../../types';
+import { Sale, SaleItem } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { Trash2, Plus } from 'lucide-react';
 
@@ -110,9 +111,12 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   };
 
   const onSubmit = (data: FormValues) => {
-    // Calculate total amount for each item
-    const itemsWithTotal = data.items.map(item => ({
-      ...item,
+    // Ensure all required properties are set for each SaleItem
+    const itemsWithTotal: SaleItem[] = data.items.map(item => ({
+      id: item.id,
+      description: item.description,
+      quantity: item.quantity,
+      pricePerTon: item.pricePerTon,
       totalAmount: item.quantity * item.pricePerTon,
     }));
     

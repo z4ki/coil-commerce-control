@@ -22,11 +22,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatDateInput, parseDateInput } from '../../utils/format';
+import { formatDateInput, parseDateInput, formatCurrency } from '../../utils/format';
 import { toast } from 'sonner';
 import { Sale, SaleItem } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, FileText, Download } from 'lucide-react';
+import SaleItemForm from './SaleItemForm';
+
+// Tax rate constant
+const TAX_RATE = 0.19; // 19%
 
 const formSchema = z.object({
   clientId: z.string().min(1, { message: 'Please select a client' }),
@@ -34,9 +38,11 @@ const formSchema = z.object({
   items: z.array(z.object({
     id: z.string(),
     description: z.string().min(1, { message: 'Description is required' }),
+    coilRef: z.string().optional(),
     quantity: z.coerce.number().positive({ message: 'Quantity must be positive' }),
     pricePerTon: z.coerce.number().positive({ message: 'Price must be positive' }),
   })),
+  transportationFee: z.coerce.number().min(0).default(0),
   notes: z.string().optional(),
 });
 
@@ -49,19 +55,21 @@ interface SaleFormProps {
 
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const { addSale, updateSale, clients } = useAppContext();
-  const [items, setItems] = useState(
+  const [items, setItems] = useState<any[]>(
     sale?.items.map(item => ({
       id: item.id,
       description: item.description,
+      coilRef: item.coilRef || '',
       quantity: item.quantity,
       pricePerTon: item.pricePerTon,
-    })) || [{ id: uuidv4(), description: '', quantity: 1, pricePerTon: 0 }]
+    })) || [{ id: uuidv4(), description: '', coilRef: '', quantity: 1, pricePerTon: 0 }]
   );
 
   const defaultValues: FormValues = {
     clientId: sale?.clientId || '',
     date: formatDateInput(sale?.date || new Date()),
     items: items,
+    transportationFee: sale?.transportationFee || 0,
     notes: sale?.notes || '',
   };
 
@@ -73,7 +81,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const addItem = () => {
     const newItems = [
       ...items,
-      { id: uuidv4(), description: '', quantity: 1, pricePerTon: 0 },
+      { id: uuidv4(), description: '', coilRef: '', quantity: 1, pricePerTon: 0 },
     ];
     setItems(newItems);
     form.setValue('items', newItems);
@@ -90,24 +98,29 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     form.setValue('items', newItems);
   };
 
-  const updateItem = (id: string, field: string, value: string | number) => {
-    const newItems = items.map(item => {
-      if (item.id === id) {
-        return { ...item, [field]: value };
-      }
-      return item;
-    });
-    
-    setItems(newItems);
-    form.setValue('items', newItems);
-  };
-
-  const calculateTotal = () => {
+  // Calculate subtotal (HT) - sum of all items before tax
+  const calculateSubtotal = () => {
     return items.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity.toString()) || 0;
-      const price = parseFloat(item.pricePerTon.toString()) || 0;
+      const quantity = parseFloat(item.quantity?.toString() || '0');
+      const price = parseFloat(item.pricePerTon?.toString() || '0');
       return sum + (quantity * price);
     }, 0);
+  };
+
+  // Calculate tax amount
+  const calculateTax = () => {
+    return calculateSubtotal() * TAX_RATE;
+  };
+
+  // Calculate total with tax (TTC)
+  const calculateTotalWithTax = () => {
+    return calculateSubtotal() + calculateTax();
+  };
+
+  // Calculate final total with transportation fee
+  const calculateFinalTotal = () => {
+    const transportationFee = parseFloat(form.watch('transportationFee')?.toString() || '0');
+    return calculateTotalWithTax() + transportationFee;
   };
 
   const onSubmit = (data: FormValues) => {
@@ -115,6 +128,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     const itemsWithTotal: SaleItem[] = data.items.map(item => ({
       id: item.id,
       description: item.description,
+      coilRef: item.coilRef || '',
       quantity: item.quantity,
       pricePerTon: item.pricePerTon,
       totalAmount: item.quantity * item.pricePerTon,
@@ -127,6 +141,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       notes: data.notes,
       isInvoiced: sale?.isInvoiced || false,
       invoiceId: sale?.invoiceId,
+      transportationFee: data.transportationFee,
+      taxRate: TAX_RATE,
     };
 
     if (sale) {
@@ -140,6 +156,14 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     if (onSuccess) {
       onSuccess();
     }
+  };
+
+  const handleExportInvoice = () => {
+    toast.info("Invoice PDF export functionality will be implemented soon");
+  };
+
+  const handleExportQuotation = () => {
+    toast.info("Quotation PDF export functionality will be implemented soon");
   };
 
   return (
@@ -205,108 +229,33 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           </div>
 
           {items.map((item, index) => (
-            <div
+            <SaleItemForm
               key={item.id}
-              className="grid grid-cols-1 gap-4 p-4 border rounded-md sm:grid-cols-12"
-            >
-              <div className="sm:col-span-5">
-                <FormField
-                  control={form.control}
-                  name={`items.${index}.description`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          onChange={(e) => {
-                            field.onChange(e);
-                            updateItem(item.id, 'description', e.target.value);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <FormField
-                  control={form.control}
-                  name={`items.${index}.quantity`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Quantity (tons)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          {...field}
-                          onChange={(e) => {
-                            field.onChange(e);
-                            updateItem(
-                              item.id,
-                              'quantity',
-                              e.target.valueAsNumber || 0
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="sm:col-span-3">
-                <FormField
-                  control={form.control}
-                  name={`items.${index}.pricePerTon`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Price per Ton</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          {...field}
-                          onChange={(e) => {
-                            field.onChange(e);
-                            updateItem(
-                              item.id,
-                              'pricePerTon',
-                              e.target.valueAsNumber || 0
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="flex items-end justify-between sm:col-span-2">
-                <div className="text-sm">
-                  <span className="block text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">
-                    ${(item.quantity * item.pricePerTon).toFixed(2)}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive"
-                  onClick={() => removeItem(item.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+              index={index}
+              onRemove={() => removeItem(item.id)}
+              isRemoveDisabled={items.length === 1}
+            />
           ))}
         </div>
+
+        <FormField
+          control={form.control}
+          name="transportationFee"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Transportation Fee (DZD)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...field}
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -325,18 +274,57 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           )}
         />
 
-        <div className="flex items-center justify-end space-x-2 border-t pt-4">
-          <span className="text-muted-foreground">Total:</span>
-          <span className="text-xl font-bold">
-            ${calculateTotal().toFixed(2)}
-          </span>
+        <div className="flex flex-col items-end space-y-2 border-t pt-4">
+          <div className="flex justify-between w-full max-w-xs">
+            <span className="text-muted-foreground">Subtotal (HT):</span>
+            <span className="font-medium">
+              {formatCurrency(calculateSubtotal())}
+            </span>
+          </div>
+          <div className="flex justify-between w-full max-w-xs">
+            <span className="text-muted-foreground">TVA ({TAX_RATE * 100}%):</span>
+            <span className="font-medium">
+              {formatCurrency(calculateTax())}
+            </span>
+          </div>
+          <div className="flex justify-between w-full max-w-xs">
+            <span className="text-muted-foreground">Total (TTC):</span>
+            <span className="font-medium">
+              {formatCurrency(calculateTotalWithTax())}
+            </span>
+          </div>
+          <div className="flex justify-between w-full max-w-xs">
+            <span className="text-muted-foreground">Transportation Fee:</span>
+            <span className="font-medium">
+              {formatCurrency(parseFloat(form.watch('transportationFee')?.toString() || '0'))}
+            </span>
+          </div>
+          <div className="flex justify-between w-full max-w-xs pt-2 border-t">
+            <span className="font-bold">Final Total:</span>
+            <span className="text-xl font-bold">
+              {formatCurrency(calculateFinalTotal())}
+            </span>
+          </div>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" type="button" onClick={onSuccess}>
-            Cancel
-          </Button>
-          <Button type="submit">{sale ? 'Update' : 'Create'} Sale</Button>
+        <div className="flex justify-between items-center pt-2">
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={handleExportQuotation}>
+              <FileText className="mr-2 h-4 w-4" />
+              Export Quotation
+            </Button>
+            <Button type="button" variant="outline" onClick={handleExportInvoice}>
+              <Download className="mr-2 h-4 w-4" />
+              Export Invoice
+            </Button>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button variant="outline" type="button" onClick={onSuccess}>
+              Cancel
+            </Button>
+            <Button type="submit">{sale ? 'Update' : 'Create'} Sale</Button>
+          </div>
         </div>
       </form>
     </Form>

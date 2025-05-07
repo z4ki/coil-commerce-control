@@ -24,12 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Sale } from '../types';
@@ -83,6 +78,14 @@ const Sales = () => {
     return clientNameMatches || clientCompanyMatches;
   });
 
+  const handleExportInvoice = (sale: Sale) => {
+    toast.info("Invoice PDF export functionality will be implemented soon");
+  };
+
+  const handleExportQuotation = (sale: Sale) => {
+    toast.info("Quotation PDF export functionality will be implemented soon");
+  };
+
   return (
     <MainLayout title="Sales">
       <div className="space-y-6">
@@ -122,7 +125,7 @@ const Sales = () => {
                     <TableHead>Items</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-[150px]">Actions</TableHead>
+                    <TableHead className="w-[200px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -195,6 +198,22 @@ const Sales = () => {
                                   )}
                                   <span className="sr-only">Toggle Invoice Status</span>
                                 </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleExportQuotation(sale)}
+                                  title="Export Quotation"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleExportInvoice(sale)}
+                                  title="Export Invoice"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -210,22 +229,77 @@ const Sales = () => {
                                       <TableHeader>
                                         <TableRow>
                                           <TableHead>Description</TableHead>
+                                          <TableHead>Coil Ref</TableHead>
                                           <TableHead>Quantity (tons)</TableHead>
                                           <TableHead>Price/Ton</TableHead>
-                                          <TableHead className="text-right">Total</TableHead>
+                                          <TableHead className="text-right">HT</TableHead>
+                                          <TableHead className="text-right">TTC</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {sale.items.map((item) => (
-                                          <TableRow key={item.id}>
-                                            <TableCell>{item.description}</TableCell>
-                                            <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
+                                        {sale.items.map((item) => {
+                                          const ht = item.totalAmount;
+                                          const ttc = sale.taxRate ? ht * (1 + sale.taxRate) : ht;
+                                          
+                                          return (
+                                            <TableRow key={item.id}>
+                                              <TableCell>{item.description}</TableCell>
+                                              <TableCell>{item.coilRef || '-'}</TableCell>
+                                              <TableCell>{item.quantity}</TableCell>
+                                              <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
+                                              <TableCell className="text-right">
+                                                {formatCurrency(ht)}
+                                              </TableCell>
+                                              <TableCell className="text-right">
+                                                {formatCurrency(ttc)}
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
+                                        
+                                        {/* Summary row */}
+                                        <TableRow className="border-t-2">
+                                          <TableCell colSpan={4} className="font-medium text-right">
+                                            Total:
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium">
+                                            {formatCurrency(sale.items.reduce((sum, item) => sum + item.totalAmount, 0))}
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium">
+                                            {formatCurrency(
+                                              sale.taxRate 
+                                                ? sale.items.reduce((sum, item) => sum + item.totalAmount, 0) * (1 + sale.taxRate)
+                                                : sale.items.reduce((sum, item) => sum + item.totalAmount, 0)
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
+                                        
+                                        {/* Transportation fee row */}
+                                        {sale.transportationFee && sale.transportationFee > 0 && (
+                                          <TableRow>
+                                            <TableCell colSpan={5} className="text-right">
+                                              Transportation Fee:
+                                            </TableCell>
                                             <TableCell className="text-right">
-                                              {formatCurrency(item.totalAmount)}
+                                              {formatCurrency(sale.transportationFee)}
                                             </TableCell>
                                           </TableRow>
-                                        ))}
+                                        )}
+                                        
+                                        {/* Grand total row */}
+                                        <TableRow>
+                                          <TableCell colSpan={5} className="text-right font-bold">
+                                            Grand Total:
+                                          </TableCell>
+                                          <TableCell className="text-right font-bold">
+                                            {formatCurrency(
+                                              (sale.taxRate 
+                                                ? sale.items.reduce((sum, item) => sum + item.totalAmount, 0) * (1 + sale.taxRate)
+                                                : sale.items.reduce((sum, item) => sum + item.totalAmount, 0)
+                                              ) + (sale.transportationFee || 0)
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
                                       </TableBody>
                                     </Table>
                                   </div>

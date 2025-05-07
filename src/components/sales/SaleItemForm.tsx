@@ -9,7 +9,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { SaleItem } from '@/types';
 import { Trash2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
@@ -42,21 +41,37 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         </Button>
       </div>
 
-      <FormField
-        control={control}
-        name={`items.${index}.description`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl>
-              <Input placeholder="PPGI Coil" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+        <FormField
+          control={control}
+          name={`items.${index}.description`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Input placeholder="PPGI Coil" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4">
+        <FormField
+          control={control}
+          name={`items.${index}.coilRef`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Coil Reference</FormLabel>
+              <FormControl>
+                <Input placeholder="Coil ID/Reference" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={control}
           name={`items.${index}.quantity`}
@@ -83,7 +98,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           name={`items.${index}.pricePerTon`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Price per Ton</FormLabel>
+              <FormLabel>Price per Ton (DZD)</FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
@@ -100,8 +115,13 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
       
-      <div className="mt-2 text-right text-sm">
-        <span className="font-medium">Item Total:</span> ${itemTotal.toFixed(2)}
+      <div className="mt-3 flex justify-between">
+        <div className="text-sm">
+          <span className="font-medium">HT (Hors Taxe):</span> {itemTotal.toFixed(2)} DZD
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">TTC (19%):</span> {(itemTotal * 1.19).toFixed(2)} DZD
+        </div>
       </div>
     </div>
   );

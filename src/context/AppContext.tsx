@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -97,8 +98,17 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Sale functions
   const addSale = (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt'>) => {
-    // Calculate total amount from all items
-    const totalAmount = sale.items.reduce((sum, item) => sum + (item.quantity * item.pricePerTon), 0);
+    // Calculate base total amount from all items
+    const itemsTotal = sale.items.reduce((sum, item) => sum + (item.quantity * item.pricePerTon), 0);
+    
+    // Calculate tax if tax rate is provided
+    const taxAmount = sale.taxRate ? itemsTotal * sale.taxRate : 0;
+    
+    // Add transportation fee if provided
+    const transportationFee = sale.transportationFee || 0;
+    
+    // Calculate total amount
+    const totalAmount = itemsTotal + taxAmount + transportationFee;
     
     const newSale = {
       ...sale,
@@ -116,12 +126,22 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         if (s.id === id) {
           const updatedSale = { ...s, ...saleUpdate };
           
-          // Recalculate total amount if items changed
-          if (saleUpdate.items) {
-            updatedSale.totalAmount = saleUpdate.items.reduce(
+          // Recalculate total amount if items or tax-related fields changed
+          if (saleUpdate.items || saleUpdate.taxRate !== undefined || saleUpdate.transportationFee !== undefined) {
+            // Calculate base items total
+            const itemsTotal = (updatedSale.items || []).reduce(
               (sum, item) => sum + (item.quantity * item.pricePerTon), 
               0
             );
+            
+            // Calculate tax amount if tax rate is available
+            const taxAmount = updatedSale.taxRate ? itemsTotal * updatedSale.taxRate : 0;
+            
+            // Add transportation fee
+            const transportationFee = updatedSale.transportationFee || 0;
+            
+            // Update total amount
+            updatedSale.totalAmount = itemsTotal + taxAmount + transportationFee;
           }
           
           return updatedSale;

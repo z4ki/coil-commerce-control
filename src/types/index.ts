@@ -18,6 +18,7 @@ export interface Client {
 export interface SaleItem {
   id: string;
   description: string;
+  coilRef?: string;
   quantity: number; // in tons
   pricePerTon: number;
   totalAmount: number;
@@ -33,6 +34,8 @@ export interface Sale {
   isInvoiced: boolean;
   invoiceId?: string;
   notes?: string;
+  transportationFee?: number;
+  taxRate?: number;
   createdAt: Date;
 }
 

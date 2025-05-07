@@ -3,9 +3,9 @@
  * Format a monetary value to currency format
  */
 export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('fr-DZ', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'DZD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);

@@ -19,6 +19,9 @@ export interface SaleItem {
   id: string;
   description: string;
   coilRef?: string;
+  coilThickness?: number; // thickness in mm
+  coilWidth?: number; // width in mm
+  coilWeight?: number; // weight in kg
   quantity: number; // in tons
   pricePerTon: number;
   totalAmount: number;

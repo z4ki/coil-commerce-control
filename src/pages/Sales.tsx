@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
@@ -230,28 +229,29 @@ const Sales = () => {
                                         <TableRow>
                                           <TableHead>Description</TableHead>
                                           <TableHead>Coil Ref</TableHead>
+                                          <TableHead>Thickness</TableHead>
+                                          <TableHead>Width</TableHead>
+                                          <TableHead>Weight</TableHead>
                                           <TableHead>Quantity (tons)</TableHead>
                                           <TableHead>Price/Ton</TableHead>
-                                          <TableHead className="text-right">HT</TableHead>
-                                          <TableHead className="text-right">TTC</TableHead>
+                                          <TableHead className="text-right">Total</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
                                         {sale.items.map((item) => {
-                                          const ht = item.totalAmount;
-                                          const ttc = sale.taxRate ? ht * (1 + sale.taxRate) : ht;
+                                          const totalPrice = item.totalAmount;
                                           
                                           return (
                                             <TableRow key={item.id}>
                                               <TableCell>{item.description}</TableCell>
                                               <TableCell>{item.coilRef || '-'}</TableCell>
+                                              <TableCell>{item.coilThickness ? `${item.coilThickness} mm` : '-'}</TableCell>
+                                              <TableCell>{item.coilWidth ? `${item.coilWidth} mm` : '-'}</TableCell>
+                                              <TableCell>{item.coilWeight ? `${item.coilWeight} kg` : '-'}</TableCell>
                                               <TableCell>{item.quantity}</TableCell>
                                               <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
                                               <TableCell className="text-right">
-                                                {formatCurrency(ht)}
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                {formatCurrency(ttc)}
+                                                {formatCurrency(totalPrice)}
                                               </TableCell>
                                             </TableRow>
                                           );
@@ -259,25 +259,18 @@ const Sales = () => {
                                         
                                         {/* Summary row */}
                                         <TableRow className="border-t-2">
-                                          <TableCell colSpan={4} className="font-medium text-right">
+                                          <TableCell colSpan={7} className="font-medium text-right">
                                             Total:
                                           </TableCell>
                                           <TableCell className="text-right font-medium">
                                             {formatCurrency(sale.items.reduce((sum, item) => sum + item.totalAmount, 0))}
-                                          </TableCell>
-                                          <TableCell className="text-right font-medium">
-                                            {formatCurrency(
-                                              sale.taxRate 
-                                                ? sale.items.reduce((sum, item) => sum + item.totalAmount, 0) * (1 + sale.taxRate)
-                                                : sale.items.reduce((sum, item) => sum + item.totalAmount, 0)
-                                            )}
                                           </TableCell>
                                         </TableRow>
                                         
                                         {/* Transportation fee row */}
                                         {sale.transportationFee && sale.transportationFee > 0 && (
                                           <TableRow>
-                                            <TableCell colSpan={5} className="text-right">
+                                            <TableCell colSpan={7} className="text-right">
                                               Transportation Fee:
                                             </TableCell>
                                             <TableCell className="text-right">
@@ -288,7 +281,7 @@ const Sales = () => {
                                         
                                         {/* Grand total row */}
                                         <TableRow>
-                                          <TableCell colSpan={5} className="text-right font-bold">
+                                          <TableCell colSpan={7} className="text-right font-bold">
                                             Grand Total:
                                           </TableCell>
                                           <TableCell className="text-right font-bold">

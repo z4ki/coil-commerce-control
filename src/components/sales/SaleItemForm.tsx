@@ -71,6 +71,75 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
 
+      {/* New fields for coil properties */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
+        <FormField
+          control={control}
+          name={`items.${index}.coilThickness`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Thickness (mm)</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="0.5" 
+                  {...field} 
+                  onChange={(e) => {
+                    field.onChange(e.target.valueAsNumber || undefined);
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${index}.coilWidth`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Width (mm)</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  step="1" 
+                  placeholder="1000" 
+                  {...field} 
+                  onChange={(e) => {
+                    field.onChange(e.target.valueAsNumber || undefined);
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${index}.coilWeight`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Weight (kg)</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  step="0.1" 
+                  placeholder="500" 
+                  {...field} 
+                  onChange={(e) => {
+                    field.onChange(e.target.valueAsNumber || undefined);
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={control}

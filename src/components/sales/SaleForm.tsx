@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,6 +38,9 @@ const formSchema = z.object({
     id: z.string(),
     description: z.string().min(1, { message: 'Description is required' }),
     coilRef: z.string().optional(),
+    coilThickness: z.number().optional(),
+    coilWidth: z.number().optional(),
+    coilWeight: z.number().optional(),
     quantity: z.coerce.number().positive({ message: 'Quantity must be positive' }),
     pricePerTon: z.coerce.number().positive({ message: 'Price must be positive' }),
   })).min(1, { message: 'At least one item is required' }),
@@ -60,9 +62,12 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: item.id,
       description: item.description,
       coilRef: item.coilRef || '',
+      coilThickness: item.coilThickness,
+      coilWidth: item.coilWidth,
+      coilWeight: item.coilWeight,
       quantity: item.quantity,
       pricePerTon: item.pricePerTon,
-    })) || [{ id: uuidv4(), description: '', coilRef: '', quantity: 1, pricePerTon: 0 }]
+    })) || [{ id: uuidv4(), description: '', coilRef: '', coilThickness: undefined, coilWidth: undefined, coilWeight: undefined, quantity: 1, pricePerTon: 0 }]
   );
 
   const defaultValues: FormValues = {
@@ -89,7 +94,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const addItem = () => {
     const newItems = [
       ...items,
-      { id: uuidv4(), description: '', coilRef: '', quantity: 1, pricePerTon: 0 },
+      { id: uuidv4(), description: '', coilRef: '', coilThickness: undefined, coilWidth: undefined, coilWeight: undefined, quantity: 1, pricePerTon: 0 },
     ];
     setItems(newItems);
     form.setValue('items', newItems);
@@ -150,6 +155,9 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         id: item.id,
         description: item.description,
         coilRef: item.coilRef || '',
+        coilThickness: item.coilThickness,
+        coilWidth: item.coilWidth,
+        coilWeight: item.coilWeight,
         quantity: item.quantity,
         pricePerTon: item.pricePerTon,
         totalAmount: item.quantity * item.pricePerTon,

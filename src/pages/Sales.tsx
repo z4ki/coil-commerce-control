@@ -231,7 +231,6 @@ const Sales = () => {
                                           <TableHead>Coil Ref</TableHead>
                                           <TableHead>Thickness</TableHead>
                                           <TableHead>Width</TableHead>
-                                          <TableHead>Weight</TableHead>
                                           <TableHead>Quantity (tons)</TableHead>
                                           <TableHead>Price/Ton</TableHead>
                                           <TableHead className="text-right">Total</TableHead>
@@ -247,7 +246,6 @@ const Sales = () => {
                                               <TableCell>{item.coilRef || '-'}</TableCell>
                                               <TableCell>{item.coilThickness ? `${item.coilThickness} mm` : '-'}</TableCell>
                                               <TableCell>{item.coilWidth ? `${item.coilWidth} mm` : '-'}</TableCell>
-                                              <TableCell>{item.coilWeight ? `${item.coilWeight} kg` : '-'}</TableCell>
                                               <TableCell>{item.quantity}</TableCell>
                                               <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
                                               <TableCell className="text-right">

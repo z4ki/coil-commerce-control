@@ -71,8 +71,8 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
 
-      {/* New fields for coil properties */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
+      {/* Coil properties */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
         <FormField
           control={control}
           name={`items.${index}.coilThickness`}
@@ -106,28 +106,6 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   type="number" 
                   step="1" 
                   placeholder="1000" 
-                  {...field} 
-                  onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || undefined);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={control}
-          name={`items.${index}.coilWeight`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Weight (kg)</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  step="0.1" 
-                  placeholder="500" 
                   {...field} 
                   onChange={(e) => {
                     field.onChange(e.target.valueAsNumber || undefined);

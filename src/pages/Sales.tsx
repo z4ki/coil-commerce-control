@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
@@ -231,6 +232,7 @@ const Sales = () => {
                                           <TableHead>Coil Ref</TableHead>
                                           <TableHead>Thickness</TableHead>
                                           <TableHead>Width</TableHead>
+                                          <TableHead>RAL (Top/Back)</TableHead>
                                           <TableHead>Quantity (tons)</TableHead>
                                           <TableHead>Price/Ton</TableHead>
                                           <TableHead className="text-right">Total</TableHead>
@@ -239,6 +241,9 @@ const Sales = () => {
                                       <TableBody>
                                         {sale.items.map((item) => {
                                           const totalPrice = item.totalAmount;
+                                          const ralInfo = item.topCoatRAL || item.backCoatRAL 
+                                            ? `${item.topCoatRAL || '-'}/${item.backCoatRAL || '-'}`
+                                            : '-';
                                           
                                           return (
                                             <TableRow key={item.id}>
@@ -246,6 +251,7 @@ const Sales = () => {
                                               <TableCell>{item.coilRef || '-'}</TableCell>
                                               <TableCell>{item.coilThickness ? `${item.coilThickness} mm` : '-'}</TableCell>
                                               <TableCell>{item.coilWidth ? `${item.coilWidth} mm` : '-'}</TableCell>
+                                              <TableCell>{ralInfo}</TableCell>
                                               <TableCell>{item.quantity}</TableCell>
                                               <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
                                               <TableCell className="text-right">

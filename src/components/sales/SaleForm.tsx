@@ -27,6 +27,7 @@ import { Sale, SaleItem } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { Plus, FileText, Download } from 'lucide-react';
 import SaleItemForm from './SaleItemForm';
+import { generateSalePDF } from '../../utils/pdfService';
 
 // Tax rate constant
 const TAX_RATE = 0.19; // 19%
@@ -40,6 +41,8 @@ const formSchema = z.object({
     coilRef: z.string().optional(),
     coilThickness: z.number().optional(),
     coilWidth: z.number().optional(),
+    topCoatRAL: z.string().optional(),
+    backCoatRAL: z.string().optional(),
     coilWeight: z.number().optional(),
     quantity: z.coerce.number().positive({ message: 'Quantity must be positive' }),
     pricePerTon: z.coerce.number().positive({ message: 'Price must be positive' }),
@@ -56,7 +59,7 @@ interface SaleFormProps {
 }
 
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
-  const { addSale, updateSale, clients } = useAppContext();
+  const { addSale, updateSale, clients, getClientById } = useAppContext();
   const [items, setItems] = useState<any[]>(
     sale?.items.map(item => ({
       id: item.id,
@@ -64,11 +67,25 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       coilRef: item.coilRef || '',
       coilThickness: item.coilThickness,
       coilWidth: item.coilWidth,
+      topCoatRAL: item.topCoatRAL || '',
+      backCoatRAL: item.backCoatRAL || '',
       coilWeight: item.coilWeight,
       quantity: item.quantity,
       pricePerTon: item.pricePerTon,
-    })) || [{ id: uuidv4(), description: '', coilRef: '', coilThickness: undefined, coilWidth: undefined, coilWeight: undefined, quantity: 1, pricePerTon: 0 }]
+    })) || [{ 
+      id: uuidv4(), 
+      description: '', 
+      coilRef: '', 
+      coilThickness: undefined, 
+      coilWidth: undefined,
+      topCoatRAL: '',
+      backCoatRAL: '',
+      coilWeight: undefined,
+      quantity: 1, 
+      pricePerTon: 0 
+    }]
   );
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const defaultValues: FormValues = {
     clientId: sale?.clientId || '',
@@ -94,7 +111,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const addItem = () => {
     const newItems = [
       ...items,
-      { id: uuidv4(), description: '', coilRef: '', coilThickness: undefined, coilWidth: undefined, coilWeight: undefined, quantity: 1, pricePerTon: 0 },
+      { id: uuidv4(), description: '', coilRef: '', coilThickness: undefined, coilWidth: undefined, topCoatRAL: '', backCoatRAL: '', coilWeight: undefined, quantity: 1, pricePerTon: 0 },
     ];
     setItems(newItems);
     form.setValue('items', newItems);
@@ -157,6 +174,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         coilRef: item.coilRef || '',
         coilThickness: item.coilThickness,
         coilWidth: item.coilWidth,
+        topCoatRAL: item.topCoatRAL,
+        backCoatRAL: item.backCoatRAL,
         coilWeight: item.coilWeight,
         quantity: item.quantity,
         pricePerTon: item.pricePerTon,
@@ -194,11 +213,111 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   };
 
   const handleExportInvoice = () => {
-    toast.info("Invoice PDF export functionality will be implemented soon");
+    const formData = form.getValues();
+    if (!formData.clientId) {
+      toast.error('Please select a client first');
+      return;
+    }
+
+    const client = getClientById(formData.clientId);
+    if (!client) {
+      toast.error('Selected client not found');
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+    
+    // Create a temporary sale object for PDF generation
+    const tempSale: Sale = {
+      id: sale?.id || uuidv4(),
+      clientId: formData.clientId,
+      date: parseDateInput(formData.date),
+      items: formData.items.map(item => ({
+        id: item.id,
+        description: item.description,
+        coilRef: item.coilRef,
+        coilThickness: item.coilThickness,
+        coilWidth: item.coilWidth,
+        topCoatRAL: item.topCoatRAL,
+        backCoatRAL: item.backCoatRAL,
+        quantity: item.quantity,
+        pricePerTon: item.pricePerTon,
+        totalAmount: item.quantity * item.pricePerTon,
+      })),
+      totalAmount: calculateSubtotal(),
+      isInvoiced: sale?.isInvoiced || false,
+      notes: formData.notes,
+      transportationFee: formData.transportationFee,
+      taxRate: TAX_RATE,
+      createdAt: sale?.createdAt || new Date(),
+    };
+
+    setTimeout(async () => {
+      try {
+        const doc = await generateSalePDF(tempSale, client, { title: 'FACTURE PROFORMA' });
+        doc.save(`Facture_Proforma_${formatDate(new Date(), 'YYYYMMDD')}.pdf`);
+        toast.success('Invoice PDF downloaded successfully');
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('Error generating PDF. Please try again.');
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 100);
   };
 
   const handleExportQuotation = () => {
-    toast.info("Quotation PDF export functionality will be implemented soon");
+    const formData = form.getValues();
+    if (!formData.clientId) {
+      toast.error('Please select a client first');
+      return;
+    }
+
+    const client = getClientById(formData.clientId);
+    if (!client) {
+      toast.error('Selected client not found');
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+    
+    // Create a temporary sale object for PDF generation
+    const tempSale: Sale = {
+      id: sale?.id || uuidv4(),
+      clientId: formData.clientId,
+      date: parseDateInput(formData.date),
+      items: formData.items.map(item => ({
+        id: item.id,
+        description: item.description,
+        coilRef: item.coilRef,
+        coilThickness: item.coilThickness,
+        coilWidth: item.coilWidth,
+        topCoatRAL: item.topCoatRAL,
+        backCoatRAL: item.backCoatRAL,
+        quantity: item.quantity,
+        pricePerTon: item.pricePerTon,
+        totalAmount: item.quantity * item.pricePerTon,
+      })),
+      totalAmount: calculateSubtotal(),
+      isInvoiced: sale?.isInvoiced || false,
+      notes: formData.notes,
+      transportationFee: formData.transportationFee,
+      taxRate: TAX_RATE,
+      createdAt: sale?.createdAt || new Date(),
+    };
+
+    setTimeout(async () => {
+      try {
+        const doc = await generateSalePDF(tempSale, client);
+        doc.save(`Devis_${formatDate(new Date(), 'YYYYMMDD')}.pdf`);
+        toast.success('Quotation PDF downloaded successfully');
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('Error generating PDF. Please try again.');
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 100);
   };
 
   return (
@@ -344,11 +463,21 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
         <div className="flex justify-between items-center pt-2">
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={handleExportQuotation}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleExportQuotation}
+              disabled={isGeneratingPDF}
+            >
               <FileText className="mr-2 h-4 w-4" />
               Export Quotation
             </Button>
-            <Button type="button" variant="outline" onClick={handleExportInvoice}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleExportInvoice}
+              disabled={isGeneratingPDF}
+            >
               <Download className="mr-2 h-4 w-4" />
               Export Invoice
             </Button>

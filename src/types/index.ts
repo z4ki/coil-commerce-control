@@ -1,3 +1,4 @@
+
 // Client Model
 export interface Client {
   id: string;
@@ -20,6 +21,8 @@ export interface SaleItem {
   coilRef?: string;
   coilThickness?: number; // thickness in mm
   coilWidth?: number; // width in mm
+  topCoatRAL?: string; // top coat RAL color
+  backCoatRAL?: string; // back coat RAL color
   quantity: number; // in tons
   pricePerTon: number;
   totalAmount: number;

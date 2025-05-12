@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import InvoiceForm from '../components/invoices/InvoiceForm';
 import PaymentForm from '../components/invoices/PaymentForm';
 import { toast } from 'sonner';
+import { generateInvoicePDF } from '../utils/pdfService';
 
 const InvoiceDetail = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -33,6 +34,7 @@ const InvoiceDetail = () => {
   const [showEditDialog, setShowEditDialog] = React.useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   const {
     getInvoiceById,
@@ -51,6 +53,7 @@ const InvoiceDetail = () => {
   const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
   const remainingAmount = invoice ? getInvoiceRemainingAmount(invoice.id) : 0;
   const totalPaid = invoice ? invoice.totalAmount - remainingAmount : 0;
+  const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter(Boolean) : [];
   
   const handleDeleteInvoice = () => {
     if (window.confirm('Are you sure you want to delete this invoice?')) {
@@ -84,6 +87,44 @@ const InvoiceDetail = () => {
   const handleEditPayment = (paymentId: string) => {
     setSelectedPaymentId(paymentId);
     setShowPaymentDialog(true);
+  };
+
+  const handlePrintInvoice = () => {
+    if (!invoice || !client) return;
+    
+    setIsGeneratingPDF(true);
+    
+    setTimeout(async () => {
+      try {
+        const doc = await generateInvoicePDF(invoice, client, sales, payments);
+        doc.autoPrint();
+        window.open(doc.output('bloburl'), '_blank');
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('Error generating PDF. Please try again.');
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 100);
+  };
+  
+  const handleDownloadPDF = () => {
+    if (!invoice || !client) return;
+    
+    setIsGeneratingPDF(true);
+    
+    setTimeout(async () => {
+      try {
+        const doc = await generateInvoicePDF(invoice, client, sales, payments);
+        doc.save(`Facture_${invoice.invoiceNumber}.pdf`);
+        toast.success('Invoice PDF downloaded successfully');
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('Error generating PDF. Please try again.');
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 100);
   };
   
   const getPaymentMethodLabel = (method: string) => {
@@ -175,16 +216,23 @@ const InvoiceDetail = () => {
                 <p className="text-sm text-muted-foreground mt-1">{client.email}</p>
                 <p className="text-sm text-muted-foreground">{client.phone}</p>
                 <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{client.address}</p>
+                {client.nif && <p className="text-sm text-muted-foreground">NIF: {client.nif}</p>}
+                {client.nis && <p className="text-sm text-muted-foreground">NIS: {client.nis}</p>}
+                {client.rc && <p className="text-sm text-muted-foreground">RC: {client.rc}</p>}
+                {client.ai && <p className="text-sm text-muted-foreground">AI: {client.ai}</p>}
               </div>
               
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground mb-2">From:</h3>
-                <p className="font-medium">PPGI Coils Manufacturing</p>
-                <p>123 Factory Road</p>
-                <p>Industrial Zone</p>
-                <p>Manufacturing City, 10001</p>
-                <p className="text-sm text-muted-foreground mt-1">contact@ppgicoils.com</p>
-                <p className="text-sm text-muted-foreground">+1 (555) 987-6543</p>
+                <p className="font-medium">Groupe HA</p>
+                <p>123 Zone Industrielle, Alger</p>
+                <p>Algérie</p>
+                <p className="text-sm text-muted-foreground mt-1">contact@groupeha.com</p>
+                <p className="text-sm text-muted-foreground">+213 XX XX XX XX</p>
+                <p className="text-sm text-muted-foreground mt-1">NIF: 12345678901234</p>
+                <p className="text-sm text-muted-foreground">NIS: 98765432109876</p>
+                <p className="text-sm text-muted-foreground">RC: RC-XXXX-XXXX</p>
+                <p className="text-sm text-muted-foreground">AI: AI-XXXX-XXXX</p>
               </div>
             </div>
             
@@ -286,12 +334,12 @@ const InvoiceDetail = () => {
                 <span className="font-medium">{formatCurrency(invoice.totalAmount)}</span>
               </div>
               <div className="flex justify-between w-full max-w-xs">
-                <span className="text-muted-foreground">Tax (0%):</span>
-                <span className="font-medium">{formatCurrency(0)}</span>
+                <span className="text-muted-foreground">Tax (19%):</span>
+                <span className="font-medium">{formatCurrency(invoice.totalAmount * 0.19)}</span>
               </div>
               <div className="flex justify-between w-full max-w-xs pt-2 border-t">
                 <span className="font-medium">Total:</span>
-                <span className="font-bold text-lg">{formatCurrency(invoice.totalAmount)}</span>
+                <span className="font-bold text-lg">{formatCurrency(invoice.totalAmount * 1.19)}</span>
               </div>
               
               <div className="flex justify-between w-full max-w-xs mt-4">
@@ -324,11 +372,21 @@ const InvoiceDetail = () => {
               Thank you for your business!
             </p>
             <div className="flex space-x-2">
-              <Button size="sm" variant="outline">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handlePrintInvoice}
+                disabled={isGeneratingPDF}
+              >
                 <Printer className="mr-2 h-4 w-4" />
                 Print
               </Button>
-              <Button size="sm" variant="outline">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleDownloadPDF}
+                disabled={isGeneratingPDF}
+              >
                 <Download className="mr-2 h-4 w-4" />
                 Download PDF
               </Button>

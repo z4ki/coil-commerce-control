@@ -9,7 +9,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Trash2 } from 'lucide-react';
+import { Trash2, RefreshCw } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
 interface SaleItemFormProps {
@@ -19,12 +19,33 @@ interface SaleItemFormProps {
 }
 
 const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) => {
-  const { control, watch } = useFormContext();
+  const { control, watch, setValue } = useFormContext();
   
   // Calculate total for this item
   const quantity = watch(`items.${index}.quantity`) || 0;
   const pricePerTon = watch(`items.${index}.pricePerTon`) || 0;
   const itemTotal = quantity * pricePerTon;
+  
+  // Generate a description based on the provided values
+  const generateDescription = () => {
+    const thickness = watch(`items.${index}.coilThickness`);
+    const width = watch(`items.${index}.coilWidth`);
+    const topRal = watch(`items.${index}.topCoatRAL`);
+    const backRal = watch(`items.${index}.backCoatRAL`);
+    
+    if (thickness && width) {
+      let description = `BOBINES D'ACIER PRELAQUE ${thickness}*${width}`;
+      
+      if (topRal || backRal) {
+        description += ` RAL ${topRal || 'X'}/${backRal || 'Y'}`;
+      }
+      
+      setValue(`items.${index}.description`, description);
+    } else {
+      // Not enough information to generate description
+      setValue(`items.${index}.description`, "BOBINES D'ACIER PRELAQUE");
+    }
+  };
   
   return (
     <div className="p-4 border rounded-md mb-4 bg-muted/30">
@@ -41,21 +62,37 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
-        <FormField
-          control={control}
-          name={`items.${index}.description`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Input placeholder="PPGI Coil" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <div className="flex gap-2 items-end mb-4">
+        <div className="flex-1">
+          <FormField
+            control={control}
+            name={`items.${index}.description`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Input placeholder="BOBINES D'ACIER PRELAQUE" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={generateDescription}
+            className="mb-0.5"
+            title="Auto-generate description"
+          >
+            <RefreshCw className="h-4 w-4 mr-1" /> Auto
+          </Button>
+        </div>
+      </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
         <FormField
           control={control}
           name={`items.${index}.coilRef`}
@@ -106,11 +143,42 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   type="number" 
                   step="1" 
                   placeholder="1000" 
-                  {...field} 
-                  onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || undefined);
-                  }}
+                   {...field} 
+                   onChange={(e) => {
+                     field.onChange(e.target.valueAsNumber || undefined);
+                   }}
                 />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      {/* RAL Colors */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+        <FormField
+          control={control}
+          name={`items.${index}.topCoatRAL`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Top Coat RAL</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. 9010" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${index}.backCoatRAL`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Back Coat RAL</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. 9002" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

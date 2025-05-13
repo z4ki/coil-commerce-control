@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatDateInput, parseDateInput, formatCurrency } from '../../utils/format';
+import { formatDateInput, parseDateInput, formatCurrency, formatDate } from '../../utils/format';
 import { toast } from 'sonner';
 import { Sale, SaleItem } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -240,6 +240,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         coilWidth: item.coilWidth,
         topCoatRAL: item.topCoatRAL,
         backCoatRAL: item.backCoatRAL,
+        coilWeight: item.coilWeight,
         quantity: item.quantity,
         pricePerTon: item.pricePerTon,
         totalAmount: item.quantity * item.pricePerTon,
@@ -255,7 +256,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     setTimeout(async () => {
       try {
         const doc = await generateSalePDF(tempSale, client, { title: 'FACTURE PROFORMA' });
-        doc.save(`Facture_Proforma_${formatDate(new Date(), 'YYYYMMDD')}.pdf`);
+        doc.save(`Facture_Proforma_${formatDate(new Date())}.pdf`);
         toast.success('Invoice PDF downloaded successfully');
       } catch (error) {
         console.error('Error generating PDF:', error);
@@ -294,6 +295,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         coilWidth: item.coilWidth,
         topCoatRAL: item.topCoatRAL,
         backCoatRAL: item.backCoatRAL,
+        coilWeight: item.coilWeight,
         quantity: item.quantity,
         pricePerTon: item.pricePerTon,
         totalAmount: item.quantity * item.pricePerTon,
@@ -309,7 +311,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     setTimeout(async () => {
       try {
         const doc = await generateSalePDF(tempSale, client);
-        doc.save(`Devis_${formatDate(new Date(), 'YYYYMMDD')}.pdf`);
+        doc.save(`Devis_${formatDate(new Date())}.pdf`);
         toast.success('Quotation PDF downloaded successfully');
       } catch (error) {
         console.error('Error generating PDF:', error);

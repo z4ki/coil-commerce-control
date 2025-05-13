@@ -1,101 +1,98 @@
 
-// Client Model
+// Define the type for a business client
 export interface Client {
   id: string;
   name: string;
-  company: string; // maps to company_name in DB
-  email: string; // maps to contact_email in DB
-  phone: string; // maps to contact_phone in DB
+  company: string;
+  email: string;
+  phone: string;
   address: string;
-  nif?: string;
-  nis?: string;
-  rc?: string;
-  ai?: string;
-  createdAt: Date; // maps to created_at in DB
+  notes?: string;
+  nif?: string; // Numéro d'Identification Fiscale
+  nis?: string; // Numéro d'Identification Statistique
+  rc?: string;  // Registre du Commerce
+  ai?: string;  // Article d'Imposition
+  createdAt: Date;
+  updatedAt?: Date;
 }
 
-// Article in a Sale
+// Define the type for a sale item (materials sold)
 export interface SaleItem {
   id: string;
   description: string;
-  coilRef?: string;
-  coilThickness?: number; // thickness in mm
-  coilWidth?: number; // width in mm
-  topCoatRAL?: string; // top coat RAL color
-  backCoatRAL?: string; // back coat RAL color
-  quantity: number; // in tons
+  coilRef?: string; // Coil reference number
+  coilThickness?: number; // Thickness in mm
+  coilWidth?: number; // Width in mm
+  topCoatRAL?: string; // RAL color code for top coat
+  backCoatRAL?: string; // RAL color code for back coat
+  coilWeight?: number; // Weight of the coil
+  quantity: number; // In tons
   pricePerTon: number;
   totalAmount: number;
 }
 
-// Sale Model
+// Define the type for a sale
 export interface Sale {
   id: string;
   clientId: string;
-  date: Date; // maps to sale_date in DB
+  date: Date;
   items: SaleItem[];
   totalAmount: number;
   isInvoiced: boolean;
   invoiceId?: string;
   notes?: string;
   transportationFee?: number;
-  taxRate?: number;
+  taxRate: number;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
-// Invoice Model
+// Define the type for an invoice
 export interface Invoice {
   id: string;
   invoiceNumber: string;
   clientId: string;
-  date: Date; // maps to issue_date in DB
+  date: Date;
   dueDate: Date;
+  salesIds: string[];
   totalAmount: number;
   isPaid: boolean;
   paidAt?: Date;
-  salesIds: string[];
   createdAt: Date;
+  updatedAt?: Date;
 }
 
-// Payment Model
+// Define the type for a payment
 export interface Payment {
   id: string;
   invoiceId: string;
-  date: Date; // maps to payment_date in DB
-  amount: number; // maps to amount_paid in DB
-  method: string; // maps to payment_method in DB
+  date: Date;
+  amount: number;
+  method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
   notes?: string;
+  createdAt: Date;
+  updatedAt?: Date;
 }
 
-// Dashboard Summary Types
-export interface SalesSummary {
+// Define the type for dashboard stats
+export interface DashboardStats {
   totalSales: number;
-  monthlySales: { month: string; amount: number }[];
-  invoicedSales: number;
-  uninvoicedSales: number;
+  totalInvoices: number;
+  paidInvoices: number;
+  unpaidInvoices: number;
+  overdueInvoices: number;
+  totalRevenue: number;
+  revenueCollected: number;
+  outstandingAmount: number;
 }
 
-export interface DebtSummary {
-  totalDebt: number;
-  overdueDebt: number;
-  upcomingDebt: number;
-  debtByClient: { clientId: string; clientName: string; amount: number }[];
+// Define the type for application settings
+export interface AppSettings {
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyEmail: string;
+  companyLogo?: string;
+  taxRate: number;
+  currency: string;
 }
-
-// Filter types
-export interface DateRangeFilter {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-export interface ClientFilter {
-  clientId?: string;
-}
-
-export interface StatusFilter {
-  isInvoiced?: boolean;
-  isPaid?: boolean;
-}
-
-export type SalesFilter = DateRangeFilter & ClientFilter & StatusFilter;
-export type InvoiceFilter = DateRangeFilter & ClientFilter & { isPaid?: boolean };

@@ -1,4 +1,3 @@
-
 /**
  * Format a monetary value to currency format
  */
@@ -14,7 +13,17 @@ export const formatCurrency = (amount: number): string => {
 /**
  * Format a date to a readable string
  */
-export const formatDate = (date: Date): string => {
+export const formatDate = (date: Date, format?: string): string => {
+  // If format is provided and is 'YYYYMMDD', use a custom format
+  if (format === 'YYYYMMDD') {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+  }
+  
+  // Otherwise use the default format
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',

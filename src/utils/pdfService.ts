@@ -1,8 +1,7 @@
-
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { formatCurrency, formatDate } from './format';
-import { Invoice, Sale, Client, SaleItem, Payment } from '../types';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import { Client, Invoice, Sale, SaleItem, Payment } from '../types';
+import { getSettings } from '../services/settingsService';
 
 // Company info (could be moved to a settings object/context in the future)
 const companyInfo = {

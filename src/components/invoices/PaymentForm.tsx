@@ -23,7 +23,9 @@ import { Payment } from '../../types';
 const formSchema = z.object({
   date: z.string().min(1, { message: 'Date is required' }),
   amount: z.coerce.number().positive({ message: 'Amount must be positive' }),
-  method: z.string().min(1, { message: 'Payment method is required' }),
+  method: z.enum(['cash', 'bank_transfer', 'check', 'credit_card'], {
+    required_error: 'Payment method is required',
+  }),
   notes: z.string().optional(),
 });
 

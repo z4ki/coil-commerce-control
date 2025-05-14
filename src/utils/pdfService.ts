@@ -1,7 +1,22 @@
+
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Client, Invoice, Sale, SaleItem, Payment } from '../types';
 import { getSettings } from '../services/settingsService';
+import { formatCurrency, formatDate } from './format';
+
+// Add autoTable type to jsPDF
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+    lastAutoTable: any;
+  }
+}
+
+// Helper function for autoTable
+const autoTable = (doc: jsPDF, options: any) => {
+  return doc.autoTable(options);
+};
 
 // Company info (could be moved to a settings object/context in the future)
 const companyInfo = {

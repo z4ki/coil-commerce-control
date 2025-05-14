@@ -1,5 +1,4 @@
 
-
 // Define the type for a business client
 export interface Client {
   id: string;
@@ -155,4 +154,3 @@ export interface AuthContextType {
   signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
-

@@ -66,7 +66,7 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
       date: parseDateInput(data.date),
       amount: data.amount,
       method: data.method,
-      notes: data.notes,
+      notes: data.notes || '',
     };
     
     if (payment) {

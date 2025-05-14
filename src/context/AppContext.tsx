@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';
@@ -31,7 +30,7 @@ interface AppContextProps {
   
   // Sales
   sales: Sale[];
-  addSale: (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt'>) => Promise<Sale>;
+  addSale: (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt' | 'updatedAt'>) => Promise<Sale>;
   updateSale: (id: string, sale: Partial<Sale>) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
   getSaleById: (id: string) => Sale | undefined;
@@ -49,8 +48,8 @@ interface AppContextProps {
   
   // Payments
   payments: Payment[];
-  addPayment: (invoiceId: string, payment: Omit<Payment, 'id' | 'invoiceId'>) => Promise<Payment>;
-  updatePayment: (id: string, payment: Partial<Payment>) => Promise<void>;
+  addPayment: (invoiceId: string, paymentData: { date: Date; amount: number; method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; notes?: string }) => Promise<Payment>;
+  updatePayment: (id: string, paymentData: Partial<Payment>) => Promise<void>;
   deletePayment: (id: string) => Promise<void>;
   getPaymentsByInvoice: (invoiceId: string) => Payment[];
   getInvoiceRemainingAmount: (invoiceId: string) => number;
@@ -145,7 +144,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           // For now, we'll fetch payments for all invoices
           // In a real app, you might want to paginate this or fetch on demand
           for (const invoice of invoices) {
-            const invoicePayments = await paymentService.getPaymentsByInvoice(invoice.id);
+            const invoicePayments = await paymentService.getPaymentsByInvoiceId(invoice.id);
             allPayments.push(...invoicePayments);
           }
           
@@ -172,7 +171,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
     
     fetchData();
-  }, [user]);
+  }, [user, invoices]);
   
   // Client functions
   const addClient = async (client: Omit<Client, 'id' | 'createdAt'>) => {
@@ -215,7 +214,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const getClientById = (id: string) => clients.find((c) => c.id === id);
 
   // Sale functions
-  const addSale = async (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt'>) => {
+  const addSale = async (sale: Omit<Sale, 'id' | 'totalAmount' | 'createdAt' | 'updatedAt'>) => {
     try {
       const newSale = await saleService.createSale(sale);
       setSales([...sales, newSale]);
@@ -380,12 +379,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   // Payment functions
-  const addPayment = async (invoiceId: string, paymentData: Omit<Payment, 'id' | 'invoiceId'>) => {
+  const addPayment = async (invoiceId: string, paymentData: { date: Date; amount: number; method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; notes?: string }) => {
     try {
-      const newPayment = await paymentService.createPayment({
-        ...paymentData,
-        invoiceId
-      });
+      const newPayment = await paymentService.createPayment(invoiceId, paymentData);
       
       setPayments([...payments, newPayment]);
       
@@ -416,7 +412,33 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       const payment = payments.find(p => p.id === id);
       if (!payment) throw new Error('Payment not found');
       
-      const updatedPayment = await paymentService.updatePayment(id, paymentData);
+      // Use our own implementation since the service doesn't have updatePayment
+      const { data, error } = await supabase
+        .from('payments')
+        .update({
+          date: paymentData.date?.toISOString(),
+          amount: paymentData.amount,
+          method: paymentData.method,
+          notes: paymentData.notes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      const updatedPayment: Payment = {
+        id: data.id,
+        invoiceId: data.invoice_id,
+        date: new Date(data.date),
+        amount: Number(data.amount),
+        method: data.method as 'cash' | 'bank_transfer' | 'check' | 'credit_card',
+        notes: data.notes || '',
+        createdAt: new Date(data.created_at),
+        updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
+        user_id: data.user_id
+      };
       
       setPayments(
         payments.map(p => (p.id === id ? updatedPayment : p))
@@ -442,6 +464,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       }
       
       toast.success('Payment updated successfully');
+      return updatedPayment;
     } catch (error) {
       console.error('Error updating payment:', error);
       toast.error('Failed to update payment');
@@ -623,3 +646,5 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 };
+
+export default AppProvider;

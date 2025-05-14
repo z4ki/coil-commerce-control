@@ -30,36 +30,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               .single();
             
             if (error) {
-              if (error.code === 'PGRST116') {
-                console.log('Profile not found, creating one');
-                // Create a profile if it doesn't exist
-                const { data: newProfile, error: insertError } = await supabase
-                  .from('profiles')
-                  .insert({
-                    id: session.user.id,
-                    email: session.user.email,
-                    first_name: session.user.user_metadata.first_name || '',
-                    last_name: session.user.user_metadata.last_name || ''
-                  })
-                  .select()
-                  .single();
-                
-                if (insertError) {
-                  console.error('Error creating profile:', insertError);
-                  toast.error('Error setting up your profile');
-                } else {
-                  setUser({
-                    id: newProfile.id,
-                    email: newProfile.email,
-                    first_name: newProfile.first_name || '',
-                    last_name: newProfile.last_name || '',
-                    avatar_url: newProfile.avatar_url || ''
-                  });
-                }
-              } else {
-                console.error('Error fetching profile:', error);
-                toast.error('Error retrieving your profile');
-              }
+              console.error('Error fetching profile:', error);
+              toast.error('Error retrieving your profile');
+              setUser(null);
             } else if (profile) {
               setUser({
                 id: profile.id,
@@ -94,36 +67,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .single();
           
           if (error) {
-            if (error.code === 'PGRST116') {
-              // Profile not found, create one
-              const { data: newProfile, error: insertError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: session.user.id,
-                  email: session.user.email,
-                  first_name: session.user.user_metadata.first_name || '',
-                  last_name: session.user.user_metadata.last_name || ''
-                })
-                .select()
-                .single();
-              
-              if (insertError) {
-                console.error('Error creating profile:', insertError);
-                toast.error('Error setting up your profile');
-                setUser(null);
-              } else {
-                setUser({
-                  id: newProfile.id,
-                  email: newProfile.email,
-                  first_name: newProfile.first_name || '',
-                  last_name: newProfile.last_name || '',
-                  avatar_url: newProfile.avatar_url || ''
-                });
-              }
-            } else {
-              console.error('Error fetching profile:', error);
-              setUser(null);
-            }
+            console.error('Error fetching profile:', error);
+            toast.error('Error retrieving your profile');
+            setUser(null);
           } else if (profile) {
             setUser({
               id: profile.id,

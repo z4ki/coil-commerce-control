@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Invoice, InvoiceFilter } from '@/types';
 import { formatDateInput, generateInvoiceNumber } from '@/utils/format';
@@ -12,7 +11,6 @@ export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> =>
     let query = supabase
       .from('invoices')
       .select('*')
-      .eq('user_id', user.id)
       .order('date', { ascending: false });
     
     // Apply filters if provided
@@ -52,8 +50,7 @@ export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> =>
       isPaid: item.is_paid,
       paidAt: item.paid_at ? new Date(item.paid_at) : undefined,
       createdAt: new Date(item.created_at),
-      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
-      user_id: item.user_id
+      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined
     }));
   } catch (error) {
     console.error('Error in getInvoices:', error);
@@ -111,8 +108,7 @@ export const getInvoiceById = async (id: string): Promise<Invoice | null> => {
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
-      user_id: data.user_id
+      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
     };
   } catch (error) {
     console.error('Error in getInvoiceById:', error);
@@ -141,8 +137,7 @@ export const createInvoice = async (
         due_date: invoice.dueDate.toISOString(),
         total_amount: invoice.totalAmount,
         is_paid: invoice.isPaid,
-        paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null,
-        user_id: user.id
+        paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
       })
       .select()
       .single();
@@ -180,8 +175,7 @@ export const createInvoice = async (
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
-      user_id: data.user_id
+      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
     };
   } catch (error) {
     console.error('Error in createInvoice:', error);
@@ -198,7 +192,19 @@ export const updateInvoice = async (
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
     
-    const updateData: any = {};
+    interface UpdateData {
+      client_id?: string;
+      date?: string;
+      due_date?: string;
+      total_amount?: number;
+      is_paid?: boolean;
+      paid_at?: string | null;
+      updated_at: string;
+    }
+    
+    const updateData: UpdateData = {
+      updated_at: new Date().toISOString()
+    };
     
     if (invoice.clientId !== undefined) updateData.client_id = invoice.clientId;
     if (invoice.date !== undefined) updateData.date = invoice.date.toISOString();
@@ -206,14 +212,12 @@ export const updateInvoice = async (
     if (invoice.totalAmount !== undefined) updateData.total_amount = invoice.totalAmount;
     if (invoice.isPaid !== undefined) updateData.is_paid = invoice.isPaid;
     if (invoice.paidAt !== undefined) updateData.paid_at = invoice.paidAt ? invoice.paidAt.toISOString() : null;
-    updateData.updated_at = new Date().toISOString();
     
     // Update invoice
     const { data, error } = await supabase
       .from('invoices')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id)
       .select()
       .single();
     
@@ -267,8 +271,7 @@ export const updateInvoice = async (
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
-      user_id: data.user_id
+      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
     };
   } catch (error) {
     console.error('Error in updateInvoice:', error);
@@ -285,8 +288,7 @@ export const deleteInvoice = async (id: string): Promise<void> => {
     const { error } = await supabase
       .from('invoices')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
     
     if (error) {
       console.error('Error deleting invoice:', error);

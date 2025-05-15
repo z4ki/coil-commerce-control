@@ -1,9 +1,22 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Sale, SaleItem, SalesFilter } from '@/types';
 
+interface DbSale {
+  id: string;
+  client_id: string;
+  date: string;
+  total_amount: number;
+  is_invoiced: boolean;
+  invoice_id?: string;
+  notes?: string;
+  transportation_fee?: number;
+  tax_rate?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
 // Helper to convert database sale data to our application Sale type
-const mapDbSaleToSale = async (dbSale: any): Promise<Sale> => {
+const mapDbSaleToSale = async (dbSale: DbSale): Promise<Sale> => {
   // Fetch the sale items for this sale
   const { data: saleItems, error: saleItemsError } = await supabase
     .from('sale_items')
@@ -43,8 +56,7 @@ const mapDbSaleToSale = async (dbSale: any): Promise<Sale> => {
     transportationFee: dbSale.transportation_fee,
     taxRate: dbSale.tax_rate,
     createdAt: new Date(dbSale.created_at),
-    updatedAt: dbSale.updated_at ? new Date(dbSale.updated_at) : undefined,
-    user_id: dbSale.user_id
+    updatedAt: dbSale.updated_at ? new Date(dbSale.updated_at) : undefined
   };
 };
 
@@ -185,7 +197,18 @@ export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedA
 
 export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Sale> => {
   // First update the sale record
-  const updateData: any = {
+  interface UpdateData {
+    client_id?: string;
+    date?: string;
+    is_invoiced?: boolean;
+    invoice_id?: string;
+    notes?: string;
+    transportation_fee?: number;
+    tax_rate?: number;
+    updated_at: string;
+  }
+
+  const updateData: UpdateData = {
     updated_at: new Date().toISOString()
   };
   
@@ -207,19 +230,20 @@ export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'cr
     throw updateError;
   }
   
-  // If there are updated items, handle them
+  // If items are being updated, handle them
   if (sale.items) {
-    // Delete existing items and insert new ones
+    // First delete existing items
     const { error: deleteError } = await supabase
       .from('sale_items')
       .delete()
       .eq('sale_id', id);
     
     if (deleteError) {
-      console.error('Error deleting sale items:', deleteError);
+      console.error('Error deleting existing sale items:', deleteError);
       throw deleteError;
     }
     
+    // Then insert new items
     const saleItems = sale.items.map(item => ({
       sale_id: id,
       description: item.description,
@@ -234,19 +258,17 @@ export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'cr
       total_amount: item.quantity * item.pricePerTon
     }));
     
-    if (saleItems.length > 0) {
-      const { error: insertError } = await supabase
-        .from('sale_items')
-        .insert(saleItems);
-      
-      if (insertError) {
-        console.error('Error inserting updated sale items:', insertError);
-        throw insertError;
-      }
+    const { error: itemsError } = await supabase
+      .from('sale_items')
+      .insert(saleItems);
+    
+    if (itemsError) {
+      console.error('Error creating new sale items:', itemsError);
+      throw itemsError;
     }
   }
   
-  // Get the updated sale with its calculated total
+  // Get the updated sale
   return await getSaleById(id) as Sale;
 };
 

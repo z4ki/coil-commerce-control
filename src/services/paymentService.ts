@@ -1,6 +1,16 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Payment } from '@/types';
+
+interface DbPayment {
+  id: string;
+  invoice_id: string;
+  date: string;
+  amount: number;
+  method: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
 
 export const getPaymentsByInvoiceId = async (invoiceId: string): Promise<Payment[]> => {
   try {
@@ -23,8 +33,7 @@ export const getPaymentsByInvoiceId = async (invoiceId: string): Promise<Payment
       method: item.method as 'cash' | 'bank_transfer' | 'check' | 'credit_card',
       notes: item.notes || '',
       createdAt: new Date(item.created_at),
-      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
-      user_id: item.user_id
+      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined
     }));
   } catch (error) {
     console.error('Error in getPaymentsByInvoiceId:', error);
@@ -37,10 +46,6 @@ export const createPayment = async (
   payment: { date: Date; amount: number; method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; notes?: string }
 ): Promise<Payment> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
     const { data, error } = await supabase
       .from('payments')
       .insert({
@@ -48,8 +53,7 @@ export const createPayment = async (
         date: payment.date.toISOString(),
         amount: payment.amount,
         method: payment.method,
-        notes: payment.notes,
-        user_id: user.id
+        notes: payment.notes
       })
       .select()
       .single();
@@ -67,8 +71,7 @@ export const createPayment = async (
       method: data.method as 'cash' | 'bank_transfer' | 'check' | 'credit_card',
       notes: data.notes || '',
       createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
-      user_id: data.user_id
+      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
     };
   } catch (error) {
     console.error('Error in createPayment:', error);
@@ -81,22 +84,27 @@ export const updatePayment = async (
   payment: Partial<{ date: Date; amount: number; method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; notes?: string }>
 ): Promise<Payment> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
-    const updateData: any = {};
+    interface UpdateData {
+      date?: string;
+      amount?: number;
+      method?: string;
+      notes?: string;
+      updated_at: string;
+    }
+
+    const updateData: UpdateData = {
+      updated_at: new Date().toISOString()
+    };
+
     if (payment.date) updateData.date = payment.date.toISOString();
     if (payment.amount !== undefined) updateData.amount = payment.amount;
     if (payment.method) updateData.method = payment.method;
     if (payment.notes !== undefined) updateData.notes = payment.notes;
-    updateData.updated_at = new Date().toISOString();
     
     const { data, error } = await supabase
       .from('payments')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id)
       .select()
       .single();
     
@@ -113,8 +121,7 @@ export const updatePayment = async (
       method: data.method as 'cash' | 'bank_transfer' | 'check' | 'credit_card',
       notes: data.notes || '',
       createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined,
-      user_id: data.user_id
+      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
     };
   } catch (error) {
     console.error('Error in updatePayment:', error);
@@ -124,15 +131,10 @@ export const updatePayment = async (
 
 export const deletePayment = async (id: string): Promise<void> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
     const { error } = await supabase
       .from('payments')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
     
     if (error) {
       console.error('Error deleting payment:', error);

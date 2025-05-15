@@ -63,7 +63,6 @@ const Settings = () => {
                     defaultValue="en"
                   >
                     <option value="en">English</option>
-                    <option value="es">Spanish</option>
                     <option value="fr">French</option>
                   </select>
                 </div>
@@ -76,8 +75,7 @@ const Settings = () => {
                     defaultValue="usd"
                   >
                     <option value="usd">USD ($)</option>
-                    <option value="eur">EUR (€)</option>
-                    <option value="gbp">GBP (£)</option>
+                    
                   </select>
                 </div>
                 

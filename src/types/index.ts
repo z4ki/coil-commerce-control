@@ -1,4 +1,3 @@
-
 // Define the type for a business client
 export interface Client {
   id: string;
@@ -14,7 +13,6 @@ export interface Client {
   ai?: string;  // Article d'Imposition
   createdAt: Date;
   updatedAt?: Date;
-  user_id?: string; // Added for Supabase
 }
 
 // Define the type for a sale item (materials sold)
@@ -30,7 +28,7 @@ export interface SaleItem {
   quantity: number; // In tons
   pricePerTon: number;
   totalAmount: number;
-  sale_id?: string; // Added for Supabase
+  sale_id?: string;
 }
 
 // Define the type for a sale
@@ -47,7 +45,6 @@ export interface Sale {
   taxRate: number;
   createdAt: Date;
   updatedAt?: Date;
-  user_id?: string; // Added for Supabase
 }
 
 // Define the type for an invoice
@@ -63,7 +60,6 @@ export interface Invoice {
   paidAt?: Date;
   createdAt: Date;
   updatedAt?: Date;
-  user_id?: string; // Added for Supabase
 }
 
 // Define the type for a payment
@@ -76,7 +72,6 @@ export interface Payment {
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
-  user_id?: string; // Added for Supabase
 }
 
 // Define the type for dashboard stats
@@ -93,7 +88,7 @@ export interface DashboardStats {
 
 // Define the type for application settings
 export interface AppSettings {
-  id?: string; // Added for Supabase
+  id?: string;
   companyName: string;
   companyAddress: string;
   companyPhone: string;
@@ -105,7 +100,6 @@ export interface AppSettings {
   nis?: string;
   rc?: string;
   ai?: string;
-  user_id?: string; // Added for Supabase
 }
 
 // Added missing types that were referenced in the code
@@ -135,22 +129,4 @@ export interface InvoiceFilter {
   isPaid?: boolean;
   startDate?: Date;
   endDate?: Date;
-}
-
-// Type for the Supabase user and session
-export interface UserProfile {
-  id: string;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-  avatar_url?: string;
-}
-
-// Type for the authentication context
-export interface AuthContextType {
-  user: UserProfile | null;
-  loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
-  signOut: () => Promise<void>;
 }

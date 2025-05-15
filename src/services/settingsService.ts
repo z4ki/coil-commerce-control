@@ -1,18 +1,27 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { AppSettings } from '@/types';
 
+interface DbSettings {
+  id: string;
+  company_name: string;
+  company_address: string;
+  company_phone: string;
+  company_email: string;
+  company_logo: string | null;
+  tax_rate: number;
+  currency: string;
+  nif: string | null;
+  nis: string | null;
+  rc: string | null;
+  ai: string | null;
+}
+
 export const getSettings = async (): Promise<AppSettings | null> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    
-    // Fetch settings for the current user
+    // Fetch settings
     const { data, error } = await supabase
       .from('settings')
       .select('*')
-      .eq('user_id', user.id)
       .single();
     
     if (error) {
@@ -69,21 +78,34 @@ export const updateSettings = async (settings: Partial<AppSettings>): Promise<Ap
   }
 };
 
-// Create default settings for new user
+// Helper function to map database fields to AppSettings type
+const mapSettingsFromDb = (data: DbSettings): AppSettings => {
+  return {
+    id: data.id,
+    companyName: data.company_name,
+    companyAddress: data.company_address,
+    companyPhone: data.company_phone,
+    companyEmail: data.company_email,
+    companyLogo: data.company_logo,
+    taxRate: data.tax_rate,
+    currency: data.currency,
+    nif: data.nif,
+    nis: data.nis,
+    rc: data.rc,
+    ai: data.ai
+  };
+};
+
+// Create default settings
 const createDefaultSettings = async (): Promise<AppSettings> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
     const defaultSettings = {
       company_name: 'My Company',
       company_address: 'Company Address',
       company_phone: 'Phone Number',
-      company_email: user.email || 'company@example.com',
+      company_email: 'company@example.com',
       tax_rate: 0.19,
-      currency: 'DZD',
-      user_id: user.id
+      currency: 'DZD'
     };
     
     const { data, error } = await supabase
@@ -102,23 +124,4 @@ const createDefaultSettings = async (): Promise<AppSettings> => {
     console.error('Error in createDefaultSettings:', error);
     throw error;
   }
-};
-
-// Helper function to map database settings to AppSettings type
-const mapSettingsFromDb = (data: any): AppSettings => {
-  return {
-    id: data.id,
-    companyName: data.company_name,
-    companyAddress: data.company_address,
-    companyPhone: data.company_phone,
-    companyEmail: data.company_email,
-    companyLogo: data.company_logo,
-    taxRate: data.tax_rate,
-    currency: data.currency,
-    nif: data.nif,
-    nis: data.nis,
-    rc: data.rc,
-    ai: data.ai,
-    user_id: data.user_id
-  };
 };

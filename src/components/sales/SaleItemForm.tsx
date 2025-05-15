@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -143,10 +142,10 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   type="number" 
                   step="1" 
                   placeholder="1000" 
-                   {...field} 
-                   onChange={(e) => {
-                     field.onChange(e.target.valueAsNumber || undefined);
-                   }}
+                  {...field} 
+                  onChange={(e) => {
+                    field.onChange(e.target.valueAsNumber || undefined);
+                  }}
                 />
               </FormControl>
               <FormMessage />
@@ -186,6 +185,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
 
+      {/* Quantity and Price */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={control}
@@ -197,9 +197,10 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                 <Input 
                   type="number" 
                   step="0.01" 
+                  placeholder="1.0" 
                   {...field} 
                   onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || 0);
+                    field.onChange(e.target.valueAsNumber || undefined);
                   }}
                 />
               </FormControl>
@@ -213,14 +214,15 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           name={`items.${index}.pricePerTon`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Price per Ton (DZD)</FormLabel>
+              <FormLabel>Price per Ton</FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
                   step="0.01" 
+                  placeholder="0.00" 
                   {...field} 
                   onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || 0);
+                    field.onChange(e.target.valueAsNumber || undefined);
                   }}
                 />
               </FormControl>
@@ -229,11 +231,11 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           )}
         />
       </div>
-      
-      <div className="mt-3 flex justify-between">
-        <div className="text-sm">
-          <span className="font-medium">Item Total:</span> {itemTotal.toFixed(2)} DZD
-        </div>
+
+      {/* Item Total */}
+      <div className="mt-4 text-right">
+        <span className="text-sm font-medium">Item Total: </span>
+        <span className="text-sm">{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(itemTotal)}</span>
       </div>
     </div>
   );

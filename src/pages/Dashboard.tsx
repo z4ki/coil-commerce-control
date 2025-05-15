@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import DataCard from '../components/ui/DataCard';
@@ -7,6 +6,54 @@ import { BarChart2, DollarSign, Users, FileText, AlertTriangle } from 'lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../utils/format';
+
+interface MonthlySalesData {
+  month: string;
+  amount: number;
+}
+
+// Memoized chart components to prevent unnecessary re-renders
+const MemoizedBarChart = memo(({ data }: { data: MonthlySalesData[] }) => (
+  <ResponsiveContainer width="100%" height="100%">
+    <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+      <XAxis 
+        dataKey="month"
+        height={60}
+        tickLine={true}
+        axisLine={true}
+        scale="auto"
+        padding={{ left: 0, right: 0 }}
+        allowDataOverflow={false}
+        minTickGap={5}
+        interval="preserveStartEnd"
+        tick={{ fontSize: 12 }}
+      />
+      <YAxis
+        width={80}
+        tickLine={true}
+        axisLine={true}
+        scale="auto"
+        padding={{ top: 20, bottom: 20 }}
+        allowDataOverflow={false}
+        tickFormatter={(value) => formatCurrency(value)}
+        tick={{ fontSize: 12 }}
+      />
+      <Tooltip 
+        formatter={(value) => formatCurrency(value as number)} 
+        labelFormatter={(label) => `Month: ${label}`}
+        cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
+      />
+      <Bar 
+        dataKey="amount" 
+        fill="#3b82f6"
+        radius={[4, 4, 0, 0]}
+        maxBarSize={50}
+      />
+    </BarChart>
+  </ResponsiveContainer>
+));
+
+MemoizedBarChart.displayName = 'MemoizedBarChart';
 
 const Dashboard = () => {
   const { 
@@ -64,17 +111,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesSummary.monthlySales}>
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value) => formatCurrency(value as number)} 
-                      labelFormatter={(label) => `Month: ${label}`}
-                    />
-                    <Bar dataKey="amount" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <MemoizedBarChart data={salesSummary.monthlySales} />
               </div>
             </CardContent>
           </Card>

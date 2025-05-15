@@ -58,9 +58,22 @@ interface SaleFormProps {
   onSuccess?: () => void;
 }
 
+interface SaleItemFormData {
+  id: string;
+  description: string;
+  coilRef: string;
+  coilThickness?: number;
+  coilWidth?: number;
+  topCoatRAL: string;
+  backCoatRAL: string;
+  coilWeight?: number;
+  quantity: number;
+  pricePerTon: number;
+}
+
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const { addSale, updateSale, clients, getClientById } = useAppContext();
-  const [items, setItems] = useState<any[]>(
+  const [items, setItems] = useState<SaleItemFormData[]>(
     sale?.items.map(item => ({
       id: item.id,
       description: item.description,
@@ -370,17 +383,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           />
         </div>
 
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Items</h3>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addItem}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Item
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium">Sale Items</h3>
+            <Button type="button" variant="outline" size="sm" onClick={addItem}>
+              <Plus className="h-4 w-4 mr-1" /> Add Item
             </Button>
           </div>
 
@@ -399,13 +406,16 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           name="transportationFee"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Transportation Fee (DZD)</FormLabel>
+              <FormLabel>Transportation Fee</FormLabel>
               <FormControl>
-                <Input
-                  type="number"
-                  step="0.01"
-                  {...field}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="0.00" 
+                  {...field} 
+                  onChange={(e) => {
+                    field.onChange(e.target.valueAsNumber || 0);
+                  }}
                 />
               </FormControl>
               <FormMessage />
@@ -420,76 +430,59 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
             <FormItem>
               <FormLabel>Notes</FormLabel>
               <FormControl>
-                <Textarea
-                  placeholder="Any additional notes about this sale"
-                  {...field}
-                />
+                <Textarea placeholder="Add any additional notes here..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="flex flex-col items-end space-y-2 border-t pt-4">
-          <div className="flex justify-between w-full max-w-xs">
-            <span className="text-muted-foreground">Subtotal (HT):</span>
-            <span className="font-medium">
-              {formatCurrency(calculateSubtotal())}
-            </span>
+        <div className="bg-muted/30 p-4 rounded-md space-y-2">
+          <div className="flex justify-between">
+            <span>Subtotal (HT):</span>
+            <span>{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(calculateSubtotal())}</span>
           </div>
-          <div className="flex justify-between w-full max-w-xs">
-            <span className="text-muted-foreground">TVA ({TAX_RATE * 100}%):</span>
-            <span className="font-medium">
-              {formatCurrency(calculateTax())}
-            </span>
+          <div className="flex justify-between">
+            <span>TVA ({(TAX_RATE * 100).toFixed(0)}%):</span>
+            <span>{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(calculateTax())}</span>
           </div>
-          <div className="flex justify-between w-full max-w-xs">
-            <span className="text-muted-foreground">Total (TTC):</span>
-            <span className="font-medium">
-              {formatCurrency(calculateTotalWithTax())}
-            </span>
+          <div className="flex justify-between">
+            <span>Total (TTC):</span>
+            <span>{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(calculateTotalWithTax())}</span>
           </div>
-          <div className="flex justify-between w-full max-w-xs">
-            <span className="text-muted-foreground">Transportation Fee:</span>
-            <span className="font-medium">
-              {formatCurrency(parseFloat(form.watch('transportationFee')?.toString() || '0'))}
-            </span>
-          </div>
-          <div className="flex justify-between w-full max-w-xs pt-2 border-t">
-            <span className="font-bold">Final Total:</span>
-            <span className="text-xl font-bold">
-              {formatCurrency(calculateFinalTotal())}
-            </span>
+          {form.watch('transportationFee') > 0 && (
+            <div className="flex justify-between">
+              <span>Transportation Fee:</span>
+              <span>{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(form.watch('transportationFee'))}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold pt-2 border-t">
+            <span>Final Total:</span>
+            <span>{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(calculateFinalTotal())}</span>
           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-2">
+        <div className="flex justify-between">
           <div className="flex gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button type="submit" disabled={isGeneratingPDF}>
+              {sale ? 'Update Sale' : 'Create Sale'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleExportQuotation}
               disabled={isGeneratingPDF}
             >
-              <FileText className="mr-2 h-4 w-4" />
-              Export Quotation
+              <FileText className="h-4 w-4 mr-1" /> Export Quotation
             </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleExportInvoice}
               disabled={isGeneratingPDF}
             >
-              <Download className="mr-2 h-4 w-4" />
-              Export Invoice
+              <Download className="h-4 w-4 mr-1" /> Export Invoice
             </Button>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" type="button" onClick={onSuccess}>
-              Cancel
-            </Button>
-            <Button type="submit">{sale ? 'Update' : 'Create'} Sale</Button>
           </div>
         </div>
       </form>

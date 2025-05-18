@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
+import { useAppSettings } from '../context/AppSettingsContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +46,8 @@ const InvoiceDetail = () => {
     getInvoiceRemainingAmount,
     deletePayment,
   } = useAppContext();
+
+  const { settings } = useAppSettings();
 
   const invoice = getInvoiceById(invoiceId || '');
   const client = invoice ? getClientById(invoice.clientId) : undefined;
@@ -95,7 +98,7 @@ const InvoiceDetail = () => {
     
     setTimeout(async () => {
       try {
-        const doc = await generateInvoicePDF(invoice, client, sales, payments);
+        const doc = await generateInvoicePDF(invoice, client, sales, payments, settings.company);
         doc.autoPrint();
         window.open(doc.output('bloburl'), '_blank');
       } catch (error) {
@@ -114,7 +117,7 @@ const InvoiceDetail = () => {
     
     setTimeout(async () => {
       try {
-        const doc = await generateInvoicePDF(invoice, client, sales, payments);
+        const doc = await generateInvoicePDF(invoice, client, sales, payments, settings.company);
         doc.save(`Facture_${invoice.invoiceNumber}.pdf`);
         toast.success('Invoice PDF downloaded successfully');
       } catch (error) {
@@ -223,15 +226,14 @@ const InvoiceDetail = () => {
               
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground mb-2">From:</h3>
-                <p className="font-medium">Groupe HA</p>
-                <p>123 Zone Industrielle, Alger</p>
-                <p>Algérie</p>
-                <p className="text-sm text-muted-foreground mt-1">contact@groupeha.com</p>
-                <p className="text-sm text-muted-foreground">+213 XX XX XX XX</p>
-                <p className="text-sm text-muted-foreground mt-1">NIF: 12345678901234</p>
-                <p className="text-sm text-muted-foreground">NIS: 98765432109876</p>
-                <p className="text-sm text-muted-foreground">RC: RC-XXXX-XXXX</p>
-                <p className="text-sm text-muted-foreground">AI: AI-XXXX-XXXX</p>
+                <p className="font-medium">{settings.company.name}</p>
+                <p>{settings.company.address}</p>
+                <p className="text-sm text-muted-foreground mt-1">{settings.company.email}</p>
+                <p className="text-sm text-muted-foreground">{settings.company.phone}</p>
+                <p className="text-sm text-muted-foreground mt-1">NIF: {settings.company.taxId}</p>
+                <p className="text-sm text-muted-foreground">NIS: {settings.company.nis}</p>
+                <p className="text-sm text-muted-foreground">RC: {settings.company.rc}</p>
+                <p className="text-sm text-muted-foreground">AI: {settings.company.ai}</p>
               </div>
             </div>
             

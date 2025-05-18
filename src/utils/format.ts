@@ -24,7 +24,8 @@ export const formatDate = (date: Date, format?: string): string => {
   }
   
   // Otherwise use the default format
-  return new Intl.DateTimeFormat('en-US', {
+  const language = localStorage.getItem('language') || 'fr';
+  return new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

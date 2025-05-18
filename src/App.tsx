@@ -4,6 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "./context/AppContext";
+import { LanguageProvider } from './context/LanguageContext';
+import { InvoiceSettingsProvider } from './context/InvoiceSettingsContext';
+import { AppSettingsProvider } from './context/AppSettingsContext';
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -22,23 +25,29 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/clients" element={<Clients />} />
-              <Route path="/clients/:clientId" element={<ClientDetail />} />
-              <Route path="/sales" element={<Sales />} />
-              <Route path="/invoices" element={<Invoices />} />
-              <Route path="/invoices/:invoiceId" element={<InvoiceDetail />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-          <Toaster />
-          <Sonner />
-        </AppProvider>
+        <LanguageProvider>
+          <AppSettingsProvider>
+            <InvoiceSettingsProvider>
+              <AppProvider>
+                <BrowserRouter>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/clients" element={<Clients />} />
+                    <Route path="/clients/:clientId" element={<ClientDetail />} />
+                    <Route path="/sales" element={<Sales />} />
+                    <Route path="/invoices" element={<Invoices />} />
+                    <Route path="/invoices/:invoiceId" element={<InvoiceDetail />} />
+                    <Route path="/reports" element={<Reports />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </BrowserRouter>
+                <Toaster />
+                <Sonner />
+              </AppProvider>
+            </InvoiceSettingsProvider>
+          </AppSettingsProvider>
+        </LanguageProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -1,6 +1,8 @@
-
 import React from 'react';
 import MainLayout from '../components/layout/MainLayout';
+import { useLanguage } from '../context/LanguageContext';
+import { useAppSettings } from '../context/AppSettingsContext';
+import { useInvoiceSettings } from '../context/InvoiceSettingsContext';
 import {
   Card,
   CardContent,
@@ -21,10 +23,23 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PlusCircle, X, Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const Settings = () => {
+  const { language, setLanguage, t } = useLanguage();
+  const { settings, updateSettings, updateCompanyProfile, updateInvoiceSettings } = useAppSettings();
+  const { settings: invoiceSettings, addPrefix, removePrefix, setDefaultPrefix } = useInvoiceSettings();
+
   const handleSaveSettings = () => {
-    toast.success('Settings saved successfully');
+    toast.success(t('general.saveSuccess'));
   };
 
   const handleImportData = () => {
@@ -36,63 +51,81 @@ const Settings = () => {
   };
 
   return (
-    <MainLayout title="Settings">
+    <MainLayout title={t('general.settings')}>
       <div className="space-y-6">
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="company">Company Profile</TabsTrigger>
-            <TabsTrigger value="invoice">Invoice Settings</TabsTrigger>
+            <TabsTrigger value="general">{t('general.settings')}</TabsTrigger>
+            <TabsTrigger value="company">{t('company.title')}</TabsTrigger>
+            <TabsTrigger value="invoice">{t('invoice.title')}</TabsTrigger>
             <TabsTrigger value="import-export">Import/Export</TabsTrigger>
           </TabsList>
           
           <TabsContent value="general" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>General Settings</CardTitle>
+                <CardTitle>{t('general.settings')}</CardTitle>
                 <CardDescription>
-                  Configure general application settings
+                  {t('general.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="language">Language</Label>
-                  <select
-                    id="language"
-                    className="w-full p-2 border rounded-md"
-                    defaultValue="en"
+                  <Label htmlFor="language">{t('general.language')}</Label>
+                  <Select
+                    value={settings.language}
+                    onValueChange={(value: 'en' | 'fr') => {
+                      updateSettings({ language: value });
+                      setLanguage(value);
+                    }}
                   >
-                    <option value="en">English</option>
-                    <option value="fr">French</option>
-                  </select>
+                    <SelectTrigger id="language" aria-label={t('general.language')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="fr">Français</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <select
-                    id="currency"
-                    className="w-full p-2 border rounded-md"
-                    defaultValue="usd"
+                  <Label htmlFor="currency">{t('general.currency')}</Label>
+                  <Select
+                    value={settings.currency}
+                    onValueChange={(value: 'DZD') => updateSettings({ currency: value })}
                   >
-                    <option value="usd">USD ($)</option>
-                    
-                  </select>
+                    <SelectTrigger id="currency" aria-label={t('general.currency')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DZD">DZD (DA)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Switch id="notifications" defaultChecked />
+                  <Switch
+                    id="notifications"
+                    checked={settings.notifications}
+                    onCheckedChange={(checked) => updateSettings({ notifications: checked })}
+                  />
                   <Label htmlFor="notifications">
-                    Enable email notifications
+                    {t('general.notifications')}
                   </Label>
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Switch id="darkMode" />
-                  <Label htmlFor="darkMode">Dark Mode</Label>
+                  <Switch
+                    id="darkMode"
+                    checked={settings.darkMode}
+                    onCheckedChange={(checked) => updateSettings({ darkMode: checked })}
+                  />
+                  <Label htmlFor="darkMode">{t('general.darkMode')}</Label>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={handleSaveSettings}>Save Changes</Button>
+                <Button onClick={handleSaveSettings}>{t('general.save')}</Button>
               </CardFooter>
             </Card>
           </TabsContent>
@@ -100,54 +133,83 @@ const Settings = () => {
           <TabsContent value="company" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Company Profile</CardTitle>
+                <CardTitle>{t('company.title')}</CardTitle>
                 <CardDescription>
-                  Update your company information that appears on invoices
+                  {t('company.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name</Label>
+                  <Label htmlFor="companyName">{t('company.name')}</Label>
                   <Input
                     id="companyName"
-                    defaultValue="PPGI Coils Manufacturing"
+                    value={settings.company.name}
+                    onChange={(e) => updateCompanyProfile({ name: e.target.value })}
                   />
                 </div>
                 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">{t('company.email')}</Label>
                     <Input
                       id="email"
                       type="email"
-                      defaultValue="contact@ppgicoils.com"
+                      value={settings.company.email}
+                      onChange={(e) => updateCompanyProfile({ email: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone">{t('company.phone')}</Label>
                     <Input
                       id="phone"
-                      defaultValue="+1 (555) 987-6543"
+                      value={settings.company.phone}
+                      onChange={(e) => updateCompanyProfile({ phone: e.target.value })}
                     />
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
+                  <Label htmlFor="address">{t('company.address')}</Label>
                   <Textarea
                     id="address"
-                    defaultValue="123 Factory Road, Industrial Zone, Manufacturing City, 10001"
+                    value={settings.company.address}
+                    onChange={(e) => updateCompanyProfile({ address: e.target.value })}
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="taxId">Tax ID / VAT Number</Label>
-                  <Input id="taxId" defaultValue="TAX-12345678" />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="logo">Company Logo</Label>
-                  <Input id="logo" type="file" />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="taxId">{t('company.taxId')}</Label>
+                    <Input
+                      id="taxId"
+                      value={settings.company.taxId}
+                      onChange={(e) => updateCompanyProfile({ taxId: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nis">NIS</Label>
+                    <Input
+                      id="nis"
+                      value={settings.company.nis}
+                      onChange={(e) => updateCompanyProfile({ nis: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rc">RC</Label>
+                    <Input
+                      id="rc"
+                      value={settings.company.rc}
+                      onChange={(e) => updateCompanyProfile({ rc: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai">AI</Label>
+                    <Input
+                      id="ai"
+                      value={settings.company.ai}
+                      onChange={(e) => updateCompanyProfile({ ai: e.target.value })}
+                    />
+                  </div>
                 </div>
               </CardContent>
               <CardFooter>
@@ -159,44 +221,114 @@ const Settings = () => {
           <TabsContent value="invoice" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Invoice Settings</CardTitle>
+                <CardTitle>{t('invoice.title')}</CardTitle>
                 <CardDescription>
-                  Configure how invoices are generated and numbered
+                  {t('invoice.description')}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Invoice Prefixes */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium">{t('invoice.prefixes')}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {t('invoice.prefixesDescription')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="newPrefix"
+                        placeholder={t('invoice.prefixPlaceholder')}
+                        className="w-32"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const input = document.getElementById('newPrefix') as HTMLInputElement;
+                          if (input.value) {
+                            addPrefix(input.value.toUpperCase());
+                            input.value = '';
+                          }
+                        }}
+                      >
+                        <PlusCircle className="h-4 w-4 mr-1" />
+                        {t('invoice.addPrefix')}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {invoiceSettings.prefixes.map((prefix) => (
+                      <Badge
+                        key={prefix.value}
+                        variant={prefix.isDefault ? "default" : "secondary"}
+                        className="flex items-center gap-1 text-sm"
+                      >
+                        {prefix.value}
+                        {!prefix.isDefault && (
+                          <button
+                            onClick={() => setDefaultPrefix(prefix.value)}
+                            className="ml-1 hover:text-primary"
+                            title={t('invoice.defaultPrefix')}
+                          >
+                            <Check className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => removePrefix(prefix.value)}
+                          className="ml-1 hover:text-destructive"
+                          title={t('invoice.deletePrefix')}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="invoicePrefix">Invoice Number Prefix</Label>
-                  <Input id="invoicePrefix" defaultValue="INV-" />
+                  <Label htmlFor="nextInvoiceNumber">{t('invoice.nextNumber')}</Label>
+                  <Input
+                    id="nextInvoiceNumber"
+                    type="number"
+                    value={settings.invoice.nextNumber}
+                    onChange={(e) => updateInvoiceSettings({ nextNumber: parseInt(e.target.value) })}
+                  />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="nextInvoiceNumber">Next Invoice Number</Label>
-                  <Input id="nextInvoiceNumber" defaultValue="10001" />
+                  <Label htmlFor="paymentTerms">{t('invoice.paymentTerms')}</Label>
+                  <Input
+                    id="paymentTerms"
+                    type="number"
+                    value={settings.invoice.paymentTerms}
+                    onChange={(e) => updateInvoiceSettings({ paymentTerms: parseInt(e.target.value) })}
+                  />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="paymentTerms">Default Payment Terms (days)</Label>
-                  <Input id="paymentTerms" type="number" defaultValue="30" />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Default Invoice Notes</Label>
+                  <Label htmlFor="notes">{t('invoice.notes')}</Label>
                   <Textarea
                     id="notes"
-                    defaultValue="Thank you for your business. Please make payment within the specified terms."
+                    value={settings.invoice.defaultNotes}
+                    onChange={(e) => updateInvoiceSettings({ defaultNotes: e.target.value })}
                   />
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Switch id="autoPdfGeneration" defaultChecked />
+                  <Switch
+                    id="autoPdfGeneration"
+                    checked={settings.invoice.autoPdfGeneration}
+                    onCheckedChange={(checked) => updateInvoiceSettings({ autoPdfGeneration: checked })}
+                  />
                   <Label htmlFor="autoPdfGeneration">
-                    Generate PDF automatically
+                    {t('invoice.autoPdf')}
                   </Label>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={handleSaveSettings}>Save Changes</Button>
+                <Button onClick={handleSaveSettings}>{t('general.save')}</Button>
               </CardFooter>
             </Card>
           </TabsContent>

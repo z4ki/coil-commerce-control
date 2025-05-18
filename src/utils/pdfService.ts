@@ -1,4 +1,3 @@
-
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Client, Invoice, Sale, SaleItem, Payment } from '../types';
@@ -45,8 +44,18 @@ export const generateInvoicePDF = async (
   invoice: Invoice,
   client: Client,
   sales: Sale[],
-  payments: Payment[] = [],
-  options: PdfOptions = {}
+  payments: Payment[],
+  companyInfo: {
+    name: string;
+    logo?: string;
+    address: string;
+    phone: string;
+    email: string;
+    taxId: string;
+    nis: string;
+    rc: string;
+    ai: string;
+  }
 ): Promise<jsPDF> => {
   // Create a new PDF document
   const doc = new jsPDF();

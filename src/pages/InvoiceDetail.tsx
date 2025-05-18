@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -171,7 +170,7 @@ const InvoiceDetail = () => {
               Add Payment
             </Button>
             <Button variant="outline" onClick={handleTogglePaid}>
-              Mark as {invoice.isPaid ? 'Unpaid' : 'Paid'}
+              Mark as {invoice?.isPaid ? 'Unpaid' : 'Paid'}
             </Button>
             <Button variant="outline" onClick={() => setShowEditDialog(true)}>
               <Edit className="mr-2 h-4 w-4" />
@@ -188,20 +187,20 @@ const InvoiceDetail = () => {
         <Card className="border-t-4 border-t-primary">
           <CardHeader className="flex flex-row items-start justify-between">
             <div>
-              <CardTitle className="text-xl">Invoice #{invoice.invoiceNumber}</CardTitle>
+              <CardTitle className="text-xl">Invoice #{invoice?.invoiceNumber}</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 Status: <StatusBadge 
-                  status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
+                  status={invoice?.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
                   className="ml-1"
                 />
               </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Issue Date</p>
-              <p className="font-medium">{formatDate(invoice.date)}</p>
+              <p className="font-medium">{invoice && formatDate(invoice.date)}</p>
               <p className="text-sm text-muted-foreground mt-2">Due Date</p>
               <p className={`font-medium ${isOverdue ? 'text-destructive' : ''}`}>
-                {formatDate(invoice.dueDate)}
+                {invoice && formatDate(invoice.dueDate)}
               </p>
             </div>
           </CardHeader>
@@ -211,15 +210,15 @@ const InvoiceDetail = () => {
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground mb-2">Billed To:</h3>
-                <p className="font-medium">{client.name}</p>
-                <p>{client.company}</p>
-                <p className="text-sm text-muted-foreground mt-1">{client.email}</p>
-                <p className="text-sm text-muted-foreground">{client.phone}</p>
-                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{client.address}</p>
-                {client.nif && <p className="text-sm text-muted-foreground">NIF: {client.nif}</p>}
-                {client.nis && <p className="text-sm text-muted-foreground">NIS: {client.nis}</p>}
-                {client.rc && <p className="text-sm text-muted-foreground">RC: {client.rc}</p>}
-                {client.ai && <p className="text-sm text-muted-foreground">AI: {client.ai}</p>}
+                <p className="font-medium">{client?.name}</p>
+                <p>{client?.company}</p>
+                <p className="text-sm text-muted-foreground mt-1">{client?.email}</p>
+                <p className="text-sm text-muted-foreground">{client?.phone}</p>
+                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{client?.address}</p>
+                {client?.nif && <p className="text-sm text-muted-foreground">NIF: {client.nif}</p>}
+                {client?.nis && <p className="text-sm text-muted-foreground">NIS: {client.nis}</p>}
+                {client?.rc && <p className="text-sm text-muted-foreground">RC: {client.rc}</p>}
+                {client?.ai && <p className="text-sm text-muted-foreground">AI: {client.ai}</p>}
               </div>
               
               <div>
@@ -250,21 +249,16 @@ const InvoiceDetail = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invoice.salesIds.map((saleId) => {
-                      const sale = getSaleById(saleId);
-                      if (!sale) return null;
-                      
-                      return (
-                        <TableRow key={sale.id}>
-                          <TableCell>{formatDate(sale.date)}</TableCell>
-                          <TableCell>PPGI Coil Sale</TableCell>
-                          <TableCell>{sale.items.length} items</TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(sale.totalAmount)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {sales.map((sale) => (
+                      <TableRow key={sale.id}>
+                        <TableCell>{formatDate(sale.date)}</TableCell>
+                        <TableCell>PPGI Coil Sale</TableCell>
+                        <TableCell>{sale.items.length} items</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(sale.totalAmount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -297,10 +291,10 @@ const InvoiceDetail = () => {
                             {formatCurrency(payment.amount)}
                           </TableCell>
                           <TableCell>
-                            <div className="flex space-x-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => handleEditPayment(payment.id)}
                               >
                                 <PenLine className="h-4 w-4" />
@@ -308,7 +302,6 @@ const InvoiceDetail = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="text-destructive"
                                 onClick={() => handleDeletePayment(payment.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -321,25 +314,25 @@ const InvoiceDetail = () => {
                   </Table>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground p-4 border rounded-md bg-muted/30">
-                  No payments have been recorded for this invoice yet.
-                </p>
+                <div className="text-center py-4 text-muted-foreground">
+                  No payments recorded yet.
+                </div>
               )}
             </div>
-            
-            {/* Total and Payment Status */}
+
+            {/* Totals */}
             <div className="flex flex-col items-end space-y-2 border-t pt-4">
               <div className="flex justify-between w-full max-w-xs">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-medium">{formatCurrency(invoice.totalAmount)}</span>
+                <span className="font-medium">{formatCurrency(invoice?.totalAmount || 0)}</span>
               </div>
               <div className="flex justify-between w-full max-w-xs">
                 <span className="text-muted-foreground">Tax (19%):</span>
-                <span className="font-medium">{formatCurrency(invoice.totalAmount * 0.19)}</span>
+                <span className="font-medium">{formatCurrency((invoice?.totalAmount || 0) * 0.19)}</span>
               </div>
               <div className="flex justify-between w-full max-w-xs pt-2 border-t">
                 <span className="font-medium">Total:</span>
-                <span className="font-bold text-lg">{formatCurrency(invoice.totalAmount * 1.19)}</span>
+                <span className="font-bold text-lg">{formatCurrency((invoice?.totalAmount || 0) * 1.19)}</span>
               </div>
               
               <div className="flex justify-between w-full max-w-xs mt-4">
@@ -358,7 +351,7 @@ const InvoiceDetail = () => {
                 </div>
               )}
               
-              {invoice.isPaid && (
+              {invoice?.isPaid && (
                 <div className="flex justify-between w-full max-w-xs text-green-600 mt-2 pt-3 border-t">
                   <span>Payment Completed:</span>
                   <span>{invoice.paidAt ? formatDate(invoice.paidAt) : 'Paid'}</span>
@@ -417,7 +410,7 @@ const InvoiceDetail = () => {
             </DialogTitle>
           </DialogHeader>
           <PaymentForm 
-            invoiceId={invoice.id}
+            invoiceId={invoice?.id || ''}
             remainingAmount={remainingAmount}
             payment={selectedPaymentId ? 
               payments.find(p => p.id === selectedPaymentId) : 

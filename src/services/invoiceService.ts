@@ -4,10 +4,6 @@ import { formatDateInput, generateInvoiceNumber } from '@/utils/format';
 
 export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
-    
     let query = supabase
       .from('invoices')
       .select('*')
@@ -32,20 +28,39 @@ export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> =>
       }
     }
     
-    const { data, error } = await query;
+    const { data: invoicesData, error } = await query;
     
     if (error) {
       console.error('Error fetching invoices:', error);
       throw error;
     }
+
+    // Fetch all invoice_sales relationships in one query
+    const { data: salesData, error: salesError } = await supabase
+      .from('invoice_sales')
+      .select('invoice_id, sale_id');
+
+    if (salesError) {
+      console.error('Error fetching invoice sales:', salesError);
+      throw salesError;
+    }
+
+    // Create a map of invoice IDs to their sale IDs
+    const salesMap = salesData.reduce((acc: { [key: string]: string[] }, item) => {
+      if (!acc[item.invoice_id]) {
+        acc[item.invoice_id] = [];
+      }
+      acc[item.invoice_id].push(item.sale_id);
+      return acc;
+    }, {});
     
-    return data.map(item => ({
+    return invoicesData.map(item => ({
       id: item.id,
       invoiceNumber: item.invoice_number,
       clientId: item.client_id,
       date: new Date(item.date),
       dueDate: new Date(item.due_date),
-      salesIds: [], // Will be populated separately
+      salesIds: salesMap[item.id] || [], // Include the sales IDs from our map
       totalAmount: Number(item.total_amount),
       isPaid: item.is_paid,
       paidAt: item.paid_at ? new Date(item.paid_at) : undefined,
@@ -117,15 +132,11 @@ export const getInvoiceById = async (id: string): Promise<Invoice | null> => {
 };
 
 export const createInvoice = async (
-  invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'invoiceNumber'>
+  invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'invoiceNumber'> & { prefix?: string }
 ): Promise<Invoice> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
-    // Generate invoice number
-    const invoiceNumber = generateInvoiceNumber();
+    // Generate invoice number with custom prefix
+    const invoiceNumber = generateInvoiceNumber(invoice.prefix || 'FAC');
     
     // Create invoice
     const { data, error } = await supabase
@@ -188,10 +199,6 @@ export const updateInvoice = async (
   invoice: Partial<Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<Invoice> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
     interface UpdateData {
       client_id?: string;
       date?: string;
@@ -281,10 +288,6 @@ export const updateInvoice = async (
 
 export const deleteInvoice = async (id: string): Promise<void> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
     const { error } = await supabase
       .from('invoices')
       .delete()

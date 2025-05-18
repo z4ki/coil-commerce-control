@@ -324,16 +324,18 @@ const Sales = () => {
 
       {/* Add/Edit Sale Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[700px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="sticky top-0 z-50 bg-background pb-4 mb-4">
             <DialogTitle>
               {selectedSale ? 'Edit Sale' : 'Add New Sale'}
             </DialogTitle>
           </DialogHeader>
-          <SaleForm 
-            sale={selectedSale} 
-            onSuccess={() => setShowAddDialog(false)}
-          />
+          <div className="overflow-y-auto">
+            <SaleForm 
+              sale={selectedSale} 
+              onSuccess={() => setShowAddDialog(false)}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </MainLayout>

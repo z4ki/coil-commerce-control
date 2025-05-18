@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -35,10 +34,11 @@ import { formatCurrency, formatDate, formatDateInput, generateInvoiceNumber, par
 import { toast } from 'sonner';
 
 const formSchema = z.object({
-  invoiceNumber: z.string().min(1, { message: 'Invoice number is required' }),
-  clientId: z.string().min(1, { message: 'Please select a client' }),
-  date: z.string().min(1, { message: 'Date is required' }),
-  dueDate: z.string().min(1, { message: 'Due date is required' }),
+  prefix: z.string().min(1, { message: 'Le préfixe est requis' }),
+  invoiceNumber: z.string().min(1, { message: 'Le numéro de facture est requis' }),
+  clientId: z.string().min(1, { message: 'Veuillez sélectionner un client' }),
+  date: z.string().min(1, { message: 'La date est requise' }),
+  dueDate: z.string().min(1, { message: 'La date d\'échéance est requise' }),
   isPaid: z.boolean().default(false),
   salesIds: z.array(z.string()).optional(),
 });
@@ -56,8 +56,10 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   const [selectedSales, setSelectedSales] = useState<string[]>(invoice?.salesIds || []);
   const [selectedClientId, setSelectedClientId] = useState<string>(invoice?.clientId || '');
   const [totalAmount, setTotalAmount] = useState<number>(invoice?.totalAmount || 0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultValues: FormValues = {
+    prefix: invoice?.invoiceNumber?.split('-')[0] || 'FAC',
     invoiceNumber: invoice?.invoiceNumber || generateInvoiceNumber(),
     clientId: invoice?.clientId || '',
     date: formatDateInput(invoice?.date || new Date()),
@@ -70,6 +72,15 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     resolver: zodResolver(formSchema),
     defaultValues,
   });
+
+  // Update invoice number when prefix changes
+  useEffect(() => {
+    const prefix = form.watch('prefix');
+    if (!invoice) { // Only auto-generate for new invoices
+      const newInvoiceNumber = generateInvoiceNumber(prefix);
+      form.setValue('invoiceNumber', newInvoiceNumber);
+    }
+  }, [form.watch('prefix')]);
 
   // When client is changed, update available sales
   useEffect(() => {
@@ -112,46 +123,82 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     calculateTotalAmount(newSelectedSales);
   };
 
-  const onSubmit = (data: FormValues) => {
-    if (selectedSales.length === 0) {
-      toast.error('Please select at least one sale to include in the invoice');
-      return;
-    }
+  const onSubmit = async (data: FormValues) => {
+    try {
+      if (selectedSales.length === 0) {
+        toast.error('Please select at least one sale to include in the invoice');
+        return;
+      }
 
-    // Ensure all required fields are provided
-    const invoiceData = {
-      invoiceNumber: data.invoiceNumber,
-      clientId: data.clientId,
-      date: parseDateInput(data.date),
-      dueDate: parseDateInput(data.dueDate),
-      salesIds: selectedSales,
-      totalAmount: totalAmount,
-      isPaid: data.isPaid,
-    };
+      setIsSubmitting(true);
 
-    if (invoice) {
-      updateInvoice(invoice.id, invoiceData);
-      toast.success('Invoice has been updated');
-    } else {
-      addInvoice(invoiceData);
-      toast.success('Invoice has been created');
-    }
+      // Ensure all required fields are provided
+      const invoiceData = {
+        invoiceNumber: data.invoiceNumber,
+        clientId: data.clientId,
+        date: parseDateInput(data.date),
+        dueDate: parseDateInput(data.dueDate),
+        salesIds: selectedSales,
+        totalAmount: totalAmount,
+        isPaid: data.isPaid,
+      };
 
-    if (onSuccess) {
-      onSuccess();
+      if (invoice) {
+        await updateInvoice(invoice.id, invoiceData);
+        toast.success('Invoice has been updated');
+      } else {
+        await addInvoice(invoiceData);
+        toast.success('Invoice has been created');
+      }
+
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      toast.error('Failed to save invoice. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField
+            control={form.control}
+            name="prefix"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Préfixe</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un préfixe" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="FAC">FAC</SelectItem>
+                    <SelectItem value="PRO">PRO</SelectItem>
+                    <SelectItem value="DEV">DEV</SelectItem>
+                    <SelectItem value="BL">BL</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name="invoiceNumber"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Invoice Number</FormLabel>
+              <FormItem className="sm:col-span-2">
+                <FormLabel>Numéro de Facture</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -159,7 +206,9 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
               </FormItem>
             )}
           />
+        </div>
 
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="clientId"
@@ -176,7 +225,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a client" />
+                      <SelectValue placeholder="Sélectionner un client" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -199,7 +248,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
             name="date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Issue Date</FormLabel>
+                <FormLabel>Date d'émission</FormLabel>
                 <FormControl>
                   <Input type="date" {...field} />
                 </FormControl>
@@ -213,7 +262,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
             name="dueDate"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Due Date</FormLabel>
+                <FormLabel>Date d'échéance</FormLabel>
                 <FormControl>
                   <Input type="date" {...field} />
                 </FormControl>
@@ -235,32 +284,38 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                 />
               </FormControl>
               <div className="space-y-1 leading-none">
-                <FormLabel>Mark as Paid</FormLabel>
+                <FormLabel>Marquer comme payée</FormLabel>
                 <p className="text-sm text-muted-foreground">
-                  Check this if the invoice has already been paid.
+                  Cochez cette case si la facture a déjà été payée.
                 </p>
               </div>
             </FormItem>
           )}
         />
 
-        {/* Sales Selection */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Select Sales to Include</h3>
-          {selectedClientId ? (
-            clientSales.length > 0 ? (
-              <div className="max-h-64 overflow-y-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">Select</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clientSales.map((sale) => (
+        {selectedClientId && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium">Ventes à facturer</h3>
+              <p className="text-sm text-muted-foreground">
+                Total: {formatCurrency(totalAmount)}
+              </p>
+            </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Articles</TableHead>
+                    <TableHead className="text-right">Montant</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clientSales.length > 0 ? (
+                    clientSales.map((sale) => (
                       <TableRow key={sale.id}>
                         <TableCell>
                           <Checkbox
@@ -269,39 +324,32 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                           />
                         </TableCell>
                         <TableCell>{formatDate(sale.date)}</TableCell>
-                        <TableCell>{sale.items.length} item(s)</TableCell>
+                        <TableCell>Vente de bobines PPGI</TableCell>
+                        <TableCell>{sale.items.length} articles</TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(sale.totalAmount)}
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No uninvoiced sales available for this client.
-              </p>
-            )
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Please select a client to see available sales.
-            </p>
-          )}
-        </div>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        Aucune vente non facturée trouvée pour ce client.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
 
-        {/* Total Amount */}
-        <div className="flex items-center justify-end space-x-2 border-t pt-4">
-          <span className="text-muted-foreground">Total Amount:</span>
-          <span className="text-xl font-bold">{formatCurrency(totalAmount)}</span>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" type="button" onClick={onSuccess}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={selectedSales.length === 0}>
-            {invoice ? 'Update' : 'Create'} Invoice
+        <div className="flex justify-end space-x-2">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {invoice ? 'Mettre à jour' : 'Créer la facture'}
           </Button>
         </div>
       </form>

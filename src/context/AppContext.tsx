@@ -34,6 +34,14 @@ interface AppContextType {
   addSale: (sale: Omit<Sale, 'id' | 'createdAt'>) => Promise<Sale>;
   updateSale: (id: string, sale: Partial<Sale>) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
+  getSaleById: (id: string) => Sale | undefined;
+  addInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>) => Promise<Invoice>;
+  updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
+  deleteInvoice: (id: string) => Promise<void>;
+  getInvoiceById: (id: string) => Invoice | undefined;
+  getPaymentsByInvoice: (invoiceId: string) => Payment[];
+  getInvoiceRemainingAmount: (invoiceId: string) => number;
+  deletePayment: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -203,13 +211,99 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const updateSale = async (id: string, sale: Partial<Sale>) => {
-    await saleService.updateSale(id, sale);
-    setSales(prev => prev.map(s => s.id === id ? { ...s, ...sale } : s));
+    try {
+      const updatedSale = await saleService.updateSale(id, sale);
+      setSales(prev => prev.map(s => s.id === id ? updatedSale : s));
+    } catch (error) {
+      console.error('Error updating sale:', error);
+      throw error;
+    }
   };
 
   const deleteSale = async (id: string) => {
     await saleService.deleteSale(id);
     setSales(prev => prev.filter(s => s.id !== id));
+  };
+
+  const getSaleById = (id: string) => {
+    return sales.find(sale => sale.id === id);
+  };
+
+  const addInvoice = async (invoice: Omit<Invoice, 'id' | 'createdAt'>) => {
+    const newInvoice = await invoiceService.createInvoice(invoice);
+    setInvoices(prev => [...prev, newInvoice]);
+
+    // Mark related sales as invoiced
+    if (invoice.salesIds) {
+      await Promise.all(
+        invoice.salesIds.map(saleId =>
+          updateSale(saleId, { isInvoiced: true, invoiceId: newInvoice.id })
+        )
+      );
+    }
+
+    return newInvoice;
+  };
+
+  const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
+    await invoiceService.updateInvoice(id, invoice);
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...invoice } : i));
+
+    // Update related sales if salesIds have changed
+    const existingInvoice = invoices.find(i => i.id === id);
+    if (existingInvoice && invoice.salesIds) {
+      // Unmark previously invoiced sales
+      await Promise.all(
+        existingInvoice.salesIds
+          .filter(saleId => !invoice.salesIds?.includes(saleId))
+          .map(saleId => updateSale(saleId, { isInvoiced: false, invoiceId: null }))
+      );
+
+      // Mark newly added sales as invoiced
+      await Promise.all(
+        invoice.salesIds
+          .filter(saleId => !existingInvoice.salesIds.includes(saleId))
+          .map(saleId => updateSale(saleId, { isInvoiced: true, invoiceId: id }))
+      );
+    }
+  };
+
+  const deleteInvoice = async (id: string) => {
+    const invoice = invoices.find(i => i.id === id);
+    if (invoice) {
+      // Unmark all related sales as invoiced
+      await Promise.all(
+        invoice.salesIds.map(saleId =>
+          updateSale(saleId, { isInvoiced: false, invoiceId: null })
+        )
+      );
+    }
+
+    await invoiceService.deleteInvoice(id);
+    setInvoices(prev => prev.filter(i => i.id !== id));
+  };
+
+  const getInvoiceById = (id: string) => {
+    return invoices.find(invoice => invoice.id === id);
+  };
+
+  const getPaymentsByInvoice = (invoiceId: string) => {
+    return payments.filter(payment => payment.invoiceId === invoiceId);
+  };
+
+  const getInvoiceRemainingAmount = (invoiceId: string) => {
+    const invoice = getInvoiceById(invoiceId);
+    if (!invoice) return 0;
+
+    const totalPaid = getPaymentsByInvoice(invoiceId)
+      .reduce((sum, payment) => sum + payment.amount, 0);
+
+    return invoice.totalAmount - totalPaid;
+  };
+
+  const deletePayment = async (id: string) => {
+    await paymentService.deletePayment(id);
+    setPayments(prev => prev.filter(p => p.id !== id));
   };
 
   return (
@@ -230,7 +324,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       getClientDebt,
       addSale,
       updateSale,
-      deleteSale
+      deleteSale,
+      getSaleById,
+      addInvoice,
+      updateInvoice,
+      deleteInvoice,
+      getInvoiceById,
+      getPaymentsByInvoice,
+      getInvoiceRemainingAmount,
+      deletePayment
     }}>
       {children}
     </AppContext.Provider>

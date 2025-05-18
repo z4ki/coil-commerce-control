@@ -45,6 +45,7 @@ export interface Sale {
   taxRate: number;
   createdAt: Date;
   updatedAt?: Date;
+  paymentMethod?: string;
 }
 
 // Define the type for an invoice

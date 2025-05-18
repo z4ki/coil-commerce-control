@@ -18,7 +18,7 @@ interface SaleItemFormProps {
 }
 
 const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) => {
-  const { control, watch, setValue } = useFormContext();
+  const { control, watch, setValue, trigger } = useFormContext();
   
   // Calculate total for this item
   const quantity = watch(`items.${index}.quantity`) || 0;
@@ -39,11 +39,24 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         description += ` RAL ${topRal || 'X'}/${backRal || 'Y'}`;
       }
       
-      setValue(`items.${index}.description`, description);
+      setValue(`items.${index}.description`, description, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
     } else {
       // Not enough information to generate description
-      setValue(`items.${index}.description`, "BOBINES D'ACIER PRELAQUE");
+      setValue(`items.${index}.description`, "BOBINES D'ACIER PRELAQUE", {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
     }
+  };
+
+  const handleNumberChange = (field: { onChange: (value: number) => void }, value: number | undefined) => {
+    field.onChange(value || 0);
+    trigger(`items.${index}`);
   };
   
   return (
@@ -121,9 +134,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   step="0.01" 
                   placeholder="0.5" 
                   {...field} 
-                  onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || undefined);
-                  }}
+                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
                 />
               </FormControl>
               <FormMessage />
@@ -143,9 +154,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   step="1" 
                   placeholder="1000" 
                   {...field} 
-                  onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || undefined);
-                  }}
+                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
                 />
               </FormControl>
               <FormMessage />
@@ -199,9 +208,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   step="0.01" 
                   placeholder="1.0" 
                   {...field} 
-                  onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || undefined);
-                  }}
+                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
                 />
               </FormControl>
               <FormMessage />
@@ -221,9 +228,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                   step="0.01" 
                   placeholder="0.00" 
                   {...field} 
-                  onChange={(e) => {
-                    field.onChange(e.target.valueAsNumber || undefined);
-                  }}
+                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
                 />
               </FormControl>
               <FormMessage />

@@ -48,11 +48,11 @@ export const parseDateInput = (dateString: string): Date => {
 };
 
 /**
- * Generate a unique invoice number with a prefix
+ * Generate a unique invoice number with a custom prefix
  */
-export const generateInvoiceNumber = (): string => {
-  const prefix = 'INV';
-  const timestamp = new Date().getTime().toString().slice(-6);
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `${prefix}-${timestamp}-${random}`;
+export const generateInvoiceNumber = (prefix: string = 'FAC'): string => {
+  const now = new Date();
+  const year = now.getFullYear().toString().slice(-2); // last two digits
+  const number = Math.floor(10000 + Math.random() * 90000); // 5-digit random number for demo
+  return `${prefix}-${year}/${number}`;
 };

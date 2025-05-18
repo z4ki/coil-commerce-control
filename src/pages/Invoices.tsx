@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
@@ -195,16 +194,23 @@ const Invoices = () => {
 
       {/* Add/Edit Invoice Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="sticky top-0 z-50 bg-background pb-4 mb-4">
             <DialogTitle>
               {selectedInvoice ? 'Edit Invoice' : 'Create New Invoice'}
             </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {selectedInvoice 
+                ? 'Update the invoice details below.' 
+                : 'Fill in the details below to create a new invoice.'}
+            </p>
           </DialogHeader>
-          <InvoiceForm 
-            invoice={selectedInvoice} 
-            onSuccess={() => setShowAddDialog(false)}
-          />
+          <div className="overflow-y-auto">
+            <InvoiceForm 
+              invoice={selectedInvoice} 
+              onSuccess={() => setShowAddDialog(false)}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </MainLayout>

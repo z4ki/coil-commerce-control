@@ -61,7 +61,9 @@ export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> =>
       date: new Date(item.date),
       dueDate: new Date(item.due_date),
       salesIds: salesMap[item.id] || [], // Include the sales IDs from our map
-      totalAmount: Number(item.total_amount),
+      totalAmountHT: Number(item.total_amount),
+      totalAmountTTC: Number(item.total_amount), // Temporarily use the same amount
+      taxRate: 0.19, // Default tax rate
       isPaid: item.is_paid,
       paidAt: item.paid_at ? new Date(item.paid_at) : undefined,
       createdAt: new Date(item.created_at),
@@ -119,7 +121,9 @@ export const getInvoiceById = async (id: string): Promise<Invoice | null> => {
       date: new Date(data.date),
       dueDate: new Date(data.due_date),
       salesIds,
-      totalAmount: Number(data.total_amount),
+      totalAmountHT: Number(data.total_amount),
+      totalAmountTTC: Number(data.total_amount), // Temporarily use the same amount
+      taxRate: 0.19, // Default tax rate
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),
@@ -146,7 +150,7 @@ export const createInvoice = async (
         client_id: invoice.clientId,
         date: invoice.date.toISOString(),
         due_date: invoice.dueDate.toISOString(),
-        total_amount: invoice.totalAmount,
+        total_amount: invoice.totalAmountTTC, // Use TTC amount as the total
         is_paid: invoice.isPaid,
         paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
       })
@@ -182,7 +186,9 @@ export const createInvoice = async (
       date: new Date(data.date),
       dueDate: new Date(data.due_date),
       salesIds: invoice.salesIds || [],
-      totalAmount: Number(data.total_amount),
+      totalAmountHT: Number(data.total_amount),
+      totalAmountTTC: Number(data.total_amount), // Temporarily use the same amount
+      taxRate: 0.19, // Default tax rate
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),
@@ -216,7 +222,7 @@ export const updateInvoice = async (
     if (invoice.clientId !== undefined) updateData.client_id = invoice.clientId;
     if (invoice.date !== undefined) updateData.date = invoice.date.toISOString();
     if (invoice.dueDate !== undefined) updateData.due_date = invoice.dueDate.toISOString();
-    if (invoice.totalAmount !== undefined) updateData.total_amount = invoice.totalAmount;
+    if (invoice.totalAmountTTC !== undefined) updateData.total_amount = invoice.totalAmountTTC;
     if (invoice.isPaid !== undefined) updateData.is_paid = invoice.isPaid;
     if (invoice.paidAt !== undefined) updateData.paid_at = invoice.paidAt ? invoice.paidAt.toISOString() : null;
     
@@ -274,7 +280,9 @@ export const updateInvoice = async (
       date: new Date(data.date),
       dueDate: new Date(data.due_date),
       salesIds,
-      totalAmount: Number(data.total_amount),
+      totalAmountHT: Number(data.total_amount),
+      totalAmountTTC: Number(data.total_amount),
+      taxRate: 0.19, // Default tax rate
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),

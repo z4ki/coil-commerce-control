@@ -27,7 +27,8 @@ export interface SaleItem {
   coilWeight?: number; // Weight of the coil
   quantity: number; // In tons
   pricePerTon: number;
-  totalAmount: number;
+  totalAmountHT: number;
+  totalAmountTTC: number;
   sale_id?: string;
 }
 
@@ -37,15 +38,17 @@ export interface Sale {
   clientId: string;
   date: Date;
   items: SaleItem[];
-  totalAmount: number;
-  isInvoiced: boolean;
-  invoiceId?: string;
   notes?: string;
-  transportationFee?: number;
+  isInvoiced: boolean;
+  invoiceId?: string | null;
+  transportationFee: number;
+  transportationFeeTTC: number;
+  totalAmountHT: number;
+  totalAmountTTC: number;
   taxRate: number;
+  paymentMethod: string;
   createdAt: Date;
   updatedAt?: Date;
-  paymentMethod?: string;
 }
 
 // Define the type for an invoice
@@ -56,7 +59,9 @@ export interface Invoice {
   date: Date;
   dueDate: Date;
   salesIds: string[];
-  totalAmount: number;
+  totalAmountHT: number;
+  totalAmountTTC: number;
+  taxRate: number;
   isPaid: boolean;
   paidAt?: Date;
   createdAt: Date;
@@ -108,14 +113,21 @@ export interface SalesSummary {
   totalSales: number;
   invoicedSales: number;
   uninvoicedSales: number;
-  monthlySales: { month: string; amount: number }[];
+  monthlySales: {
+    month: string;
+    amountTTC: number;
+  }[];
 }
 
 export interface DebtSummary {
-  totalDebt: number;
-  overdueDebt: number;
-  upcomingDebt: number;
-  debtByClient: { clientId: string; clientName: string; amount: number }[];
+  totalDebtTTC: number;
+  overdueDebtTTC: number;
+  upcomingDebtTTC: number;
+  debtByClient: {
+    clientId: string;
+    clientName: string;
+    amountTTC: number;
+  }[];
 }
 
 export interface SalesFilter {

@@ -185,29 +185,28 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     });
   };
 
-  // Calculate subtotal (HT) - sum of all items before tax
-  const calculateSubtotal = () => {
-    return form.watch('items')?.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity?.toString() || '0');
-      const price = parseFloat(item.pricePerTon?.toString() || '0');
-      return sum + (quantity * price);
-    }, 0) || 0;
+  // Calculate totals including tax
+  const calculateItemTotal = (item: SaleItemFormData) => {
+    const totalHT = item.quantity * item.pricePerTon;
+    return {
+      totalHT,
+      totalTTC: totalHT * (1 + TAX_RATE)
+    };
   };
 
-  // Calculate tax amount
-  const calculateTax = () => {
-    return calculateSubtotal() * TAX_RATE;
-  };
-
-  // Calculate total with tax (TTC)
-  const calculateTotalWithTax = () => {
-    return calculateSubtotal() + calculateTax();
-  };
-
-  // Calculate final total with transportation fee
   const calculateFinalTotal = () => {
-    const transportationFee = parseFloat(form.watch('transportationFee')?.toString() || '0');
-    return calculateTotalWithTax() + transportationFee;
+    const itemsTotalHT = items.reduce((sum, item) => {
+      const { totalHT } = calculateItemTotal(item);
+      return sum + totalHT;
+    }, 0);
+
+    const transportationFeeTTC = form.getValues('transportationFee') * (1 + TAX_RATE);
+    const itemsTotalTTC = itemsTotalHT * (1 + TAX_RATE);
+    
+    return {
+      totalHT: itemsTotalHT + form.getValues('transportationFee'),
+      totalTTC: itemsTotalTTC + transportationFeeTTC
+    };
   };
 
   const onSubmit = async (data: FormValues) => {
@@ -225,19 +224,25 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     
     try {
       // Ensure all required properties are set for each SaleItem
-      const itemsWithTotal: SaleItem[] = data.items.map(item => ({
-        id: item.id,
-        description: item.description,
-        coilRef: item.coilRef || '',
-        coilThickness: item.coilThickness || 0,
-        coilWidth: item.coilWidth || 0,
-        topCoatRAL: item.topCoatRAL || '',
-        backCoatRAL: item.backCoatRAL || '',
-        coilWeight: item.coilWeight || 0,
-        quantity: item.quantity,
-        pricePerTon: item.pricePerTon,
-        totalAmount: item.quantity * item.pricePerTon,
-      }));
+      const itemsWithTotal: SaleItem[] = data.items.map(item => {
+        const { totalHT, totalTTC } = calculateItemTotal(item);
+        return {
+          id: item.id,
+          description: item.description,
+          coilRef: item.coilRef || '',
+          coilThickness: item.coilThickness || 0,
+          coilWidth: item.coilWidth || 0,
+          topCoatRAL: item.topCoatRAL || '',
+          backCoatRAL: item.backCoatRAL || '',
+          coilWeight: item.coilWeight || 0,
+          quantity: item.quantity,
+          pricePerTon: item.pricePerTon,
+          totalAmountHT: totalHT,
+          totalAmountTTC: totalTTC
+        };
+      });
+
+      const { totalHT, totalTTC } = calculateFinalTotal();
       
       const saleData = {
         clientId: data.clientId,
@@ -247,12 +252,12 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         isInvoiced: sale?.isInvoiced || false,
         invoiceId: sale?.invoiceId,
         transportationFee: data.transportationFee || 0,
+        transportationFeeTTC: (data.transportationFee || 0) * (1 + TAX_RATE),
         taxRate: TAX_RATE,
-        totalAmount: calculateFinalTotal(),
+        totalAmountHT: totalHT,
+        totalAmountTTC: totalTTC,
         paymentMethod: data.paymentMethod,
       };
-      
-      console.log("Sale data being saved:", saleData);
 
       if (sale) {
         await updateSale(sale.id, saleData);
@@ -266,12 +271,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         onSuccess();
       }
     } catch (error) {
-      console.error("Error saving sale:", error);
-      if (error instanceof Error) {
-        toast.error(`Failed to save sale: ${error.message}`);
-      } else {
-        toast.error('Failed to save sale. Please check your inputs and try again.');
-      }
+      console.error('Error saving sale:', error);
+      toast.error('Failed to save sale. Please try again.');
     }
   };
 
@@ -308,7 +309,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         pricePerTon: item.pricePerTon,
         totalAmount: item.quantity * item.pricePerTon,
       })),
-      totalAmount: calculateSubtotal(),
+      totalAmount: calculateFinalTotal().totalHT,
       isInvoiced: sale?.isInvoiced || false,
       notes: formData.notes,
       transportationFee: formData.transportationFee,
@@ -363,7 +364,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         pricePerTon: item.pricePerTon,
         totalAmount: item.quantity * item.pricePerTon,
       })),
-      totalAmount: calculateSubtotal(),
+      totalAmount: calculateFinalTotal().totalHT,
       isInvoiced: sale?.isInvoiced || false,
       notes: formData.notes,
       transportationFee: formData.transportationFee,
@@ -521,15 +522,15 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         <div className="bg-muted/30 p-4 rounded-md space-y-2">
           <div className="flex justify-between">
             <span>Subtotal (HT):</span>
-            <span>{formatCurrency(calculateSubtotal())}</span>
+            <span>{formatCurrency(calculateFinalTotal().totalHT)}</span>
           </div>
           <div className="flex justify-between">
             <span>TVA ({(TAX_RATE * 100).toFixed(0)}%):</span>
-            <span>{formatCurrency(calculateTax())}</span>
+            <span>{formatCurrency(calculateFinalTotal().totalTTC - calculateFinalTotal().totalHT)}</span>
           </div>
           <div className="flex justify-between">
             <span>Total (TTC):</span>
-            <span>{formatCurrency(calculateTotalWithTax())}</span>
+            <span>{formatCurrency(calculateFinalTotal().totalTTC)}</span>
           </div>
           {form.watch('transportationFee') > 0 && (
             <div className="flex justify-between">
@@ -539,7 +540,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           )}
           <div className="flex justify-between font-bold pt-2 border-t">
             <span>Final Total:</span>
-            <span>{formatCurrency(calculateFinalTotal())}</span>
+            <span>{formatCurrency(calculateFinalTotal().totalTTC)}</span>
           </div>
         </div>
 

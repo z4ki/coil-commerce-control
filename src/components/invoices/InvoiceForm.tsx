@@ -100,28 +100,22 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       setSelectedSales(updatedSelectedSales);
       
       // Update total amount
-      calculateTotalAmount(updatedSelectedSales);
+      calculateTotals();
     }
   }, [form.watch('clientId')]);
 
-  // Calculate total amount whenever selected sales change
-  const calculateTotalAmount = (saleIds: string[]) => {
-    const total = saleIds.reduce((sum, saleId) => {
-      const sale = sales.find((s) => s.id === saleId);
-      return sum + (sale ? sale.totalAmount : 0);
-    }, 0);
-    setTotalAmount(total);
+  // Calculate totals
+  const calculateTotals = () => {
+    const selectedSalesData = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean);
+    const totalHT = selectedSalesData.reduce((sum, sale) => sum + (sale?.totalAmountHT || 0), 0);
+    const totalTTC = selectedSalesData.reduce((sum, sale) => sum + (sale?.totalAmountTTC || 0), 0);
+    return { totalHT, totalTTC };
   };
 
-  // Handle sale selection
-  const handleSaleToggle = (saleId: string) => {
-    const newSelectedSales = selectedSales.includes(saleId)
-      ? selectedSales.filter((id) => id !== saleId)
-      : [...selectedSales, saleId];
-    
-    setSelectedSales(newSelectedSales);
-    calculateTotalAmount(newSelectedSales);
-  };
+  useEffect(() => {
+    const { totalHT, totalTTC } = calculateTotals();
+    setTotalAmount(totalTTC); // Use TTC as the main amount
+  }, [selectedSales, sales]);
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -132,6 +126,8 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
 
       setIsSubmitting(true);
 
+      const { totalHT, totalTTC } = calculateTotals();
+
       // Ensure all required fields are provided
       const invoiceData = {
         invoiceNumber: data.invoiceNumber,
@@ -139,7 +135,9 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         date: parseDateInput(data.date),
         dueDate: parseDateInput(data.dueDate),
         salesIds: selectedSales,
-        totalAmount: totalAmount,
+        totalAmountHT: totalHT,
+        totalAmountTTC: totalTTC,
+        taxRate: 0.19,
         isPaid: data.isPaid,
       };
 
@@ -306,38 +304,37 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="w-[100px]">Select</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>Articles</TableHead>
-                    <TableHead className="text-right">Montant</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead className="text-right">Total TTC</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clientSales.length > 0 ? (
-                    clientSales.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedSales.includes(sale.id)}
-                            onCheckedChange={() => handleSaleToggle(sale.id)}
-                          />
-                        </TableCell>
-                        <TableCell>{formatDate(sale.date)}</TableCell>
-                        <TableCell>Vente de bobines PPGI</TableCell>
-                        <TableCell>{sale.items.length} articles</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(sale.totalAmount)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        Aucune vente non facturée trouvée pour ce client.
+                  {clientSales.map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedSales.includes(sale.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedSales([...selectedSales, sale.id]);
+                            } else {
+                              setSelectedSales(selectedSales.filter(id => id !== sale.id));
+                            }
+                          }}
+                          disabled={sale.isInvoiced && sale.invoiceId !== invoice?.id}
+                        />
+                      </TableCell>
+                      <TableCell>{formatDate(sale.date)}</TableCell>
+                      <TableCell>Sale #{sale.id.slice(0, 8)}</TableCell>
+                      <TableCell>{sale.items.length} items</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(sale.totalAmountTTC)}
                       </TableCell>
                     </TableRow>
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </div>

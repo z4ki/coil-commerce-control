@@ -22,7 +22,7 @@ import {
 import { ArrowLeft, Download, Edit, Printer, Trash2, DollarSign, PenLine, Wallet } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import InvoiceForm from '../components/invoices/InvoiceForm';
 import PaymentForm from '../components/invoices/PaymentForm';
 import { toast } from 'sonner';
@@ -54,7 +54,10 @@ const InvoiceDetail = () => {
   const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
   const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
   const remainingAmount = invoice ? getInvoiceRemainingAmount(invoice.id) : 0;
-  const totalPaid = invoice ? invoice.totalAmount - remainingAmount : 0;
+  const totalHT = invoice ? invoice.totalAmountHT : 0;
+  const totalTVA = totalHT * 0.19;
+  const totalTTC = invoice ? invoice.totalAmountTTC : 0;
+  const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
   const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter(Boolean) : [];
   
   const handleDeleteInvoice = () => {
@@ -191,12 +194,12 @@ const InvoiceDetail = () => {
           <CardHeader className="flex flex-row items-start justify-between">
             <div>
               <CardTitle className="text-xl">Invoice #{invoice?.invoiceNumber}</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
+              <div className="text-sm text-muted-foreground mt-1">
                 Status: <StatusBadge 
                   status={invoice?.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
                   className="ml-1"
                 />
-              </p>
+              </div>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Issue Date</p>
@@ -257,7 +260,7 @@ const InvoiceDetail = () => {
                         <TableCell>PPGI Coil Sale</TableCell>
                         <TableCell>{sale.items.length} items</TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(sale.totalAmount)}
+                          {formatCurrency(sale.totalAmountTTC)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -326,15 +329,15 @@ const InvoiceDetail = () => {
             <div className="flex flex-col items-end space-y-2 border-t pt-4">
               <div className="flex justify-between w-full max-w-xs">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-medium">{formatCurrency(invoice?.totalAmount || 0)}</span>
+                <span className="font-medium">{formatCurrency(totalHT)}</span>
               </div>
               <div className="flex justify-between w-full max-w-xs">
                 <span className="text-muted-foreground">Tax (19%):</span>
-                <span className="font-medium">{formatCurrency((invoice?.totalAmount || 0) * 0.19)}</span>
+                <span className="font-medium">{formatCurrency(totalTVA)}</span>
               </div>
               <div className="flex justify-between w-full max-w-xs pt-2 border-t">
                 <span className="font-medium">Total:</span>
-                <span className="font-bold text-lg">{formatCurrency((invoice?.totalAmount || 0) * 1.19)}</span>
+                <span className="font-bold text-lg">{formatCurrency(totalTTC)}</span>
               </div>
               
               <div className="flex justify-between w-full max-w-xs mt-4">
@@ -410,6 +413,9 @@ const InvoiceDetail = () => {
             <DialogTitle>
               {selectedPaymentId ? 'Edit Payment' : 'Record Payment'}
             </DialogTitle>
+            <DialogDescription>
+              {selectedPaymentId ? 'Modify the payment details below.' : 'Enter the payment details below.'}
+            </DialogDescription>
           </DialogHeader>
           <PaymentForm 
             invoiceId={invoice?.id || ''}

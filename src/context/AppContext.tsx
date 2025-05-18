@@ -42,6 +42,18 @@ interface AppContextType {
   getPaymentsByInvoice: (invoiceId: string) => Payment[];
   getInvoiceRemainingAmount: (invoiceId: string) => number;
   deletePayment: (id: string) => Promise<void>;
+  addPayment: (invoiceId: string, paymentData: { 
+    date: Date; 
+    amount: number; 
+    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; 
+    notes?: string 
+  }) => Promise<Payment>;
+  updatePayment: (id: string, paymentData: Partial<{
+    date: Date;
+    amount: number;
+    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
+    notes?: string;
+  }>) => Promise<Payment>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -295,15 +307,40 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const invoice = getInvoiceById(invoiceId);
     if (!invoice) return 0;
 
+    // Calculate TTC (Total with tax)
+    const totalTTC = invoice.totalAmount * 1.19; // Adding 19% TVA
+
     const totalPaid = getPaymentsByInvoice(invoiceId)
       .reduce((sum, payment) => sum + payment.amount, 0);
 
-    return invoice.totalAmount - totalPaid;
+    return totalTTC - totalPaid;
   };
 
   const deletePayment = async (id: string) => {
     await paymentService.deletePayment(id);
     setPayments(prev => prev.filter(p => p.id !== id));
+  };
+
+  const addPayment = async (invoiceId: string, paymentData: { 
+    date: Date; 
+    amount: number; 
+    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; 
+    notes?: string 
+  }) => {
+    const newPayment = await paymentService.createPayment(invoiceId, paymentData);
+    setPayments(prev => [...prev, newPayment]);
+    return newPayment;
+  };
+
+  const updatePayment = async (id: string, paymentData: Partial<{
+    date: Date;
+    amount: number;
+    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
+    notes?: string;
+  }>) => {
+    const updatedPayment = await paymentService.updatePayment(id, paymentData);
+    setPayments(prev => prev.map(p => p.id === id ? updatedPayment : p));
+    return updatedPayment;
   };
 
   return (
@@ -332,6 +369,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       getInvoiceById,
       getPaymentsByInvoice,
       getInvoiceRemainingAmount,
+      addPayment,
+      updatePayment,
       deletePayment
     }}>
       {children}

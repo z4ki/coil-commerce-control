@@ -2,14 +2,15 @@ import React, { memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import DataCard from '../components/ui/DataCard';
-import { BarChart2, DollarSign, Users, FileText, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart2, DollarSign, Users, FileText, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../utils/format';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface MonthlySalesData {
   month: string;
-  amount: number;
+  amountTTC: number;
 }
 
 // Memoized chart components to prevent unnecessary re-renders
@@ -44,7 +45,7 @@ const MemoizedBarChart = memo(({ data }: { data: MonthlySalesData[] }) => (
         cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
       />
       <Bar 
-        dataKey="amount" 
+        dataKey="amountTTC" 
         fill="#3b82f6"
         radius={[4, 4, 0, 0]}
         maxBarSize={50}
@@ -58,9 +59,11 @@ MemoizedBarChart.displayName = 'MemoizedBarChart';
 const Dashboard = () => {
   const { 
     clients, 
+    sales, 
     getSalesSummary, 
     getDebtSummary,
-    invoices
+    invoices,
+    getSalesByClient
   } = useAppContext();
   
   const salesSummary = getSalesSummary();
@@ -69,22 +72,42 @@ const Dashboard = () => {
   // Count unpaid invoices
   const unpaidInvoices = invoices.filter(inv => !inv.isPaid).length;
   
+  // Calculate total sales amount (TTC)
+  const totalSalesAmount = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+  
+  // Calculate average sale amount (TTC)
+  const averageSaleAmount = sales.length > 0 ? totalSalesAmount / sales.length : 0;
+  
+  // Get top clients by sales amount (TTC)
+  const topClients = clients
+    .map(client => {
+      const clientSales = getSalesByClient(client.id);
+      const totalAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+      return {
+        ...client,
+        totalAmount,
+        salesCount: clientSales.length
+      };
+    })
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .slice(0, 5);
+
   return (
     <MainLayout title="Dashboard">
       <div className="space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <DataCard
-            title="Total Sales"
-            value={formatCurrency(salesSummary.totalSales)}
+            title="Total Sales (TTC)"
+            value={formatCurrency(totalSalesAmount)}
             icon={<DollarSign className="h-4 w-4" />}
-            description="All time sales value"
+            description={`Average: ${formatCurrency(averageSaleAmount)}`}
           />
           <DataCard
-            title="Outstanding Debt"
-            value={formatCurrency(debtSummary.totalDebt)}
-            icon={<AlertTriangle className="h-4 w-4" />}
-            description={`${unpaidInvoices} unpaid invoices`}
+            title="Outstanding Debt (TTC)"
+            value={formatCurrency(debtSummary.totalDebtTTC)}
+            icon={<AlertCircle className="h-4 w-4" />}
+            description={`Overdue: ${formatCurrency(debtSummary.overdueDebtTTC)}`}
           />
           <DataCard
             title="Total Clients"
@@ -106,7 +129,7 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart2 className="h-5 w-5 text-muted-foreground" />
-                <span>Monthly Sales</span>
+                <span>Monthly Sales (TTC)</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -121,23 +144,30 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-muted-foreground" />
-                <span>Top Clients by Outstanding Debt</span>
+                <span>Top Clients</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {debtSummary.debtByClient.slice(0, 5).map((clientDebt) => (
-                  <div key={clientDebt.clientId} className="flex items-center justify-between">
-                    <span className="font-medium">{clientDebt.clientName}</span>
-                    <span className="text-destructive font-semibold">
-                      {formatCurrency(clientDebt.amount)}
-                    </span>
-                  </div>
-                ))}
-                {debtSummary.debtByClient.length === 0 && (
-                  <p className="text-muted-foreground text-center py-8">No outstanding debts</p>
-                )}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Sales Count</TableHead>
+                    <TableHead className="text-right">Total Amount (TTC)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topClients.map((client) => (
+                    <TableRow key={client.id}>
+                      <TableCell className="font-medium">{client.name}</TableCell>
+                      <TableCell>{client.salesCount}</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(client.totalAmount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </div>

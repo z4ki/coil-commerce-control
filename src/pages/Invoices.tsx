@@ -129,7 +129,7 @@ const Invoices = () => {
                           <TableCell>{formatDate(invoice.date)}</TableCell>
                           <TableCell>{formatDate(invoice.dueDate)}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {formatCurrency(invoice.totalAmount)}
+                            {formatCurrency(invoice.totalAmountTTC)}
                           </TableCell>
                           <TableCell>
                             <StatusBadge 

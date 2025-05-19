@@ -31,6 +31,7 @@ interface AppContextType {
   getSalesSummary: () => SalesSummary;
   getDebtSummary: () => DebtSummary;
   getClientDebt: (clientId: string) => number;
+  getClientCreditBalance: (clientId: string) => number;
   addSale: (sale: Omit<Sale, 'id' | 'createdAt'>) => Promise<Sale>;
   updateSale: (id: string, sale: Partial<Sale>) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
@@ -54,6 +55,7 @@ interface AppContextType {
     method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
     notes?: string;
   }>) => Promise<Payment>;
+  cleanupDuplicatePayments: (invoiceId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -202,8 +204,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
       }, 0);
       
-      // Calculate client's debt
-      const clientDebt = totalSalesAmount - totalPaidAmount;
+      // Calculate client's debt (never show negative debt)
+      const clientDebt = Math.max(0, totalSalesAmount - totalPaidAmount);
       
       // Only add client if they have debt
       if (clientDebt > 0) {
@@ -222,8 +224,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     // Calculate total paid amount
     const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
     
-    // Calculate total debt (total sales - total paid)
-    const totalDebt = totalSales - totalPaid;
+    // Calculate total debt (never show negative debt)
+    const totalDebt = Math.max(0, totalSales - totalPaid);
     
     // Calculate overdue amount from unpaid invoices that are past due
     const overdueDebt = invoices
@@ -239,11 +241,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         // Calculate remaining amount for this invoice
         const invoicePayments = payments.filter(p => p.invoiceId === inv.id);
         const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
-        return sum + (inv.totalAmountTTC - totalPaid);
+        return sum + Math.max(0, inv.totalAmountTTC - totalPaid);
       }, 0);
     
-    // Upcoming debt is total debt minus overdue debt
-    const upcomingDebt = totalDebt - overdueDebt;
+    // Upcoming debt is total debt minus overdue debt (never show negative)
+    const upcomingDebt = Math.max(0, totalDebt - overdueDebt);
 
     return {
       totalDebtTTC: totalDebt,
@@ -268,8 +270,25 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const uninvoicedSales = sales.filter(sale => sale.clientId === clientId && !sale.isInvoiced);
     const uninvoicedAmount = uninvoicedSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
     
-    // Total debt is unpaid invoices (minus payments) plus uninvoiced sales
-    return (totalInvoiceAmount - totalPayments) + uninvoicedAmount;
+    // Total debt is unpaid invoices (minus payments) plus uninvoiced sales (never show negative)
+    return Math.max(0, (totalInvoiceAmount - totalPayments) + uninvoicedAmount);
+  };
+
+  const getClientCreditBalance = (clientId: string): number => {
+    // Get all invoices for this client
+    const clientInvoices = invoices.filter(inv => inv.clientId === clientId);
+    
+    // Calculate total amount client should pay
+    const totalInvoiceAmount = clientInvoices.reduce((sum, inv) => sum + inv.totalAmountTTC, 0);
+    
+    // Calculate total amount client has paid
+    const totalPayments = clientInvoices.reduce((sum, invoice) => {
+      const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
+      return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
+    }, 0);
+    
+    // If totalPayments > totalInvoiceAmount, the difference is what we owe the client
+    return Math.max(0, totalPayments - totalInvoiceAmount);
   };
 
   const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
@@ -314,11 +333,22 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
-    await invoiceService.updateInvoice(id, invoice);
-    setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...invoice } : i));
+    const existingInvoice = invoices.find(i => i.id === id);
+    
+    // If marking as paid and wasn't paid before, create payment record
+    if (existingInvoice && invoice.isPaid && !existingInvoice.isPaid) {
+      await addPayment(id, {
+        date: new Date(),
+        amount: existingInvoice.totalAmountTTC,
+        method: 'bank_transfer',
+        notes: 'Payment marked as completed'
+      });
+    }
+    
+    const updatedInvoice = await invoiceService.updateInvoice(id, invoice);
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...updatedInvoice } : i));
 
     // Update related sales if salesIds have changed
-    const existingInvoice = invoices.find(i => i.id === id);
     if (existingInvoice && invoice.salesIds) {
       // Unmark previously invoiced sales
       await Promise.all(
@@ -380,8 +410,25 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; 
     notes?: string 
   }) => {
+    // Create the new payment
     const newPayment = await paymentService.createPayment(invoiceId, paymentData);
     setPayments(prev => [...prev, newPayment]);
+
+    // Get the invoice and check if it should be marked as paid
+    const invoice = getInvoiceById(invoiceId);
+    if (invoice) {
+      const invoicePayments = [...payments, newPayment].filter(p => p.invoiceId === invoiceId);
+      const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      // If total paid amount equals or exceeds invoice total, mark as paid
+      if (totalPaid >= invoice.totalAmountTTC && !invoice.isPaid) {
+        await updateInvoice(invoiceId, {
+          isPaid: true,
+          paidAt: new Date()
+        });
+      }
+    }
+
     return newPayment;
   };
 
@@ -393,7 +440,56 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   }>) => {
     const updatedPayment = await paymentService.updatePayment(id, paymentData);
     setPayments(prev => prev.map(p => p.id === id ? updatedPayment : p));
+
+    // Get the invoice and check if it should be marked as paid
+    const invoice = getInvoiceById(updatedPayment.invoiceId);
+    if (invoice) {
+      const invoicePayments = payments
+        .filter(p => p.invoiceId === updatedPayment.invoiceId)
+        .map(p => p.id === id ? updatedPayment : p);
+      
+      const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      // Update invoice paid status based on total paid amount
+      if (totalPaid >= invoice.totalAmountTTC && !invoice.isPaid) {
+        await updateInvoice(invoice.id, {
+          isPaid: true,
+          paidAt: new Date()
+        });
+      } else if (totalPaid < invoice.totalAmountTTC && invoice.isPaid) {
+        await updateInvoice(invoice.id, {
+          isPaid: false,
+          paidAt: undefined
+        });
+      }
+    }
+
     return updatedPayment;
+  };
+
+  const cleanupDuplicatePayments = async (invoiceId: string) => {
+    const invoicePayments = payments.filter(p => p.invoiceId === invoiceId);
+    
+    // Group payments by their properties to find duplicates
+    const paymentGroups = invoicePayments.reduce((groups, payment) => {
+      const key = `${payment.amount}-${payment.method}-${new Date(payment.date).getTime()}`;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(payment);
+      return groups;
+    }, {} as Record<string, Payment[]>);
+
+    // For each group of duplicate payments, keep the first one and delete the rest
+    for (const group of Object.values(paymentGroups)) {
+      if (group.length > 1) {
+        // Keep the first payment, delete the rest
+        const [keep, ...duplicates] = group;
+        for (const duplicate of duplicates) {
+          await deletePayment(duplicate.id);
+        }
+      }
+    }
   };
 
   return (
@@ -412,6 +508,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       getSalesSummary,
       getDebtSummary,
       getClientDebt,
+      getClientCreditBalance,
       addSale,
       updateSale,
       deleteSale,
@@ -424,7 +521,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       getInvoiceRemainingAmount,
       addPayment,
       updatePayment,
-      deletePayment
+      deletePayment,
+      cleanupDuplicatePayments
     }}>
       {children}
     </AppContext.Provider>

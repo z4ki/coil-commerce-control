@@ -30,6 +30,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ClientForm from '../components/clients/ClientForm';
 import { toast } from 'sonner';
+import { Invoice, Sale } from '../types';
 
 const ClientDetail = () => {
   const { clientId } = useParams<{ clientId: string }>();
@@ -43,11 +44,13 @@ const ClientDetail = () => {
     getInvoicesByClient,
     getClientDebt,
     getPaymentsByInvoice,
+    getClientCreditBalance,
   } = useAppContext();
 
   const client = getClientById(clientId || '');
   const clientSales = getSalesByClient(clientId || '');
   const clientInvoices = getInvoicesByClient(clientId || '');
+  const creditBalance = getClientCreditBalance(clientId || '');
 
   // Get all payments for all client invoices
   const clientPayments = useMemo(() => {
@@ -82,9 +85,19 @@ const ClientDetail = () => {
   );
 
   const clientDebt = useMemo(() => 
-    totalSalesAmount - totalPaidAmount,
+    Math.max(0, totalSalesAmount - totalPaidAmount),
     [totalSalesAmount, totalPaidAmount]
   );
+
+  const getInvoiceStatus = (invoice: Invoice): 'paid' | 'unpaid' | 'overdue' | 'invoiced' | 'notInvoiced' => {
+    if (invoice.isPaid) return 'paid';
+    if (new Date(invoice.dueDate) < new Date()) return 'overdue';
+    return 'unpaid';
+  };
+
+  const getSaleStatus = (sale: Sale): 'invoiced' | 'notInvoiced' => {
+    return sale.isInvoiced ? 'invoiced' : 'notInvoiced';
+  };
 
   const handleDeleteClient = () => {
     if (window.confirm(`Are you sure you want to delete ${client?.name}?`)) {
@@ -116,6 +129,10 @@ const ClientDetail = () => {
       title={client.name}
       headerAction={
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate('/clients')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Clients
+          </Button>
           <Button variant="outline" onClick={() => setShowEditDialog(true)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit
@@ -152,6 +169,12 @@ const ClientDetail = () => {
                   <span className="text-sm text-muted-foreground">Total Paid:</span>
                   <span className="font-medium text-green-600">{formatCurrency(totalPaidAmount)}</span>
                 </div>
+                {creditBalance > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-blue-600">Credit Balance:</span>
+                    <span className="font-medium text-blue-600">{formatCurrency(creditBalance)}</span>
+                  </div>
+                )}
                 <div className="pt-2 mt-2 border-t flex justify-between items-center">
                   <span className="text-sm font-medium">Outstanding Debt:</span>
                   <span className={`font-bold ${clientDebt > 0 ? 'text-destructive' : ''}`}>
@@ -198,7 +221,7 @@ const ClientDetail = () => {
                             </TableCell>
                             <TableCell>
                               <StatusBadge 
-                                status={sale.isInvoiced ? 'invoiced' : 'not-invoiced'} 
+                                status={getSaleStatus(sale)} 
                               />
                             </TableCell>
                           </TableRow>
@@ -255,7 +278,7 @@ const ClientDetail = () => {
                               </TableCell>
                               <TableCell>
                                 <StatusBadge 
-                                  status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
+                                  status={getInvoiceStatus(invoice)} 
                                 />
                               </TableCell>
                             </TableRow>

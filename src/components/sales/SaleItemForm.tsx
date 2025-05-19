@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   FormControl,
@@ -22,11 +22,17 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const { control, watch, setValue, trigger } = useFormContext();
   const { t } = useLanguage();
   
+  // Track all numeric inputs as strings
+  const [thicknessInput, setThicknessInput] = useState('');
+  const [widthInput, setWidthInput] = useState('');
+  const [quantityInput, setQuantityInput] = useState('');
+  const [priceInput, setPriceInput] = useState('');
+  
   // Watch for changes in all relevant fields
-  const quantity = watch(`items.${index}.quantity`) || 0;
-  const pricePerTon = watch(`items.${index}.pricePerTon`) || '';
-  const thickness = watch(`items.${index}.coilThickness`) || '';
-  const width = watch(`items.${index}.coilWidth`) || '';
+  const quantity = watch(`items.${index}.quantity`);
+  const pricePerTon = watch(`items.${index}.pricePerTon`);
+  const thickness = watch(`items.${index}.coilThickness`);
+  const width = watch(`items.${index}.coilWidth`);
   const topRal = watch(`items.${index}.topCoatRAL`);
   const backRal = watch(`items.${index}.backCoatRAL`);
   
@@ -34,6 +40,22 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const totalHT = (Number(quantity) || 0) * (Number(pricePerTon) || 0);
   const tva = totalHT * 0.19; // 19% TVA
   const totalTTC = totalHT + tva;
+
+  // Initialize input values
+  React.useEffect(() => {
+    if (thickness !== undefined && thicknessInput === '') {
+      setThicknessInput(thickness.toString());
+    }
+    if (width !== undefined && widthInput === '') {
+      setWidthInput(width.toString());
+    }
+    if (quantity !== undefined && quantityInput === '') {
+      setQuantityInput(quantity.toString());
+    }
+    if (pricePerTon !== undefined && priceInput === '') {
+      setPriceInput(pricePerTon.toString());
+    }
+  }, [thickness, width, quantity, pricePerTon]);
 
   // Automatically generate description when relevant fields change
   React.useEffect(() => {
@@ -57,13 +79,21 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
     trigger();
   }, [quantity, pricePerTon, index, setValue, trigger]);
 
-  const handleNumberChange = (field: { onChange: (value: number | string | undefined) => void }, value: string) => {
-    if (value === '') {
-      field.onChange('');
-    } else {
-      field.onChange(value);
+  // Handle numeric input changes
+  const handleNumericInput = (value: string, setter: (value: string) => void, field: { onChange: (value: number) => void }) => {
+    // Allow empty input, numbers, one decimal point
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setter(value);
+      // Only update the form value if it's a valid number
+      if (value === '') {
+        field.onChange(0);
+      } else {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          field.onChange(numValue);
+        }
+      }
     }
-    trigger();
   };
 
   return (
@@ -102,11 +132,11 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
               <FormLabel>{t('form.sale.coilThickness')}</FormLabel>
               <FormControl>
                 <Input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="0.5" 
-                  {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.value)}
+                  type="text" 
+                  inputMode="decimal"
+                  placeholder="0.00" 
+                  value={thicknessInput}
+                  onChange={(e) => handleNumericInput(e.target.value, setThicknessInput, field)}
                 />
               </FormControl>
               <FormMessage />
@@ -124,11 +154,11 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
               <FormLabel>{t('form.sale.coilWidth')}</FormLabel>
               <FormControl>
                 <Input 
-                  type="number" 
-                  step="1" 
-                  placeholder="1000" 
-                  {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.value)}
+                  type="text" 
+                  inputMode="decimal"
+                  placeholder="0.00" 
+                  value={widthInput}
+                  onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
                 />
               </FormControl>
               <FormMessage />
@@ -144,11 +174,11 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
               <FormLabel>{t('form.sale.quantity')}</FormLabel>
               <FormControl>
                 <Input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="1.0" 
-                  {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.value)}
+                  type="text" 
+                  inputMode="decimal"
+                  placeholder="0.00" 
+                  value={quantityInput}
+                  onChange={(e) => handleNumericInput(e.target.value, setQuantityInput, field)}
                 />
               </FormControl>
               <FormMessage />
@@ -196,11 +226,11 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
               <FormLabel>{t('form.sale.pricePerTon')}</FormLabel>
               <FormControl>
                 <Input 
-                  type="number" 
-                  step="0.01" 
+                  type="text" 
+                  inputMode="decimal"
                   placeholder="0.00" 
-                  {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.value)}
+                  value={priceInput}
+                  onChange={(e) => handleNumericInput(e.target.value, setPriceInput, field)}
                 />
               </FormControl>
               <FormMessage />

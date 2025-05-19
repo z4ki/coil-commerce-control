@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatDateInput, parseDateInput } from '../../utils/format';
+import { formatDateInput, parseDateInput, formatCurrency } from '../../utils/format';
 import { toast } from 'sonner';
 import { Payment } from '../../types';
 
@@ -54,14 +53,6 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
   });
 
   const onSubmit = (data: FormValues) => {
-    if (data.amount > remainingAmount && !payment) {
-      form.setError('amount', { 
-        type: 'manual', 
-        message: `Amount cannot exceed remaining balance of ${remainingAmount}` 
-      });
-      return;
-    }
-    
     const paymentData = {
       date: parseDateInput(data.date),
       amount: data.amount,
@@ -69,16 +60,26 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
       notes: data.notes || '',
     };
     
-    if (payment) {
-      updatePayment(payment.id, paymentData);
-      toast.success('Payment has been updated');
-    } else {
-      addPayment(invoiceId, paymentData);
-      toast.success('Payment has been recorded');
-    }
+    try {
+      if (payment) {
+        updatePayment(payment.id, paymentData);
+        toast.success('Payment has been updated');
+      } else {
+        addPayment(invoiceId, paymentData);
+        
+        if (data.amount > remainingAmount) {
+          toast.warning(`Payment of ${formatCurrency(data.amount)} exceeds the remaining amount of ${formatCurrency(remainingAmount)}. This will result in a credit balance.`);
+        } else {
+          toast.success('Payment has been recorded');
+        }
+      }
 
-    if (onSuccess) {
-      onSuccess();
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      toast.error('Failed to process payment. Please try again.');
     }
   };
 
@@ -105,15 +106,20 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
           render={({ field }) => (
             <FormItem>
               <FormLabel>Amount</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="Enter amount" 
-                  {...field} 
-                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-                />
-              </FormControl>
+              <div className="space-y-2">
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    placeholder="Enter amount" 
+                    {...field} 
+                    onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                  />
+                </FormControl>
+                <p className="text-sm text-muted-foreground">
+                  Remaining amount to be paid: {formatCurrency(remainingAmount)}
+                </p>
+              </div>
               <FormMessage />
             </FormItem>
           )}

@@ -45,6 +45,8 @@ const InvoiceDetail = () => {
     getPaymentsByInvoice,
     getInvoiceRemainingAmount,
     deletePayment,
+    addPayment,
+    cleanupDuplicatePayments
   } = useAppContext();
 
   const { settings } = useAppSettings();
@@ -68,8 +70,18 @@ const InvoiceDetail = () => {
     }
   };
 
-  const handleTogglePaid = () => {
+  const handleTogglePaid = async () => {
     if (!invoice) return;
+    
+    if (!invoice.isPaid) {
+      // When marking as paid, create a payment record
+      await addPayment(invoice.id, {
+        date: new Date(),
+        amount: invoice.totalAmountTTC,
+        method: 'bank_transfer',
+        notes: 'Payment marked as completed'
+      });
+    }
     
     updateInvoice(invoice.id, { 
       isPaid: !invoice.isPaid,
@@ -142,6 +154,13 @@ const InvoiceDetail = () => {
     }
   };
   
+  const handleCleanupDuplicates = async () => {
+    if (invoice) {
+      await cleanupDuplicatePayments(invoice.id);
+      toast.success('Duplicate payments have been cleaned up');
+    }
+  };
+  
   if (!invoice || !client) {
     return (
       <MainLayout title="Invoice Not Found">
@@ -160,7 +179,24 @@ const InvoiceDetail = () => {
   }
 
   return (
-    <MainLayout title="Invoice Details">
+    <MainLayout
+      title={`Invoice ${invoice?.invoiceNumber || ''}`}
+      headerAction={
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleCleanupDuplicates}>
+            Clean Up Duplicates
+          </Button>
+          <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+          <Button variant="destructive" onClick={handleDeleteInvoice}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        </div>
+      }
+    >
       <div className="space-y-6">
         {/* Back button and actions */}
         <div className="flex justify-between items-center">
@@ -177,14 +213,6 @@ const InvoiceDetail = () => {
             </Button>
             <Button variant="outline" onClick={handleTogglePaid}>
               Mark as {invoice?.isPaid ? 'Unpaid' : 'Paid'}
-            </Button>
-            <Button variant="outline" onClick={() => setShowEditDialog(true)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteInvoice}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
             </Button>
           </div>
         </div>

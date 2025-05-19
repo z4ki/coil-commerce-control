@@ -85,26 +85,26 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: item.id,
       description: item.description,
       coilRef: item.coilRef || '',
-      coilThickness: item.coilThickness?.toString() || '',
-      coilWidth: item.coilWidth?.toString() || '',
+      coilThickness: Number(item.coilThickness) || 0,
+      coilWidth: Number(item.coilWidth) || 0,
       topCoatRAL: item.topCoatRAL || '',
       backCoatRAL: item.backCoatRAL || '',
-      coilWeight: item.coilWeight?.toString() || '',
+      coilWeight: Number(item.coilWeight) || 0,
       quantity: item.quantity,
-      pricePerTon: item.pricePerTon?.toString() || '',
+      pricePerTon: Number(item.pricePerTon) || 0,
       totalAmountHT: item.totalAmountHT,
       totalAmountTTC: item.totalAmountTTC
     })) || [{ 
       id: uuidv4(), 
       description: '', 
       coilRef: '', 
-      coilThickness: '',
-      coilWidth: '',
+      coilThickness: 0,
+      coilWidth: 0,
       topCoatRAL: '',
       backCoatRAL: '',
-      coilWeight: '',
+      coilWeight: 0,
       quantity: 1, 
-      pricePerTon: '',
+      pricePerTon: 0,
       totalAmountHT: 0,
       totalAmountTTC: 0
     }]
@@ -127,11 +127,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: z.string(),
       description: z.string().min(1, { message: t('form.required') }),
       coilRef: z.string().optional(),
-      coilThickness: z.number().optional(),
-      coilWidth: z.number().optional(),
+      coilThickness: z.coerce.number().min(0).optional(),
+      coilWidth: z.coerce.number().min(0).optional(),
       topCoatRAL: z.string().optional(),
       backCoatRAL: z.string().optional(),
-      coilWeight: z.number().optional(),
+      coilWeight: z.coerce.number().min(0).optional(),
       quantity: z.coerce.number().positive({ message: t('form.sale.quantityPositive') }),
       pricePerTon: z.coerce.number().positive({ message: t('form.sale.pricePositive') }),
       totalAmountHT: z.number(),
@@ -161,13 +161,13 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: uuidv4(),
       description: '',
       coilRef: '',
-      coilThickness: '',
-      coilWidth: '',
+      coilThickness: 0,
+      coilWidth: 0,
       topCoatRAL: '',
       backCoatRAL: '',
-      coilWeight: '',
+      coilWeight: 0,
       quantity: 1,
-      pricePerTon: '',
+      pricePerTon: 0,
       totalAmountHT: 0,
       totalAmountTTC: 0
     };
@@ -189,16 +189,16 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         id: item.id || uuidv4(),
         description: item.description || '',
         coilRef: item.coilRef || '',
-        coilThickness: item.coilThickness?.toString() || '',
-        coilWidth: item.coilWidth?.toString() || '',
+        coilThickness: Number(item.coilThickness) || 0,
+        coilWidth: Number(item.coilWidth) || 0,
         topCoatRAL: item.topCoatRAL || '',
         backCoatRAL: item.backCoatRAL || '',
-        coilWeight: item.coilWeight?.toString() || '',
+        coilWeight: Number(item.coilWeight) || 0,
         quantity: Number(item.quantity || 1),
-        pricePerTon: item.pricePerTon?.toString() || '',
+        pricePerTon: Number(item.pricePerTon || 0),
         totalAmountHT: totalHT,
         totalAmountTTC: totalTTC
-      } as SaleItemFormData;
+      };
     });
 
     const newItems = [...currentItems, newItem];
@@ -234,16 +234,16 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         id: item.id || uuidv4(),
         description: item.description || '',
         coilRef: item.coilRef || '',
-        coilThickness: item.coilThickness?.toString() || '',
-        coilWidth: item.coilWidth?.toString() || '',
+        coilThickness: Number(item.coilThickness) || 0,
+        coilWidth: Number(item.coilWidth) || 0,
         topCoatRAL: item.topCoatRAL || '',
         backCoatRAL: item.backCoatRAL || '',
-        coilWeight: item.coilWeight?.toString() || '',
+        coilWeight: Number(item.coilWeight) || 0,
         quantity: Number(item.quantity || 1),
-        pricePerTon: item.pricePerTon?.toString() || '',
+        pricePerTon: Number(item.pricePerTon || 0),
         totalAmountHT: totalHT,
         totalAmountTTC: totalTTC
-      } as SaleItemFormData;
+      };
     });
 
     const newItems = currentItems.filter(item => item.id !== id);

@@ -51,7 +51,7 @@ interface InvoiceFormProps {
 }
 
 const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
-  const { addInvoice, updateInvoice, clients, getSalesByClient, sales, getClientById } = useAppContext();
+  const { addInvoice, updateInvoice, clients, getSalesByClient, sales, getClientById, addPayment } = useAppContext();
   const [clientSales, setClientSales] = useState<Sale[]>([]);
   const [selectedSales, setSelectedSales] = useState<string[]>(invoice?.salesIds || []);
   const [selectedClientId, setSelectedClientId] = useState<string>(invoice?.clientId || '');
@@ -73,14 +73,17 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     defaultValues,
   });
 
+  // Track if invoice number was manually edited
+  const [isInvoiceNumberManuallyEdited, setIsInvoiceNumberManuallyEdited] = useState(false);
+
   // Update invoice number when prefix changes
   useEffect(() => {
     const prefix = form.watch('prefix');
-    if (!invoice) { // Only auto-generate for new invoices
+    if (!invoice && !isInvoiceNumberManuallyEdited) { // Only auto-generate for new invoices and if not manually edited
       const newInvoiceNumber = generateInvoiceNumber(prefix);
       form.setValue('invoiceNumber', newInvoiceNumber);
     }
-  }, [form.watch('prefix')]);
+  }, [form.watch('prefix'), isInvoiceNumberManuallyEdited]);
 
   // When client is changed, update available sales
   useEffect(() => {
@@ -143,10 +146,29 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       };
 
       if (invoice) {
+        // If updating and marking as paid
+        if (data.isPaid && !invoice.isPaid) {
+          await addPayment(invoice.id, {
+            date: new Date(),
+            amount: totalTTC,
+            method: 'bank_transfer',
+            notes: 'Payment marked as completed'
+          });
+        }
         await updateInvoice(invoice.id, invoiceData);
         toast.success('Invoice has been updated');
       } else {
-        await addInvoice(invoiceData);
+        // Create new invoice
+        const newInvoice = await addInvoice(invoiceData);
+        // If creating as paid, add payment record
+        if (data.isPaid) {
+          await addPayment(newInvoice.id, {
+            date: new Date(),
+            amount: totalTTC,
+            method: 'bank_transfer',
+            notes: 'Payment marked as completed on creation'
+          });
+        }
         toast.success('Invoice has been created');
       }
 
@@ -199,7 +221,13 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
               <FormItem className="sm:col-span-2">
                 <FormLabel>Numéro de Facture</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input 
+                    {...field} 
+                    onChange={(e) => {
+                      field.onChange(e.target.value);
+                      setIsInvoiceNumberManuallyEdited(true);
+                    }}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

@@ -2,6 +2,75 @@ import { supabase } from '@/integrations/supabase/client';
 import { Invoice, InvoiceFilter } from '@/types';
 import { formatDateInput, generateInvoiceNumber } from '@/utils/format';
 
+interface DbInvoiceResponse {
+  id: string;
+  invoice_number: string;
+  client_id: string;
+  date: string;
+  due_date: string;
+  total_amount: number;
+  total_amount_ht?: number;
+  total_amount_ttc?: number;
+  tax_rate?: number;
+  is_paid: boolean;
+  paid_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+interface DbInvoiceInsert {
+  invoice_number: string;
+  client_id: string;
+  date: string;
+  due_date: string;
+  total_amount: number;
+  total_amount_ht: number;
+  total_amount_ttc: number;
+  tax_rate: number;
+  is_paid: boolean;
+  paid_at?: string | null;
+}
+
+interface DbInvoice {
+  id: string;
+  invoice_number: string;
+  client_id: string;
+  date: string;
+  due_date: string;
+  total_amount_ht: number;
+  total_amount_ttc: number;
+  tax_rate: number;
+  is_paid: boolean;
+  paid_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+// Helper to convert database response to DbInvoice
+const mapResponseToDbInvoice = (response: DbInvoiceResponse): DbInvoice => ({
+  ...response,
+  total_amount_ht: response.total_amount_ht || response.total_amount,
+  total_amount_ttc: response.total_amount_ttc || (response.total_amount * 1.19),
+  tax_rate: response.tax_rate || 0.19
+});
+
+// Helper to convert database invoice to our application Invoice type
+const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = []): Invoice => ({
+  id: dbInvoice.id,
+  invoiceNumber: dbInvoice.invoice_number,
+  clientId: dbInvoice.client_id,
+  date: new Date(dbInvoice.date),
+  dueDate: new Date(dbInvoice.due_date),
+  salesIds,
+  totalAmountHT: Number(dbInvoice.total_amount_ht),
+  totalAmountTTC: Number(dbInvoice.total_amount_ttc),
+  taxRate: Number(dbInvoice.tax_rate),
+  isPaid: dbInvoice.is_paid,
+  paidAt: dbInvoice.paid_at ? new Date(dbInvoice.paid_at) : undefined,
+  createdAt: new Date(dbInvoice.created_at),
+  updatedAt: dbInvoice.updated_at ? new Date(dbInvoice.updated_at) : undefined
+});
+
 export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> => {
   try {
     let query = supabase
@@ -54,21 +123,11 @@ export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> =>
       return acc;
     }, {});
     
-    return invoicesData.map(item => ({
-      id: item.id,
-      invoiceNumber: item.invoice_number,
-      clientId: item.client_id,
-      date: new Date(item.date),
-      dueDate: new Date(item.due_date),
-      salesIds: salesMap[item.id] || [], // Include the sales IDs from our map
-      totalAmountHT: Number(item.total_amount),
-      totalAmountTTC: Number(item.total_amount), // Temporarily use the same amount
-      taxRate: 0.19, // Default tax rate
-      isPaid: item.is_paid,
-      paidAt: item.paid_at ? new Date(item.paid_at) : undefined,
-      createdAt: new Date(item.created_at),
-      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined
-    }));
+    // Map the data to our application type
+    return (invoicesData as DbInvoiceResponse[]).map(invoice => {
+      const dbInvoice = mapResponseToDbInvoice(invoice);
+      return mapDbInvoiceToInvoice(dbInvoice, salesMap[invoice.id] || []);
+    });
   } catch (error) {
     console.error('Error in getInvoices:', error);
     throw error;
@@ -104,31 +163,19 @@ export const getInvoiceById = async (id: string): Promise<Invoice | null> => {
     
     if (error) {
       if (error.code === 'PGRST116') {
-        // No data found
         return null;
       }
       console.error('Error fetching invoice:', error);
       throw error;
     }
     
+    if (!data) return null;
+    
     // Get associated sales
     const salesIds = await getInvoiceSales(id);
     
-    return {
-      id: data.id,
-      invoiceNumber: data.invoice_number,
-      clientId: data.client_id,
-      date: new Date(data.date),
-      dueDate: new Date(data.due_date),
-      salesIds,
-      totalAmountHT: Number(data.total_amount),
-      totalAmountTTC: Number(data.total_amount), // Temporarily use the same amount
-      taxRate: 0.19, // Default tax rate
-      isPaid: data.is_paid,
-      paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
-      createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
-    };
+    const dbInvoice = mapResponseToDbInvoice(data as DbInvoiceResponse);
+    return mapDbInvoiceToInvoice(dbInvoice, salesIds);
   } catch (error) {
     console.error('Error in getInvoiceById:', error);
     throw error;
@@ -142,18 +189,23 @@ export const createInvoice = async (
     // Generate invoice number with custom prefix
     const invoiceNumber = generateInvoiceNumber(invoice.prefix || 'FAC');
     
+    const insertData: DbInvoiceInsert = {
+      invoice_number: invoiceNumber,
+      client_id: invoice.clientId,
+      date: invoice.date.toISOString(),
+      due_date: invoice.dueDate.toISOString(),
+      total_amount: invoice.totalAmountHT, // Keep the old field for backward compatibility
+      total_amount_ht: invoice.totalAmountHT,
+      total_amount_ttc: invoice.totalAmountTTC,
+      tax_rate: invoice.taxRate,
+      is_paid: invoice.isPaid,
+      paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
+    };
+    
     // Create invoice
     const { data, error } = await supabase
       .from('invoices')
-      .insert({
-        invoice_number: invoiceNumber,
-        client_id: invoice.clientId,
-        date: invoice.date.toISOString(),
-        due_date: invoice.dueDate.toISOString(),
-        total_amount: invoice.totalAmountTTC, // Use TTC amount as the total
-        is_paid: invoice.isPaid,
-        paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
-      })
+      .insert(insertData)
       .select()
       .single();
     
@@ -179,21 +231,8 @@ export const createInvoice = async (
       }
     }
     
-    return {
-      id: data.id,
-      invoiceNumber: data.invoice_number,
-      clientId: data.client_id,
-      date: new Date(data.date),
-      dueDate: new Date(data.due_date),
-      salesIds: invoice.salesIds || [],
-      totalAmountHT: Number(data.total_amount),
-      totalAmountTTC: Number(data.total_amount), // Temporarily use the same amount
-      taxRate: 0.19, // Default tax rate
-      isPaid: data.is_paid,
-      paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
-      createdAt: new Date(data.created_at),
-      updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
-    };
+    const dbInvoice = mapResponseToDbInvoice(data as DbInvoiceResponse);
+    return mapDbInvoiceToInvoice(dbInvoice, invoice.salesIds || []);
   } catch (error) {
     console.error('Error in createInvoice:', error);
     throw error;
@@ -280,9 +319,9 @@ export const updateInvoice = async (
       date: new Date(data.date),
       dueDate: new Date(data.due_date),
       salesIds,
-      totalAmountHT: Number(data.total_amount),
-      totalAmountTTC: Number(data.total_amount),
-      taxRate: 0.19, // Default tax rate
+      totalAmountHT: Number(data.total_amount_ht),
+      totalAmountTTC: Number(data.total_amount_ttc),
+      taxRate: Number(data.tax_rate || 0.19),
       isPaid: data.is_paid,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       createdAt: new Date(data.created_at),

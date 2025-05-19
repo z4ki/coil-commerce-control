@@ -1,16 +1,18 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Home, Users, ShoppingBag, FileText, BarChart2, Settings } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const MobileNav = () => {
+  const { t } = useLanguage();
+  
   const navItems = [
-    { name: 'Home', path: '/', icon: Home },
-    { name: 'Clients', path: '/clients', icon: Users },
-    { name: 'Sales', path: '/sales', icon: ShoppingBag },
-    { name: 'Invoices', path: '/invoices', icon: FileText },
-    { name: 'Reports', path: '/reports', icon: BarChart2 },
-    { name: 'Settings', path: '/settings', icon: Settings },
+    { name: t('dashboard.title'), path: '/', icon: Home },
+    { name: t('clients.title'), path: '/clients', icon: Users },
+    { name: t('sales.title'), path: '/sales', icon: ShoppingBag },
+    { name: t('general.invoices'), path: '/invoices', icon: FileText },
+    { name: t('general.reports'), path: '/reports', icon: BarChart2 },
+    { name: t('general.settings'), path: '/settings', icon: Settings },
   ];
 
   return (

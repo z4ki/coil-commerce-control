@@ -53,11 +53,11 @@ const InvoiceDetail = () => {
   const client = invoice ? getClientById(invoice.clientId) : undefined;
   const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
   const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
-  const remainingAmount = invoice ? getInvoiceRemainingAmount(invoice.id) : 0;
   const totalHT = invoice ? invoice.totalAmountHT : 0;
   const totalTVA = totalHT * 0.19;
-  const totalTTC = invoice ? invoice.totalAmountTTC : 0;
+  const totalTTC = totalHT + totalTVA;
   const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const remainingAmount = totalTTC - totalPaid;
   const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter(Boolean) : [];
   
   const handleDeleteInvoice = () => {

@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -35,6 +34,32 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { BarChart2, DollarSign, Download } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
+import { useLanguage } from '../context/LanguageContext';
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    payload: {
+      name: string;
+      value: number;
+    };
+  }>;
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-medium">{`${label}`}</p>
+        <p className="text-sm">{`${payload[0].name}: ${payload[0].value}`}</p>
+      </div>
+    );
+  }
+  return null;
+};
 
 const Reports = () => {
   const { 
@@ -45,47 +70,87 @@ const Reports = () => {
     sales,
     getClientById
   } = useAppContext();
-  
-  const salesSummary = getSalesSummary();
-  const debtSummary = getDebtSummary();
+  const { t } = useLanguage();
   
   const [timeRange, setTimeRange] = useState('all');
   
+  // Get summaries
+  const salesSummary = getSalesSummary();
+  const debtSummary = getDebtSummary();
+  
+  // Filter data based on time range
+  const filteredData = useMemo(() => {
+    const now = new Date();
+    let startDate = new Date(0); // Default to all time
+    
+    switch (timeRange) {
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'quarter':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      default:
+        break;
+    }
+    
+    return {
+      sales: sales.filter(sale => new Date(sale.date) >= startDate),
+      invoices: invoices.filter(invoice => new Date(invoice.date) >= startDate)
+    };
+  }, [timeRange, sales, invoices]);
+  
   // Prepare data for pie charts
   const invoiceStatusData = [
-    { name: 'Paid', value: invoices.filter(inv => inv.isPaid).length },
-    { name: 'Unpaid', value: invoices.filter(inv => !inv.isPaid).length },
+    { 
+      name: t('status.paid'), 
+      value: filteredData.invoices.filter(inv => inv.isPaid).length,
+      color: '#10b981' // green
+    },
+    { 
+      name: t('status.unpaid'), 
+      value: filteredData.invoices.filter(inv => !inv.isPaid).length,
+      color: '#ef4444' // red
+    },
   ];
   
   const saleInvoiceStatusData = [
-    { name: 'Invoiced', value: sales.filter(sale => sale.isInvoiced).length },
-    { name: 'Not Invoiced', value: sales.filter(sale => !sale.isInvoiced).length },
+    { 
+      name: t('status.invoiced'), 
+      value: filteredData.sales.filter(sale => sale.isInvoiced).length,
+      color: '#10b981' // green
+    },
+    { 
+      name: t('status.notInvoiced'), 
+      value: filteredData.sales.filter(sale => !sale.isInvoiced).length,
+      color: '#ef4444' // red
+    },
   ];
   
-  // Colors for pie charts
-  const COLORS = ['#10b981', '#ef4444'];
-  
   return (
-    <MainLayout title="Reports">
+    <MainLayout title={t('reports.title')}>
       <div className="space-y-6">
         {/* Report Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="font-medium text-lg">Reports & Analytics</div>
+          <div className="font-medium text-lg">{t('reports.title')}</div>
           <div className="flex gap-2">
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Time Range" />
+                <SelectValue placeholder={t('general.timeRange')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="quarter">This Quarter</SelectItem>
-                <SelectItem value="year">This Year</SelectItem>
+                <SelectItem value="all">{t('general.allTime')}</SelectItem>
+                <SelectItem value="month">{t('general.thisMonth')}</SelectItem>
+                <SelectItem value="quarter">{t('general.thisQuarter')}</SelectItem>
+                <SelectItem value="year">{t('general.thisYear')}</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline">
               <Download className="mr-2 h-4 w-4" />
-              Export
+              {t('general.export')}
             </Button>
           </div>
         </div>
@@ -98,23 +163,23 @@ const Reports = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <BarChart2 className="h-5 w-5 text-muted-foreground" />
-                  <span>Monthly Sales</span>
+                  <span>{t('dashboard.monthlySales')}</span>
                 </CardTitle>
-                <span className="text-xl font-bold">{formatCurrency(salesSummary.totalSales)}</span>
+                <span className="text-xl font-bold">{formatCurrency(salesSummary.totalAmount)}</span>
               </div>
-              <CardDescription>Sales over time</CardDescription>
+              <CardDescription>{t('dashboard.salesOverTime')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={salesSummary.monthlySales}>
                     <XAxis dataKey="month" />
-                    <YAxis />
+                    <YAxis tickFormatter={(value) => formatCurrency(value)} />
                     <Tooltip 
-                      formatter={(value) => formatCurrency(value as number)} 
-                      labelFormatter={(label) => `Month: ${label}`}
+                      formatter={(value) => [formatCurrency(value as number), t('dashboard.amount')]}
+                      labelFormatter={(label) => `${t('dashboard.month').replace('{0}', label)}`}
                     />
-                    <Bar dataKey="amount" fill="#3b82f6" />
+                    <Bar dataKey="amountTTC" fill="#3b82f6" name={t('dashboard.amount')} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -127,41 +192,41 @@ const Reports = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-muted-foreground" />
-                  <span>Debt Overview</span>
+                  <span>{t('reports.debtOverview')}</span>
                 </CardTitle>
-                <span className="text-xl font-bold">{formatCurrency(debtSummary.totalDebt)}</span>
+                <span className="text-xl font-bold">{formatCurrency(debtSummary.totalDebtTTC)}</span>
               </div>
-              <CardDescription>Current debt status</CardDescription>
+              <CardDescription>{t('reports.debtStatus')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="text-center">
-                  <div className="text-sm text-muted-foreground">Overdue</div>
+                  <div className="text-sm text-muted-foreground">{t('reports.overdue')}</div>
                   <div className="text-xl font-semibold text-destructive">
-                    {formatCurrency(debtSummary.overdueDebt)}
+                    {formatCurrency(debtSummary.overdueDebtTTC)}
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-sm text-muted-foreground">Upcoming</div>
+                  <div className="text-sm text-muted-foreground">{t('reports.upcoming')}</div>
                   <div className="text-xl font-semibold">
-                    {formatCurrency(debtSummary.upcomingDebt)}
+                    {formatCurrency(debtSummary.upcomingDebtTTC)}
                   </div>
                 </div>
               </div>
               
               <div className="space-y-1">
-                <h3 className="text-sm font-medium mb-2">Top Clients by Debt</h3>
+                <h3 className="text-sm font-medium mb-2">{t('reports.topClients')}</h3>
                 {debtSummary.debtByClient.slice(0, 5).map((clientDebt, index) => (
                   <div key={clientDebt.clientId} className="flex items-center justify-between py-2 border-b last:border-0">
                     <span className="font-medium">{index + 1}. {clientDebt.clientName}</span>
-                    <span className={`font-semibold ${clientDebt.amount > 0 ? 'text-destructive' : ''}`}>
-                      {formatCurrency(clientDebt.amount)}
+                    <span className={`font-semibold ${clientDebt.amountTTC > 0 ? 'text-destructive' : ''}`}>
+                      {formatCurrency(clientDebt.amountTTC)}
                     </span>
                   </div>
                 ))}
                 {debtSummary.debtByClient.length === 0 && (
                   <div className="text-center py-4 text-muted-foreground">
-                    No outstanding debts
+                    {t('reports.noDebts')}
                   </div>
                 )}
               </div>
@@ -174,8 +239,8 @@ const Reports = () => {
           {/* Invoice Status Distribution */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Invoice Status Distribution</CardTitle>
-              <CardDescription>Overview of invoice payment status</CardDescription>
+              <CardTitle className="text-lg">{t('reports.invoiceStatus')}</CardTitle>
+              <CardDescription>{t('reports.invoiceStatusDesc')}</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
               <div className="h-64 w-full max-w-xs">
@@ -192,11 +257,11 @@ const Reports = () => {
                       label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     >
                       {invoiceStatusData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Legend />
-                    <Tooltip formatter={(value) => [`${value} invoices`, '']} />
+                    <Tooltip content={<CustomTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -206,8 +271,8 @@ const Reports = () => {
           {/* Sales Invoice Status */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Sales Invoicing Status</CardTitle>
-              <CardDescription>Invoiced vs non-invoiced sales</CardDescription>
+              <CardTitle className="text-lg">{t('reports.salesStatus')}</CardTitle>
+              <CardDescription>{t('reports.salesStatusDesc')}</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
               <div className="h-64 w-full max-w-xs">
@@ -224,11 +289,11 @@ const Reports = () => {
                       label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     >
                       {saleInvoiceStatusData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Legend />
-                    <Tooltip formatter={(value) => [`${value} sales`, '']} />
+                    <Tooltip content={<CustomTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -239,14 +304,14 @@ const Reports = () => {
         {/* Detailed Reports Tabs */}
         <Card>
           <CardHeader>
-            <CardTitle>Detailed Reports</CardTitle>
-            <CardDescription>View detailed reports for sales and debts</CardDescription>
+            <CardTitle>{t('reports.detailedReports')}</CardTitle>
+            <CardDescription>{t('reports.detailedDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="debt" className="space-y-4">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="debt">Client Debt Report</TabsTrigger>
-                <TabsTrigger value="sales">Sales Report</TabsTrigger>
+                <TabsTrigger value="debt">{t('reports.clientDebtReport')}</TabsTrigger>
+                <TabsTrigger value="sales">{t('reports.salesReport')}</TabsTrigger>
               </TabsList>
               
               <TabsContent value="debt" className="space-y-4">
@@ -254,20 +319,20 @@ const Reports = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Client</TableHead>
-                        <TableHead>Company</TableHead>
-                        <TableHead className="text-right">Outstanding Amount</TableHead>
-                        <TableHead>Overdue Invoices</TableHead>
-                        <TableHead>Upcoming Invoices</TableHead>
+                        <TableHead>{t('clients.contact')}</TableHead>
+                        <TableHead>{t('clients.company')}</TableHead>
+                        <TableHead className="text-right">{t('reports.outstandingAmount')}</TableHead>
+                        <TableHead>{t('reports.overdueInvoices')}</TableHead>
+                        <TableHead>{t('reports.upcomingInvoices')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {clients.length > 0 ? (
                         clients.map((client) => {
-                          const clientInvoices = invoices.filter(inv => inv.clientId === client.id && !inv.isPaid);
+                          const clientInvoices = filteredData.invoices.filter(inv => inv.clientId === client.id && !inv.isPaid);
                           const overdueInvoices = clientInvoices.filter(inv => new Date() > inv.dueDate);
                           const upcomingInvoices = clientInvoices.filter(inv => new Date() <= inv.dueDate);
-                          const totalDebt = clientInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+                          const totalDebt = clientInvoices.reduce((sum, inv) => sum + inv.totalAmountTTC, 0);
                           
                           // Only show clients with debt
                           if (totalDebt <= 0) return null;
@@ -287,17 +352,17 @@ const Reports = () => {
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} className="h-24 text-center">
-                            No client debt data available.
+                            {t('reports.noClientDebt')}
                           </TableCell>
                         </TableRow>
                       )}
                       {clients.length > 0 && !clients.some(client => {
-                        const clientInvoices = invoices.filter(inv => inv.clientId === client.id && !inv.isPaid);
+                        const clientInvoices = filteredData.invoices.filter(inv => inv.clientId === client.id && !inv.isPaid);
                         return clientInvoices.length > 0;
                       }) && (
                         <TableRow>
                           <TableCell colSpan={5} className="h-24 text-center">
-                            No outstanding debts to display.
+                            {t('reports.noOutstandingDebts')}
                           </TableCell>
                         </TableRow>
                       )}
@@ -311,16 +376,16 @@ const Reports = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Client</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>{t('sales.date')}</TableHead>
+                        <TableHead>{t('sales.client')}</TableHead>
+                        <TableHead>{t('sales.items')}</TableHead>
+                        <TableHead className="text-right">{t('sales.total')}</TableHead>
+                        <TableHead>{t('sales.status')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sales.length > 0 ? (
-                        sales.map((sale) => {
+                      {filteredData.sales.length > 0 ? (
+                        filteredData.sales.map((sale) => {
                           const client = getClientById(sale.clientId);
                           if (!client) return null;
                           
@@ -331,13 +396,13 @@ const Reports = () => {
                                 <div className="font-medium">{client.name}</div>
                                 <div className="text-xs text-muted-foreground">{client.company}</div>
                               </TableCell>
-                              <TableCell>{sale.items.length} items</TableCell>
+                              <TableCell>{sale.items.length} {t('general.items')}</TableCell>
                               <TableCell className="text-right">
-                                {formatCurrency(sale.totalAmount)}
+                                {formatCurrency(sale.totalAmountTTC)}
                               </TableCell>
                               <TableCell>
                                 <StatusBadge 
-                                  status={sale.isInvoiced ? 'invoiced' : 'not-invoiced'} 
+                                  status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
                                 />
                               </TableCell>
                             </TableRow>
@@ -346,7 +411,7 @@ const Reports = () => {
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} className="h-24 text-center">
-                            No sales data available.
+                            {t('reports.noSalesData')}
                           </TableCell>
                         </TableRow>
                       )}

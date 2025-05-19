@@ -28,75 +28,85 @@ import { v4 as uuidv4 } from 'uuid';
 import { Plus, FileText, Download } from 'lucide-react';
 import SaleItemForm from './SaleItemForm';
 import { generateSalePDF } from '../../utils/pdfService';
+import { useLanguage } from '../../context/LanguageContext';
 
 // Tax rate constant
 const TAX_RATE = 0.19; // 19%
 
-const formSchema = z.object({
-  clientId: z.string().min(1, { message: 'Please select a client' }),
-  date: z.string().min(1, { message: 'Date is required' }),
-  items: z.array(z.object({
-    id: z.string(),
-    description: z.string().min(1, { message: 'Description is required' }),
-    coilRef: z.string().optional(),
-    coilThickness: z.number().optional(),
-    coilWidth: z.number().optional(),
-    topCoatRAL: z.string().optional(),
-    backCoatRAL: z.string().optional(),
-    coilWeight: z.number().optional(),
-    quantity: z.coerce.number().positive({ message: 'Quantity must be positive' }),
-    pricePerTon: z.coerce.number().positive({ message: 'Price must be positive' }),
-  })).min(1, { message: 'At least one item is required' }),
-  transportationFee: z.coerce.number().min(0).default(0),
-  notes: z.string().optional(),
-  paymentMethod: z.string().min(1, { message: 'Please select a payment method' }),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+type FormValues = {
+  clientId: string;
+  date: string;
+  items: {
+    id: string;
+    description: string;
+    coilRef?: string;
+    coilThickness?: number;
+    coilWidth?: number;
+    topCoatRAL?: string;
+    backCoatRAL?: string;
+    coilWeight?: number;
+    quantity: number;
+    pricePerTon: number;
+    totalAmountHT: number;
+    totalAmountTTC: number;
+    sale_id?: string;
+  }[];
+  transportationFee: number;
+  notes?: string;
+  paymentMethod: string;
+};
 
 interface SaleFormProps {
-  sale: Sale | null;
+  sale?: Sale;
   onSuccess?: () => void;
 }
 
 interface SaleItemFormData {
   id: string;
   description: string;
-  coilRef: string;
+  coilRef?: string;
   coilThickness?: number;
   coilWidth?: number;
-  topCoatRAL: string;
-  backCoatRAL: string;
+  topCoatRAL?: string;
+  backCoatRAL?: string;
   coilWeight?: number;
   quantity: number;
   pricePerTon: number;
+  totalAmountHT: number;
+  totalAmountTTC: number;
+  sale_id?: string;
 }
 
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const { addSale, updateSale, clients, getClientById } = useAppContext();
+  const { t } = useLanguage();
   const [items, setItems] = useState<SaleItemFormData[]>(
     sale?.items.map(item => ({
       id: item.id,
       description: item.description,
       coilRef: item.coilRef || '',
-      coilThickness: item.coilThickness || 0,
-      coilWidth: item.coilWidth || 0,
+      coilThickness: item.coilThickness?.toString() || '',
+      coilWidth: item.coilWidth?.toString() || '',
       topCoatRAL: item.topCoatRAL || '',
       backCoatRAL: item.backCoatRAL || '',
-      coilWeight: item.coilWeight || 0,
+      coilWeight: item.coilWeight?.toString() || '',
       quantity: item.quantity,
-      pricePerTon: item.pricePerTon,
+      pricePerTon: item.pricePerTon?.toString() || '',
+      totalAmountHT: item.totalAmountHT,
+      totalAmountTTC: item.totalAmountTTC
     })) || [{ 
       id: uuidv4(), 
       description: '', 
       coilRef: '', 
-      coilThickness: 0,
-      coilWidth: 0,
+      coilThickness: '',
+      coilWidth: '',
       topCoatRAL: '',
       backCoatRAL: '',
-      coilWeight: 0,
+      coilWeight: '',
       quantity: 1, 
-      pricePerTon: 0 
+      pricePerTon: '',
+      totalAmountHT: 0,
+      totalAmountTTC: 0
     }]
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -109,6 +119,29 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     notes: sale?.notes || '',
     paymentMethod: sale?.paymentMethod || '',
   };
+
+  const formSchema = z.object({
+    clientId: z.string().min(1, { message: t('form.required') }),
+    date: z.string().min(1, { message: t('form.required') }),
+    items: z.array(z.object({
+      id: z.string(),
+      description: z.string().min(1, { message: t('form.required') }),
+      coilRef: z.string().optional(),
+      coilThickness: z.number().optional(),
+      coilWidth: z.number().optional(),
+      topCoatRAL: z.string().optional(),
+      backCoatRAL: z.string().optional(),
+      coilWeight: z.number().optional(),
+      quantity: z.coerce.number().positive({ message: t('form.sale.quantityPositive') }),
+      pricePerTon: z.coerce.number().positive({ message: t('form.sale.pricePositive') }),
+      totalAmountHT: z.number(),
+      totalAmountTTC: z.number(),
+      sale_id: z.string().optional()
+    })).min(1, { message: t('form.sale.itemRequired') }),
+    transportationFee: z.coerce.number().min(0).default(0),
+    notes: z.string().optional(),
+    paymentMethod: z.string().min(1, { message: t('form.required') }),
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -128,25 +161,45 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: uuidv4(),
       description: '',
       coilRef: '',
-      coilThickness: undefined,
-      coilWidth: undefined,
+      coilThickness: '',
+      coilWidth: '',
       topCoatRAL: '',
       backCoatRAL: '',
-      coilWeight: undefined,
+      coilWeight: '',
       quantity: 1,
-      pricePerTon: 0
+      pricePerTon: '',
+      totalAmountHT: 0,
+      totalAmountTTC: 0
     };
 
-    const currentItems = (form.getValues('items') || []).map(item => ({
-      ...item,
-      id: item.id || uuidv4(),
-      description: item.description || '',
-      coilRef: item.coilRef || '',
-      topCoatRAL: item.topCoatRAL || '',
-      backCoatRAL: item.backCoatRAL || '',
-      quantity: item.quantity || 1,
-      pricePerTon: item.pricePerTon || 0
-    })) as SaleItemFormData[];
+    const currentItems = (form.getValues('items') || []).map(item => {
+      const { totalHT, totalTTC } = calculateItemTotal({
+        id: item.id || uuidv4(),
+        description: item.description || '',
+        coilRef: item.coilRef || '',
+        topCoatRAL: item.topCoatRAL || '',
+        backCoatRAL: item.backCoatRAL || '',
+        quantity: Number(item.quantity || 1),
+        pricePerTon: Number(item.pricePerTon || 0),
+        totalAmountHT: Number(item.totalAmountHT || 0),
+        totalAmountTTC: Number(item.totalAmountTTC || 0)
+      } as SaleItemFormData);
+
+      return {
+        id: item.id || uuidv4(),
+        description: item.description || '',
+        coilRef: item.coilRef || '',
+        coilThickness: item.coilThickness?.toString() || '',
+        coilWidth: item.coilWidth?.toString() || '',
+        topCoatRAL: item.topCoatRAL || '',
+        backCoatRAL: item.backCoatRAL || '',
+        coilWeight: item.coilWeight?.toString() || '',
+        quantity: Number(item.quantity || 1),
+        pricePerTon: item.pricePerTon?.toString() || '',
+        totalAmountHT: totalHT,
+        totalAmountTTC: totalTTC
+      } as SaleItemFormData;
+    });
 
     const newItems = [...currentItems, newItem];
     
@@ -160,20 +213,38 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
   const removeItem = (id: string) => {
     if (items.length === 1) {
-      toast.error('You must have at least one item');
+      toast.error(t('form.sale.itemRequired'));
       return;
     }
     
-    const currentItems = (form.getValues('items') || []).map(item => ({
-      ...item,
-      id: item.id || uuidv4(),
-      description: item.description || '',
-      coilRef: item.coilRef || '',
-      topCoatRAL: item.topCoatRAL || '',
-      backCoatRAL: item.backCoatRAL || '',
-      quantity: item.quantity || 1,
-      pricePerTon: item.pricePerTon || 0
-    })) as SaleItemFormData[];
+    const currentItems = (form.getValues('items') || []).map(item => {
+      const { totalHT, totalTTC } = calculateItemTotal({
+        id: item.id || uuidv4(),
+        description: item.description || '',
+        coilRef: item.coilRef || '',
+        topCoatRAL: item.topCoatRAL || '',
+        backCoatRAL: item.backCoatRAL || '',
+        quantity: Number(item.quantity || 1),
+        pricePerTon: Number(item.pricePerTon || 0),
+        totalAmountHT: Number(item.totalAmountHT || 0),
+        totalAmountTTC: Number(item.totalAmountTTC || 0)
+      } as SaleItemFormData);
+
+      return {
+        id: item.id || uuidv4(),
+        description: item.description || '',
+        coilRef: item.coilRef || '',
+        coilThickness: item.coilThickness?.toString() || '',
+        coilWidth: item.coilWidth?.toString() || '',
+        topCoatRAL: item.topCoatRAL || '',
+        backCoatRAL: item.backCoatRAL || '',
+        coilWeight: item.coilWeight?.toString() || '',
+        quantity: Number(item.quantity || 1),
+        pricePerTon: item.pricePerTon?.toString() || '',
+        totalAmountHT: totalHT,
+        totalAmountTTC: totalTTC
+      } as SaleItemFormData;
+    });
 
     const newItems = currentItems.filter(item => item.id !== id);
     
@@ -185,9 +256,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     });
   };
 
-  // Calculate totals including tax
+  // Calculate totals for this item
   const calculateItemTotal = (item: SaleItemFormData) => {
-    const totalHT = item.quantity * item.pricePerTon;
+    const quantity = Number(item.quantity || 0);
+    const pricePerTon = Number(item.pricePerTon || 0);
+    const totalHT = quantity * pricePerTon;
     return {
       totalHT,
       totalTTC: totalHT * (1 + TAX_RATE)
@@ -196,16 +269,22 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
   const calculateFinalTotal = () => {
     const itemsTotalHT = items.reduce((sum, item) => {
-      const { totalHT } = calculateItemTotal(item);
-      return sum + totalHT;
+      const quantity = Number(item.quantity || 0);
+      const pricePerTon = Number(item.pricePerTon || 0);
+      return sum + (quantity * pricePerTon);
     }, 0);
 
-    const transportationFeeTTC = form.getValues('transportationFee') * (1 + TAX_RATE);
-    const itemsTotalTTC = itemsTotalHT * (1 + TAX_RATE);
+    const transportationFee = Number(form.getValues('transportationFee') || 0);
+    const totalHT = itemsTotalHT + transportationFee;
+    const tva = totalHT * TAX_RATE;
+    const totalTTC = totalHT + tva;
     
     return {
-      totalHT: itemsTotalHT + form.getValues('transportationFee'),
-      totalTTC: itemsTotalTTC + transportationFeeTTC
+      itemsTotalHT,
+      transportationFee,
+      totalHT,
+      tva,
+      totalTTC
     };
   };
 
@@ -213,36 +292,41 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     console.log("Submitting form with data:", data);
     
     if (!data.clientId) {
-      toast.error('Please select a client');
+      toast.error(t('form.required'));
       return;
     }
     
     if (!data.items || data.items.length === 0) {
-      toast.error('At least one item is required');
+      toast.error(t('form.sale.itemRequired'));
       return;
     }
     
     try {
-      // Ensure all required properties are set for each SaleItem
+      // Calculate final totals first
+      const finalTotals = calculateFinalTotal();
+      
+      // Calculate totals for each item
       const itemsWithTotal: SaleItem[] = data.items.map(item => {
-        const { totalHT, totalTTC } = calculateItemTotal(item);
+        const quantity = Number(item.quantity || 0);
+        const pricePerTon = Number(item.pricePerTon || 0);
+        const totalHT = quantity * pricePerTon;
+        const totalTTC = totalHT * (1 + TAX_RATE);
+
         return {
           id: item.id,
           description: item.description,
           coilRef: item.coilRef || '',
-          coilThickness: item.coilThickness || 0,
-          coilWidth: item.coilWidth || 0,
+          coilThickness: Number(item.coilThickness || 0),
+          coilWidth: Number(item.coilWidth || 0),
           topCoatRAL: item.topCoatRAL || '',
           backCoatRAL: item.backCoatRAL || '',
-          coilWeight: item.coilWeight || 0,
-          quantity: item.quantity,
-          pricePerTon: item.pricePerTon,
+          coilWeight: Number(item.coilWeight || 0),
+          quantity: quantity,
+          pricePerTon: pricePerTon,
           totalAmountHT: totalHT,
           totalAmountTTC: totalTTC
         };
       });
-
-      const { totalHT, totalTTC } = calculateFinalTotal();
       
       const saleData = {
         clientId: data.clientId,
@@ -251,20 +335,20 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         notes: data.notes || '',
         isInvoiced: sale?.isInvoiced || false,
         invoiceId: sale?.invoiceId,
-        transportationFee: data.transportationFee || 0,
-        transportationFeeTTC: (data.transportationFee || 0) * (1 + TAX_RATE),
+        transportationFee: Number(data.transportationFee || 0),
+        transportationFeeTTC: Number(data.transportationFee || 0) * (1 + TAX_RATE),
         taxRate: TAX_RATE,
-        totalAmountHT: totalHT,
-        totalAmountTTC: totalTTC,
+        totalAmountHT: finalTotals.totalHT,
+        totalAmountTTC: finalTotals.totalTTC,
         paymentMethod: data.paymentMethod,
       };
 
       if (sale) {
         await updateSale(sale.id, saleData);
-        toast.success('Sale has been updated');
+        toast.success(t('form.success'));
       } else {
         await addSale(saleData);
-        toast.success('Sale has been recorded');
+        toast.success(t('form.success'));
       }
 
       if (onSuccess) {
@@ -272,20 +356,20 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       }
     } catch (error) {
       console.error('Error saving sale:', error);
-      toast.error('Failed to save sale. Please try again.');
+      toast.error(t('form.error'));
     }
   };
 
   const handleExportInvoice = () => {
     const formData = form.getValues();
     if (!formData.clientId) {
-      toast.error('Please select a client first');
+      toast.error(t('form.error'));
       return;
     }
 
     const client = getClientById(formData.clientId);
     if (!client) {
-      toast.error('Selected client not found');
+      toast.error(t('form.error'));
       return;
     }
 
@@ -296,35 +380,47 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: sale?.id || uuidv4(),
       clientId: formData.clientId,
       date: parseDateInput(formData.date),
-      items: formData.items.map(item => ({
-        id: item.id,
-        description: item.description,
-        coilRef: item.coilRef,
-        coilThickness: item.coilThickness,
-        coilWidth: item.coilWidth,
-        topCoatRAL: item.topCoatRAL,
-        backCoatRAL: item.backCoatRAL,
-        coilWeight: item.coilWeight,
-        quantity: item.quantity,
-        pricePerTon: item.pricePerTon,
-        totalAmount: item.quantity * item.pricePerTon,
-      })),
-      totalAmount: calculateFinalTotal().totalHT,
+      items: formData.items.map(item => {
+        const quantity = Number(item.quantity || 0);
+        const pricePerTon = Number(item.pricePerTon || 0);
+        const totalHT = quantity * pricePerTon;
+        const totalTTC = totalHT * (1 + TAX_RATE);
+        
+        return {
+          id: item.id,
+          description: item.description,
+          coilRef: item.coilRef,
+          coilThickness: item.coilThickness,
+          coilWidth: item.coilWidth,
+          topCoatRAL: item.topCoatRAL,
+          backCoatRAL: item.backCoatRAL,
+          coilWeight: item.coilWeight,
+          quantity: quantity,
+          pricePerTon: pricePerTon,
+          totalAmountHT: totalHT,
+          totalAmountTTC: totalTTC
+        };
+      }),
+      totalAmountHT: calculateFinalTotal().totalHT,
+      totalAmountTTC: calculateFinalTotal().totalTTC,
       isInvoiced: sale?.isInvoiced || false,
       notes: formData.notes,
       transportationFee: formData.transportationFee,
+      transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
       taxRate: TAX_RATE,
+      paymentMethod: formData.paymentMethod,
       createdAt: sale?.createdAt || new Date(),
+      updatedAt: new Date()
     };
 
     setTimeout(async () => {
       try {
         const doc = await generateSalePDF(tempSale, client, { title: 'FACTURE PROFORMA' });
         doc.save(`Facture_Proforma_${formatDate(new Date())}.pdf`);
-        toast.success('Invoice PDF downloaded successfully');
+        toast.success(t('form.success'));
       } catch (error) {
         console.error('Error generating PDF:', error);
-        toast.error('Error generating PDF. Please try again.');
+        toast.error(t('form.error'));
       } finally {
         setIsGeneratingPDF(false);
       }
@@ -334,13 +430,13 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const handleExportQuotation = () => {
     const formData = form.getValues();
     if (!formData.clientId) {
-      toast.error('Please select a client first');
+      toast.error(t('form.error'));
       return;
     }
 
     const client = getClientById(formData.clientId);
     if (!client) {
-      toast.error('Selected client not found');
+      toast.error(t('form.error'));
       return;
     }
 
@@ -351,35 +447,47 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       id: sale?.id || uuidv4(),
       clientId: formData.clientId,
       date: parseDateInput(formData.date),
-      items: formData.items.map(item => ({
-        id: item.id,
-        description: item.description,
-        coilRef: item.coilRef,
-        coilThickness: item.coilThickness,
-        coilWidth: item.coilWidth,
-        topCoatRAL: item.topCoatRAL,
-        backCoatRAL: item.backCoatRAL,
-        coilWeight: item.coilWeight,
-        quantity: item.quantity,
-        pricePerTon: item.pricePerTon,
-        totalAmount: item.quantity * item.pricePerTon,
-      })),
-      totalAmount: calculateFinalTotal().totalHT,
+      items: formData.items.map(item => {
+        const quantity = Number(item.quantity || 0);
+        const pricePerTon = Number(item.pricePerTon || 0);
+        const totalHT = quantity * pricePerTon;
+        const totalTTC = totalHT * (1 + TAX_RATE);
+        
+        return {
+          id: item.id,
+          description: item.description,
+          coilRef: item.coilRef,
+          coilThickness: item.coilThickness,
+          coilWidth: item.coilWidth,
+          topCoatRAL: item.topCoatRAL,
+          backCoatRAL: item.backCoatRAL,
+          coilWeight: item.coilWeight,
+          quantity: quantity,
+          pricePerTon: pricePerTon,
+          totalAmountHT: totalHT,
+          totalAmountTTC: totalTTC
+        };
+      }),
+      totalAmountHT: calculateFinalTotal().totalHT,
+      totalAmountTTC: calculateFinalTotal().totalTTC,
       isInvoiced: sale?.isInvoiced || false,
       notes: formData.notes,
       transportationFee: formData.transportationFee,
+      transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
       taxRate: TAX_RATE,
+      paymentMethod: formData.paymentMethod,
       createdAt: sale?.createdAt || new Date(),
+      updatedAt: new Date()
     };
 
     setTimeout(async () => {
       try {
         const doc = await generateSalePDF(tempSale, client);
         doc.save(`Devis_${formatDate(new Date())}.pdf`);
-        toast.success('Quotation PDF downloaded successfully');
+        toast.success(t('form.success'));
       } catch (error) {
         console.error('Error generating PDF:', error);
-        toast.error('Error generating PDF. Please try again.');
+        toast.error(t('form.error'));
       } finally {
         setIsGeneratingPDF(false);
       }
@@ -388,130 +496,138 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="clientId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Client</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  value={field.value}
-                >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex gap-6">
+        {/* Main content area */}
+        <div className="flex-1 space-y-6">
+          {/* Client and Date Selection */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="clientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.client')}</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('form.sale.selectClient')} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} - {client.company}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.date')}</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a client" />
-                    </SelectTrigger>
+                    <Input type="date" {...field} />
                   </FormControl>
-                  <SelectContent className="max-h-[200px]">
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name} - {client.company}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="date"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Sale Date</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="paymentMethod"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Payment Method</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Cheque">Cheque</SelectItem>
-                    <SelectItem value="Cash">Cash</SelectItem>
-                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Sale Items</h3>
-            <Button type="button" variant="outline" size="sm" onClick={addItem}>
-              <Plus className="h-4 w-4 mr-1" /> Add Item
-            </Button>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
-          <div className="space-y-4 max-h-[40vh] overflow-y-auto rounded-md border p-4">
-            {items.map((item, index) => (
-              <SaleItemForm
-                key={item.id}
-                index={index}
-                onRemove={() => removeItem(item.id)}
-                isRemoveDisabled={items.length === 1}
-              />
-            ))}
-          </div>
-        </div>
+          {/* Items Section */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">{t('form.sale.items')}</h3>
+              <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                <Plus className="h-4 w-4 mr-1" /> {t('form.sale.addItem')}
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="transportationFee"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Transportation Fee</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="0.00" 
-                    {...field} 
-                    onChange={(e) => {
-                      field.onChange(e.target.valueAsNumber || 0);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <div className="space-y-4">
+              {items.map((item, index) => (
+                <SaleItemForm
+                  key={item.id}
+                  index={index}
+                  onRemove={() => removeItem(item.id)}
+                  isRemoveDisabled={items.length === 1}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Additional Information */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="transportationFee"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.transportationFee')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="0.00" 
+                      {...field} 
+                      onChange={(e) => {
+                        field.onChange(e.target.valueAsNumber || 0);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="paymentMethod"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.payment.method')}</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('form.payment.method')} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="cash">{t('form.payment.methods.cash')}</SelectItem>
+                      <SelectItem value="bank">{t('form.payment.methods.bank')}</SelectItem>
+                      <SelectItem value="check">{t('form.payment.methods.check')}</SelectItem>
+                      <SelectItem value="card">{t('form.payment.methods.card')}</SelectItem>
+                      <SelectItem value="other">{t('form.payment.methods.other')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <FormField
             control={form.control}
             name="notes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notes</FormLabel>
+                <FormLabel>{t('form.sale.notes')}</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Add any additional notes here..." {...field} className="resize-none" />
+                  <Textarea placeholder={t('form.sale.notes')} {...field} className="resize-none" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -519,51 +635,57 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
           />
         </div>
 
-        <div className="bg-muted/30 p-4 rounded-md space-y-2">
-          <div className="flex justify-between">
-            <span>Subtotal (HT):</span>
-            <span>{formatCurrency(calculateFinalTotal().totalHT)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>TVA ({(TAX_RATE * 100).toFixed(0)}%):</span>
-            <span>{formatCurrency(calculateFinalTotal().totalTTC - calculateFinalTotal().totalHT)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Total (TTC):</span>
-            <span>{formatCurrency(calculateFinalTotal().totalTTC)}</span>
-          </div>
-          {form.watch('transportationFee') > 0 && (
-            <div className="flex justify-between">
-              <span>Transportation Fee:</span>
-              <span>{formatCurrency(form.watch('transportationFee'))}</span>
+        {/* Sidebar with totals and actions */}
+        <div className="w-72 space-y-6">
+          <div className="space-y-4 rounded-md border p-4 bg-muted/50">
+            <h3 className="font-medium">{t('form.sale.summary')}</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>{t('form.sale.subtotalHT')}:</span>
+                <span>{formatCurrency(calculateFinalTotal().itemsTotalHT)}</span>
+              </div>
+              {form.watch('transportationFee') > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>{t('form.sale.transportationFee')}:</span>
+                  <span>{formatCurrency(form.watch('transportationFee'))}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm pt-2 border-t">
+                <span>{t('form.sale.totalHT')}:</span>
+                <span>{formatCurrency(calculateFinalTotal().totalHT)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>{t('form.sale.tva')} ({(TAX_RATE * 100).toFixed(0)}%):</span>
+                <span>{formatCurrency(calculateFinalTotal().tva)}</span>
+              </div>
+              <div className="flex justify-between font-medium pt-2 border-t">
+                <span>{t('form.sale.totalTTC')}:</span>
+                <span>{formatCurrency(calculateFinalTotal().totalTTC)}</span>
+              </div>
             </div>
-          )}
-          <div className="flex justify-between font-bold pt-2 border-t">
-            <span>Final Total:</span>
-            <span>{formatCurrency(calculateFinalTotal().totalTTC)}</span>
           </div>
-        </div>
 
-        <div className="flex justify-between pt-4 sticky bottom-0 bg-background z-50 border-t">
-          <div className="flex gap-2">
-            <Button type="submit" disabled={isGeneratingPDF}>
-              {sale ? 'Update Sale' : 'Create Sale'}
+          <div className="space-y-2">
+            <Button type="submit" className="w-full" disabled={isGeneratingPDF}>
+              {sale ? t('general.edit') : t('sales.add')}
             </Button>
             <Button
               type="button"
               variant="outline"
+              className="w-full"
               onClick={handleExportQuotation}
               disabled={isGeneratingPDF}
             >
-              <FileText className="h-4 w-4 mr-1" /> Export Quotation
+              <FileText className="h-4 w-4 mr-1" /> {t('general.export')}
             </Button>
             <Button
               type="button"
               variant="outline"
+              className="w-full"
               onClick={handleExportInvoice}
               disabled={isGeneratingPDF}
             >
-              <Download className="h-4 w-4 mr-1" /> Export Invoice
+              <Download className="h-4 w-4 mr-1" /> {t('general.export')}
             </Button>
           </div>
         </div>

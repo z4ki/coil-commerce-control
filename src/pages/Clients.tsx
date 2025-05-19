@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { useLanguage } from '../context/LanguageContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Plus, Search, Edit, Trash2, FileText } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
@@ -34,14 +33,15 @@ import { Client } from '../types';
 
 const Clients = () => {
   const { clients, deleteClient, getClientDebt } = useAppContext();
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const handleDeleteClient = (client: Client) => {
-    if (window.confirm(`Are you sure you want to delete ${client.name}?`)) {
+    if (window.confirm(t('clients.deleteConfirm').replace('{0}', client.name))) {
       deleteClient(client.id);
-      toast.success(`${client.name} has been deleted`);
+      toast.success(t('clients.deleted').replace('{0}', client.name));
     }
   };
 
@@ -52,7 +52,7 @@ const Clients = () => {
   );
 
   return (
-    <MainLayout title="Clients">
+    <MainLayout title={t('clients.title')}>
       <div className="space-y-6">
         {/* Header with search and add button */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -60,7 +60,7 @@ const Clients = () => {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input
               type="search"
-              placeholder="Search clients..."
+              placeholder={t('general.search')}
               className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -70,32 +70,36 @@ const Clients = () => {
             setSelectedClient(null);
             setShowAddDialog(true);
           }}>
-            <Plus className="mr-1 h-4 w-4" /> Add Client
+            <Plus className="mr-1 h-4 w-4" /> {t('clients.add')}
           </Button>
         </div>
 
         {/* Clients Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Clients</CardTitle>
+            <CardTitle>{t('clients.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">Outstanding Debt</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                    <TableHead>{t('clients.name')}</TableHead>
+                    <TableHead>{t('clients.company')}</TableHead>
+                    <TableHead>{t('clients.contact')}</TableHead>
+                    <TableHead className="text-right">{t('clients.debt')}</TableHead>
+                    <TableHead className="w-[100px]">{t('general.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredClients.length > 0 ? (
                     filteredClients.map((client) => (
                       <TableRow key={client.id}>
-                        <TableCell className="font-medium">{client.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
+                            {client.name}
+                          </Link>
+                        </TableCell>
                         <TableCell>{client.company}</TableCell>
                         <TableCell>
                           <div>{client.email}</div>
@@ -117,7 +121,7 @@ const Clients = () => {
                               }}
                             >
                               <Edit className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
+                              <span className="sr-only">{t('general.edit')}</span>
                             </Button>
                             <Button
                               variant="ghost"
@@ -125,12 +129,12 @@ const Clients = () => {
                               onClick={() => handleDeleteClient(client)}
                             >
                               <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
+                              <span className="sr-only">{t('general.delete')}</span>
                             </Button>
                             <Link to={`/clients/${client.id}`}>
                               <Button variant="ghost" size="icon">
                                 <FileText className="h-4 w-4" />
-                                <span className="sr-only">Details</span>
+                                <span className="sr-only">{t('general.view')}</span>
                               </Button>
                             </Link>
                           </div>
@@ -140,9 +144,7 @@ const Clients = () => {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center">
-                        {searchTerm
-                          ? "No clients match your search."
-                          : "No clients found. Add your first client."}
+                        {searchTerm ? t('clients.noClients') : t('general.noData')}
                       </TableCell>
                     </TableRow>
                   )}
@@ -158,7 +160,7 @@ const Clients = () => {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {selectedClient ? 'Edit Client' : 'Add New Client'}
+              {selectedClient ? t('clients.form.editTitle') : t('clients.form.title')}
             </DialogTitle>
           </DialogHeader>
           <ClientForm 

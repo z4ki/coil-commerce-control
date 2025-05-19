@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -43,25 +42,49 @@ const ClientDetail = () => {
     getSalesByClient,
     getInvoicesByClient,
     getClientDebt,
+    getPaymentsByInvoice,
   } = useAppContext();
 
   const client = getClientById(clientId || '');
   const clientSales = getSalesByClient(clientId || '');
   const clientInvoices = getInvoicesByClient(clientId || '');
-  const clientDebt = getClientDebt(clientId || '');
+
+  // Get all payments for all client invoices
+  const clientPayments = useMemo(() => {
+    return clientInvoices.flatMap(invoice => 
+      getPaymentsByInvoice(invoice.id).map(payment => ({
+        ...payment,
+        invoice
+      }))
+    ).sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [clientInvoices, getPaymentsByInvoice]);
 
   const totalSalesAmount = useMemo(() => 
-    clientSales.reduce((total, sale) => total + sale.totalAmount, 0),
+    clientSales.reduce((total, sale) => total + sale.totalAmountTTC, 0),
     [clientSales]
   );
 
   const totalInvoicedAmount = useMemo(() => 
     clientSales.filter(sale => sale.isInvoiced)
-      .reduce((total, sale) => total + sale.totalAmount, 0),
+      .reduce((total, sale) => total + sale.totalAmountTTC, 0),
     [clientSales]
   );
 
-  const totalUninvoicedAmount = totalSalesAmount - totalInvoicedAmount;
+  const totalUninvoicedAmount = useMemo(() => 
+    clientSales.filter(sale => !sale.isInvoiced)
+      .reduce((total, sale) => total + sale.totalAmountTTC, 0),
+    [clientSales]
+  );
+
+  const totalPaidAmount = useMemo(() => 
+    clientPayments.reduce((total, payment) => total + payment.amount, 0),
+    [clientPayments]
+  );
+
+  const clientDebt = useMemo(() => 
+    totalSalesAmount - totalPaidAmount,
+    [totalSalesAmount, totalPaidAmount]
+  );
 
   const handleDeleteClient = () => {
     if (window.confirm(`Are you sure you want to delete ${client?.name}?`)) {
@@ -89,55 +112,24 @@ const ClientDetail = () => {
   }
 
   return (
-    <MainLayout title="Client Details">
-      <div className="space-y-6">
-        {/* Back button and actions */}
-        <div className="flex justify-between items-center">
-          <Link to="/clients">
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              All Clients
-            </Button>
-          </Link>
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => setShowEditDialog(true)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteClient}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          </div>
+    <MainLayout
+      title={client.name}
+      headerAction={
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+          <Button variant="destructive" onClick={handleDeleteClient}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
         </div>
-
-        {/* Client info */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>{client.name}</CardTitle>
-              <CardDescription>{client.company}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center text-sm">
-                  <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <span>{client.email}</span>
-                </div>
-                <div className="flex items-center text-sm">
-                  <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <span>{client.phone}</span>
-                </div>
-                <div className="mt-4 pt-4 border-t">
-                  <h3 className="text-sm font-medium mb-2">Address:</h3>
-                  <p className="text-sm text-muted-foreground whitespace-pre-line">
-                    {client.address}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+      }
+    >
+      <div className="space-y-6">
+        {/* Client Info */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader>
               <CardTitle>Financial Summary</CardTitle>
@@ -156,6 +148,10 @@ const ClientDetail = () => {
                   <span className="text-sm text-muted-foreground">Uninvoiced Sales:</span>
                   <span className="font-medium">{formatCurrency(totalUninvoicedAmount)}</span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total Paid:</span>
+                  <span className="font-medium text-green-600">{formatCurrency(totalPaidAmount)}</span>
+                </div>
                 <div className="pt-2 mt-2 border-t flex justify-between items-center">
                   <span className="text-sm font-medium">Outstanding Debt:</span>
                   <span className={`font-bold ${clientDebt > 0 ? 'text-destructive' : ''}`}>
@@ -167,11 +163,12 @@ const ClientDetail = () => {
           </Card>
         </div>
 
-        {/* Sales and Invoices Tabs */}
+        {/* Tabs for Sales, Invoices, and Payments */}
         <Tabs defaultValue="sales" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="sales">Sales</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
           </TabsList>
           
           <TabsContent value="sales">
@@ -197,7 +194,7 @@ const ClientDetail = () => {
                             <TableCell>{formatDate(sale.date)}</TableCell>
                             <TableCell>{sale.items.length} items</TableCell>
                             <TableCell className="text-right font-medium">
-                              {formatCurrency(sale.totalAmount)}
+                              {formatCurrency(sale.totalAmountTTC)}
                             </TableCell>
                             <TableCell>
                               <StatusBadge 
@@ -254,7 +251,7 @@ const ClientDetail = () => {
                               <TableCell>{formatDate(invoice.date)}</TableCell>
                               <TableCell>{formatDate(invoice.dueDate)}</TableCell>
                               <TableCell className="text-right font-medium">
-                                {formatCurrency(invoice.totalAmount)}
+                                {formatCurrency(invoice.totalAmountTTC)}
                               </TableCell>
                               <TableCell>
                                 <StatusBadge 
@@ -268,6 +265,55 @@ const ClientDetail = () => {
                         <TableRow>
                           <TableCell colSpan={5} className="h-24 text-center">
                             No invoices for this client.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Invoice #</TableHead>
+                        <TableHead>Payment Method</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clientPayments.length > 0 ? (
+                        clientPayments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>{formatDate(payment.date)}</TableCell>
+                            <TableCell>
+                              <Link 
+                                to={`/invoices/${payment.invoice.id}`}
+                                className="text-primary hover:underline"
+                              >
+                                {payment.invoice.invoiceNumber}
+                              </Link>
+                            </TableCell>
+                            <TableCell>{payment.method}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(payment.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-24 text-center">
+                            No payments recorded for this client.
                           </TableCell>
                         </TableRow>
                       )}

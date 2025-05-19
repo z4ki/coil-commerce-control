@@ -58,7 +58,7 @@ const Settings = () => {
             <TabsTrigger value="general">{t('general.settings')}</TabsTrigger>
             <TabsTrigger value="company">{t('company.title')}</TabsTrigger>
             <TabsTrigger value="invoice">{t('invoice.title')}</TabsTrigger>
-            <TabsTrigger value="import-export">Import/Export</TabsTrigger>
+            <TabsTrigger value="import-export">{t('importExport.title')}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="general" className="space-y-4">
@@ -187,7 +187,7 @@ const Settings = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="nis">NIS</Label>
+                    <Label htmlFor="nis">{t('company.nis')}</Label>
                     <Input
                       id="nis"
                       value={settings.company.nis}
@@ -195,7 +195,7 @@ const Settings = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="rc">RC</Label>
+                    <Label htmlFor="rc">{t('company.rc')}</Label>
                     <Input
                       id="rc"
                       value={settings.company.rc}
@@ -203,7 +203,7 @@ const Settings = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ai">AI</Label>
+                    <Label htmlFor="ai">{t('company.ai')}</Label>
                     <Input
                       id="ai"
                       value={settings.company.ai}
@@ -213,7 +213,7 @@ const Settings = () => {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={handleSaveSettings}>Save Changes</Button>
+                <Button onClick={handleSaveSettings}>{t('general.save')}</Button>
               </CardFooter>
             </Card>
           </TabsContent>
@@ -336,55 +336,19 @@ const Settings = () => {
           <TabsContent value="import-export" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Import / Export Data</CardTitle>
+                <CardTitle>{t('importExport.title')}</CardTitle>
                 <CardDescription>
-                  Manage your system data through import and export functionality
+                  {t('importExport.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="border rounded-md p-4">
-                  <h3 className="font-medium mb-2">Import Data</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Import data from Excel files. This will add new records without affecting existing ones.
-                  </p>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="importFile">Select File (Excel format)</Label>
-                      <Input id="importFile" type="file" />
-                    </div>
-                    <Button onClick={handleImportData}>Import Data</Button>
-                  </div>
-                </div>
-                
-                <div className="border rounded-md p-4">
-                  <h3 className="font-medium mb-2">Export Data</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Export your data to Excel format for backup or reporting.
-                  </p>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Select what to export</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div className="flex items-center space-x-2">
-                          <input type="checkbox" id="exportClients" defaultChecked />
-                          <Label htmlFor="exportClients">Clients</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input type="checkbox" id="exportSales" defaultChecked />
-                          <Label htmlFor="exportSales">Sales</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input type="checkbox" id="exportInvoices" defaultChecked />
-                          <Label htmlFor="exportInvoices">Invoices</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input type="checkbox" id="exportReports" />
-                          <Label htmlFor="exportReports">Reports</Label>
-                        </div>
-                      </div>
-                    </div>
-                    <Button onClick={handleExportData}>Export Data</Button>
-                  </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Button onClick={handleImportData}>
+                    {t('importExport.importPending')}
+                  </Button>
+                  <Button onClick={handleExportData}>
+                    {t('importExport.exportPending')}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

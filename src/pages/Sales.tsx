@@ -23,24 +23,62 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download, MoreVertical, Trash } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Sale } from '../types';
 import { toast } from 'sonner';
 import SaleForm from '../components/sales/SaleForm';
+import { useLanguage } from '../context/LanguageContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Link } from 'react-router-dom';
+
+interface SaleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sale?: Sale;
+}
+
+const SaleDialog = ({ open, onOpenChange, sale }: SaleDialogProps) => {
+  const { t } = useLanguage();
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[900px] h-[90vh] flex flex-col p-0">
+        <DialogHeader className="sticky top-0 z-50 bg-background px-6 py-4 border-b">
+          <DialogTitle>
+            {sale ? t('sales.edit') : t('sales.add')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <SaleForm 
+            sale={sale}
+            onSuccess={() => onOpenChange(false)}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const Sales = () => {
   const { sales, clients, deleteSale, updateSale, getClientById } = useAppContext();
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [expandedSales, setExpandedSales] = useState<{[key: string]: boolean}>({});
 
   const handleDeleteSale = (sale: Sale) => {
-    if (window.confirm('Are you sure you want to delete this sale?')) {
+    if (window.confirm(t('sales.deleteConfirm'))) {
       deleteSale(sale.id);
-      toast.success('Sale has been deleted');
+      toast.success(t('sales.deleted'));
     }
   };
 
@@ -48,14 +86,14 @@ const Sales = () => {
     if (sale.isInvoiced) {
       // Can only toggle if not already linked to an invoice
       if (sale.invoiceId) {
-        toast.error('Cannot change status of a sale linked to an invoice');
+        toast.error(t('sales.cannotChangeStatus'));
         return;
       }
       updateSale(sale.id, { isInvoiced: false });
-      toast.success('Sale marked as not invoiced');
+      toast.success(t('sales.markedAsNotInvoiced'));
     } else {
       updateSale(sale.id, { isInvoiced: true });
-      toast.success('Sale marked as invoiced');
+      toast.success(t('sales.markedAsInvoiced'));
     }
   };
 
@@ -66,278 +104,234 @@ const Sales = () => {
     }));
   };
 
-  const filteredSales = sales.filter((sale) => {
-    const client = getClientById(sale.clientId);
-    
-    if (!client) return false;
-    
-    const clientNameMatches = client.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const clientCompanyMatches = client.company.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return clientNameMatches || clientCompanyMatches;
-  });
+  const filteredSales = sales
+    .filter((sale) => {
+      const client = getClientById(sale.clientId);
+      if (!client) return false;
+      const clientNameMatches = client.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const clientCompanyMatches = client.company.toLowerCase().includes(searchTerm.toLowerCase());
+      return clientNameMatches || clientCompanyMatches;
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const handleExportInvoice = (sale: Sale) => {
-    toast.info("Invoice PDF export functionality will be implemented soon");
+    toast.info(t('sales.exportPending').replace('{0}', 'Invoice'));
   };
 
   const handleExportQuotation = (sale: Sale) => {
-    toast.info("Quotation PDF export functionality will be implemented soon");
+    toast.info(t('sales.exportPending').replace('{0}', 'Quotation'));
   };
 
   return (
-    <MainLayout title="Sales">
+    <MainLayout title={t('sales.title')}>
       <div className="space-y-6">
-        {/* Header with search and add button */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full sm:w-96">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+        {/* Header Actions */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex-1 w-full sm:w-auto">
             <Input
-              type="search"
-              placeholder="Search by client..."
-              className="pl-8"
+              placeholder={t('general.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-[300px]"
             />
           </div>
-          <Button onClick={() => {
-            setSelectedSale(null);
-            setShowAddDialog(true);
-          }}>
-            <Plus className="mr-1 h-4 w-4" /> Add Sale
+          <Button onClick={() => setShowAddDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('sales.add')}
           </Button>
         </div>
 
         {/* Sales Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[30px]"></TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[200px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSales.length > 0 ? (
-                    filteredSales.map((sale) => {
-                      const client = getClientById(sale.clientId);
-                      const isExpanded = expandedSales[sale.id] || false;
-                      return (
-                        <React.Fragment key={sale.id}>
-                          <TableRow>
-                            <TableCell className="p-0 pl-4">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => toggleSaleExpansion(sale.id)}
-                              >
-                                {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]"></TableHead>
+                <TableHead>{t('sales.date')}</TableHead>
+                <TableHead>{t('sales.client')}</TableHead>
+                <TableHead>{t('sales.items')}</TableHead>
+                <TableHead className="text-right">{t('sales.total')}</TableHead>
+                <TableHead>{t('sales.status')}</TableHead>
+                <TableHead className="text-right">{t('general.actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredSales.length > 0 ? (
+                filteredSales.map((sale) => {
+                  const client = getClientById(sale.clientId);
+                  const isExpanded = expandedSales[sale.id] || false;
+                  return (
+                    <React.Fragment key={sale.id}>
+                      <TableRow>
+                        <TableCell className="p-0 pl-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleSaleExpansion(sale.id)}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell>{formatDate(sale.date)}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {client && (
+                              <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
+                                {client.name}
+                              </Link>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{client?.company}</div>
+                        </TableCell>
+                        <TableCell>{sale.items.length} {t('general.items')}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(sale.totalAmountTTC)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge 
+                            status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                                <span className="sr-only">{t('general.actions')}</span>
                               </Button>
-                            </TableCell>
-                            <TableCell>{formatDate(sale.date)}</TableCell>
-                            <TableCell>
-                              <div className="font-medium">{client?.name}</div>
-                              <div className="text-xs text-muted-foreground">{client?.company}</div>
-                            </TableCell>
-                            <TableCell>{sale.items.length} item(s)</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(sale.totalAmount)}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge 
-                                status={sale.isInvoiced ? 'invoiced' : 'not-invoiced'} 
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    setSelectedSale(sale);
-                                    setShowAddDialog(true);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  <span className="sr-only">Edit</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteSale(sale)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => toggleInvoiceStatus(sale)}
-                                  disabled={sale.isInvoiced && !!sale.invoiceId}
-                                  title={sale.isInvoiced ? "Mark as not invoiced" : "Mark as invoiced"}
-                                >
-                                  {sale.isInvoiced ? (
-                                    <FileX className="h-4 w-4" />
-                                  ) : (
-                                    <FileCheck className="h-4 w-4" />
-                                  )}
-                                  <span className="sr-only">Toggle Invoice Status</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleExportQuotation(sale)}
-                                  title="Export Quotation"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleExportInvoice(sale)}
-                                  title="Export Invoice"
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                          
-                          {/* Expanded item details */}
-                          {isExpanded && (
-                            <TableRow className="bg-muted/50">
-                              <TableCell colSpan={7} className="py-2">
-                                <div className="pl-8 pr-4">
-                                  <h4 className="text-sm font-medium mb-2">Sale Items:</h4>
-                                  <div className="rounded border bg-background">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>Description</TableHead>
-                                          <TableHead>Coil Ref</TableHead>
-                                          <TableHead>Thickness</TableHead>
-                                          <TableHead>Width</TableHead>
-                                          <TableHead>RAL (Top/Back)</TableHead>
-                                          <TableHead>Quantity (tons)</TableHead>
-                                          <TableHead>Price/Ton</TableHead>
-                                          <TableHead className="text-right">Total</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {sale.items.map((item) => {
-                                          const totalPrice = item.totalAmount;
-                                          const ralInfo = item.topCoatRAL || item.backCoatRAL 
-                                            ? `${item.topCoatRAL || '-'}/${item.backCoatRAL || '-'}`
-                                            : '-';
-                                          
-                                          return (
-                                            <TableRow key={item.id}>
-                                              <TableCell>{item.description}</TableCell>
-                                              <TableCell>{item.coilRef || '-'}</TableCell>
-                                              <TableCell>{item.coilThickness ? `${item.coilThickness} mm` : '-'}</TableCell>
-                                              <TableCell>{item.coilWidth ? `${item.coilWidth} mm` : '-'}</TableCell>
-                                              <TableCell>{ralInfo}</TableCell>
-                                              <TableCell>{item.quantity}</TableCell>
-                                              <TableCell>{formatCurrency(item.pricePerTon)}</TableCell>
-                                              <TableCell className="text-right">
-                                                {formatCurrency(totalPrice)}
-                                              </TableCell>
-                                            </TableRow>
-                                          );
-                                        })}
-                                        
-                                        {/* Summary row */}
-                                        <TableRow className="border-t-2">
-                                          <TableCell colSpan={7} className="font-medium text-right">
-                                            Total:
-                                          </TableCell>
-                                          <TableCell className="text-right font-medium">
-                                            {formatCurrency(sale.items.reduce((sum, item) => sum + item.totalAmount, 0))}
-                                          </TableCell>
-                                        </TableRow>
-                                        
-                                        {/* Transportation fee row */}
-                                        {sale.transportationFee && sale.transportationFee > 0 && (
-                                          <TableRow>
-                                            <TableCell colSpan={7} className="text-right">
-                                              Transportation Fee:
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                              {formatCurrency(sale.transportationFee)}
-                                            </TableCell>
-                                          </TableRow>
-                                        )}
-                                        
-                                        {/* Grand total row */}
-                                        <TableRow>
-                                          <TableCell colSpan={7} className="text-right font-bold">
-                                            Grand Total:
-                                          </TableCell>
-                                          <TableCell className="text-right font-bold">
-                                            {formatCurrency(
-                                              (sale.taxRate 
-                                                ? sale.items.reduce((sum, item) => sum + item.totalAmount, 0) * (1 + sale.taxRate)
-                                                : sale.items.reduce((sum, item) => sum + item.totalAmount, 0)
-                                              ) + (sale.transportationFee || 0)
-                                            )}
-                                          </TableCell>
-                                        </TableRow>
-                                      </TableBody>
-                                    </Table>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setSelectedSale(sale)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                {t('general.edit')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
+                                <Trash className="mr-2 h-4 w-4" />
+                                {t('general.delete')}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleExportInvoice(sale)}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                {t('general.export')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Expanded Sale Details */}
+                      {isExpanded && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="p-0">
+                            <div className="bg-muted/50 p-4">
+                              <div className="space-y-4">
+                                {/* Items List */}
+                                <div>
+                                  <h4 className="font-medium mb-2">{t('sales.items')}</h4>
+                                  <div className="space-y-2">
+                                    {sale.items.map((item, index) => (
+                                      <div key={item.id} className="bg-background rounded-md p-3">
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <div className="font-medium">{item.description}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                              {item.coilRef && `${t('form.sale.coilRef')}: ${item.coilRef}`}
+                                              {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
+                                              {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
+                                            </div>
+                                            {/* {(item.topCoatRAL || item.backCoatRAL) && (
+                                              <div className="text-sm text-muted-foreground">
+                                                {item.topCoatRAL && `${t('form.sale.topCoatRAL')}: ${item.topCoatRAL}`}
+                                                {item.backCoatRAL && ` • ${t('form.sale.backCoatRAL')}: ${item.backCoatRAL}`}
+                                              </div>
+                                            )} */}
+                                          </div>
+                                          <div className="text-right">
+                                            <div>{formatCurrency(item.totalAmountTTC)}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                              {item.quantity} {t('form.sale.quantity')} × {formatCurrency(item.pricePerTon)}/{t('form.sale.quantity')}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </React.Fragment>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        {searchTerm
-                          ? "No sales match your search."
-                          : "No sales found. Add your first sale."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+
+                                {/* Summary */}
+                                <div className="flex justify-end">
+                                  <div className="w-72 space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                      <span>{t('form.sale.subtotalHT')}:</span>
+                                      <span>{formatCurrency(sale.totalAmountHT - (sale.transportationFee || 0))}</span>
+                                    </div>
+                                    {sale.transportationFee > 0 && (
+                                      <div className="flex justify-between text-sm">
+                                        <span>{t('form.sale.transportationFee')}:</span>
+                                        <span>{formatCurrency(sale.transportationFee)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between text-sm pt-1 border-t">
+                                      <span>{t('form.sale.totalHT')}:</span>
+                                      <span>{formatCurrency(sale.totalAmountHT)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span>{t('form.sale.tva')} (19%):</span>
+                                      <span>{formatCurrency(sale.totalAmountTTC - sale.totalAmountHT)}</span>
+                                    </div>
+                                    <div className="flex justify-between font-medium pt-1 border-t">
+                                      <span>{t('form.sale.totalTTC')}:</span>
+                                      <span>{formatCurrency(sale.totalAmountTTC)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Notes if any */}
+                                {sale.notes && (
+                                  <div>
+                                    <h4 className="font-medium mb-2">{t('form.sale.notes')}</h4>
+                                    <p className="text-sm text-muted-foreground">{sale.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    {searchTerm ? t('sales.noSales') : t('general.noData')}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Add/Edit Sale Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="sticky top-0 z-50 bg-background pb-4 mb-4">
-            <DialogTitle>
-              {selectedSale ? 'Edit Sale' : 'Add New Sale'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="overflow-y-auto">
-            <SaleForm 
-              sale={selectedSale} 
-              onSuccess={() => setShowAddDialog(false)}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      {showAddDialog && (
+        <SaleDialog
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+        />
+      )}
+      
+      {selectedSale && (
+        <SaleDialog
+          open={!!selectedSale}
+          onOpenChange={(open) => !open && setSelectedSale(null)}
+          sale={selectedSale}
+        />
+      )}
     </MainLayout>
   );
 };

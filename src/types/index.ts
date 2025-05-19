@@ -113,6 +113,7 @@ export interface SalesSummary {
   totalSales: number;
   invoicedSales: number;
   uninvoicedSales: number;
+  totalAmount: number;
   monthlySales: {
     month: string;
     amountTTC: number;

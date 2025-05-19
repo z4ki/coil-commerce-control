@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Trash2, RefreshCw } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface SaleItemFormProps {
   index: number;
@@ -19,142 +20,93 @@ interface SaleItemFormProps {
 
 const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) => {
   const { control, watch, setValue, trigger } = useFormContext();
+  const { t } = useLanguage();
   
-  // Calculate total for this item
+  // Watch for changes in all relevant fields
   const quantity = watch(`items.${index}.quantity`) || 0;
-  const pricePerTon = watch(`items.${index}.pricePerTon`) || 0;
-  const itemTotal = quantity * pricePerTon;
+  const pricePerTon = watch(`items.${index}.pricePerTon`) || '';
+  const thickness = watch(`items.${index}.coilThickness`) || '';
+  const width = watch(`items.${index}.coilWidth`) || '';
+  const topRal = watch(`items.${index}.topCoatRAL`);
+  const backRal = watch(`items.${index}.backCoatRAL`);
   
-  // Generate a description based on the provided values
-  const generateDescription = () => {
-    const thickness = watch(`items.${index}.coilThickness`);
-    const width = watch(`items.${index}.coilWidth`);
-    const topRal = watch(`items.${index}.topCoatRAL`);
-    const backRal = watch(`items.${index}.backCoatRAL`);
-    
+  // Calculate totals
+  const totalHT = (Number(quantity) || 0) * (Number(pricePerTon) || 0);
+  const tva = totalHT * 0.19; // 19% TVA
+  const totalTTC = totalHT + tva;
+
+  // Automatically generate description when relevant fields change
+  React.useEffect(() => {
     if (thickness && width) {
-      let description = `BOBINES D'ACIER PRELAQUE ${thickness}*${width}`;
-      
+      let description = t('form.sale.coilDescription').replace('{0}', thickness.toString()).replace('{1}', width.toString());
       if (topRal || backRal) {
-        description += ` RAL ${topRal || 'X'}/${backRal || 'Y'}`;
+        description = t('form.sale.coilDescriptionWithRAL')
+          .replace('{0}', thickness.toString())
+          .replace('{1}', width.toString())
+          .replace('{2}', topRal || 'X')
+          .replace('{3}', backRal || 'Y');
       }
-      
-      setValue(`items.${index}.description`, description, {
-        shouldValidate: true,
-        shouldDirty: true,
-        shouldTouch: true
-      });
-    } else {
-      // Not enough information to generate description
-      setValue(`items.${index}.description`, "BOBINES D'ACIER PRELAQUE", {
-        shouldValidate: true,
-        shouldDirty: true,
-        shouldTouch: true
-      });
+      setValue(`items.${index}.description`, description);
     }
+  }, [thickness, width, topRal, backRal, index, setValue, t]);
+
+  // Update the total amounts in the form whenever quantity or price changes
+  React.useEffect(() => {
+    setValue(`items.${index}.totalAmountHT`, totalHT);
+    setValue(`items.${index}.totalAmountTTC`, totalTTC);
+    trigger();
+  }, [quantity, pricePerTon, index, setValue, trigger]);
+
+  const handleNumberChange = (field: { onChange: (value: number | string | undefined) => void }, value: string) => {
+    if (value === '') {
+      field.onChange('');
+    } else {
+      field.onChange(value);
+    }
+    trigger();
   };
 
-  const handleNumberChange = (field: { onChange: (value: number) => void }, value: number | undefined) => {
-    field.onChange(value || 0);
-    trigger(`items.${index}`);
-  };
-  
   return (
-    <div className="p-4 border rounded-md mb-4 bg-muted/30">
-      <div className="flex justify-between items-center mb-4">
-        <h4 className="text-sm font-semibold">Item {index + 1}</h4>
-        <Button 
-          type="button" 
-          variant="ghost" 
-          size="sm" 
-          onClick={onRemove} 
-          disabled={isRemoveDisabled}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className="space-y-4 p-4 border rounded-md relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute right-2 top-2"
+        onClick={onRemove}
+        disabled={isRemoveDisabled}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
 
-      <div className="flex gap-2 items-end mb-4">
-        <div className="flex-1">
-          <FormField
-            control={control}
-            name={`items.${index}.description`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Description</FormLabel>
-                <FormControl>
-                  <Input placeholder="BOBINES D'ACIER PRELAQUE" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <div>
-          <Button 
-            type="button" 
-            variant="outline" 
-            size="sm"
-            onClick={generateDescription}
-            className="mb-0.5"
-            title="Auto-generate description"
-          >
-            <RefreshCw className="h-4 w-4 mr-1" /> Auto
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={control}
           name={`items.${index}.coilRef`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Coil Reference</FormLabel>
+              <FormLabel>{t('form.sale.coilRef')}</FormLabel>
               <FormControl>
-                <Input placeholder="Coil ID/Reference" {...field} />
+                <Input placeholder="BOB-" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-      </div>
 
-      {/* Coil properties */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
         <FormField
           control={control}
           name={`items.${index}.coilThickness`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Thickness (mm)</FormLabel>
+              <FormLabel>{t('form.sale.coilThickness')}</FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
                   step="0.01" 
                   placeholder="0.5" 
                   {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={control}
-          name={`items.${index}.coilWidth`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Width (mm)</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  step="1" 
-                  placeholder="1000" 
-                  {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
+                  onChange={(e) => handleNumberChange(field, e.target.value)}
                 />
               </FormControl>
               <FormMessage />
@@ -163,16 +115,57 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
 
-      {/* RAL Colors */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField
+          control={control}
+          name={`items.${index}.coilWidth`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('form.sale.coilWidth')}</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  step="1" 
+                  placeholder="1000" 
+                  {...field} 
+                  onChange={(e) => handleNumberChange(field, e.target.value)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${index}.quantity`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('form.sale.quantity')}</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="1.0" 
+                  {...field} 
+                  onChange={(e) => handleNumberChange(field, e.target.value)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={control}
           name={`items.${index}.topCoatRAL`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Top Coat RAL</FormLabel>
+              <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. 9010" {...field} />
+                <Input placeholder="9010" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -184,9 +177,9 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           name={`items.${index}.backCoatRAL`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Back Coat RAL</FormLabel>
+              <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. 9002" {...field} />
+                <Input placeholder="9002" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -194,53 +187,26 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
 
-      {/* Quantity and Price */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.quantity`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Quantity (tons)</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="1.0" 
-                  {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <FormField
           control={control}
           name={`items.${index}.pricePerTon`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Price per Ton</FormLabel>
+              <FormLabel>{t('form.sale.pricePerTon')}</FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
                   step="0.01" 
                   placeholder="0.00" 
                   {...field} 
-                  onChange={(e) => handleNumberChange(field, e.target.valueAsNumber || undefined)}
+                  onChange={(e) => handleNumberChange(field, e.target.value)}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-      </div>
-
-      {/* Item Total */}
-      <div className="mt-4 text-right">
-        <span className="text-sm font-medium">Item Total: </span>
-        <span className="text-sm">{new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(itemTotal)}</span>
       </div>
     </div>
   );

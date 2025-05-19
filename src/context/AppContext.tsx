@@ -158,62 +158,118 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const invoicedSales = sales.filter(sale => sale.isInvoiced).length;
     const uninvoicedSales = totalSales - invoicedSales;
 
-    // Group sales by month
-    const monthlySales = sales.reduce((acc: { month: string; amount: number }[], sale) => {
-      const month = new Date(sale.date).toLocaleString('default', { month: 'long' });
-      const existingMonth = acc.find(m => m.month === month);
-      if (existingMonth) {
-        existingMonth.amount += sale.totalAmount;
-      } else {
-        acc.push({ month, amount: sale.totalAmount });
-      }
-      return acc;
-    }, []);
+    // Calculate total amount
+    const totalAmount = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+
+    // Group sales by month and sort by date
+    const monthlySales = sales
+      .reduce((acc: { month: string; amountTTC: number }[], sale) => {
+        const month = new Date(sale.date).toLocaleString('default', { month: 'long' });
+        const existingMonth = acc.find(m => m.month === month);
+        if (existingMonth) {
+          existingMonth.amountTTC += sale.totalAmountTTC;
+        } else {
+          acc.push({ month, amountTTC: sale.totalAmountTTC });
+        }
+        return acc;
+      }, [])
+      .sort((a, b) => {
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+        return months.indexOf(a.month) - months.indexOf(b.month);
+      });
 
     return {
       totalSales,
       invoicedSales,
       uninvoicedSales,
+      totalAmount,
       monthlySales
     };
   };
 
   const getDebtSummary = (): DebtSummary => {
-    const unpaidInvoices = invoices.filter(inv => !inv.isPaid);
-    const totalDebt = unpaidInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const overdueDebt = unpaidInvoices
-      .filter(inv => new Date(inv.dueDate) < new Date())
-      .reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const upcomingDebt = totalDebt - overdueDebt;
-
-    const debtByClient = unpaidInvoices.reduce((acc: { clientId: string; clientName: string; amount: number }[], inv) => {
-      const client = getClientById(inv.clientId);
-      if (!client) return acc;
-
-      const existingClient = acc.find(c => c.clientId === inv.clientId);
-      if (existingClient) {
-        existingClient.amount += inv.totalAmount;
-      } else {
+    // Calculate total sales amount for each client
+    const debtByClient = clients.reduce((acc: { clientId: string; clientName: string; amountTTC: number }[], client) => {
+      // Get all sales for this client
+      const clientSales = sales.filter(sale => sale.clientId === client.id);
+      const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+      
+      // Get all payments for this client's invoices
+      const clientInvoices = invoices.filter(inv => inv.clientId === client.id);
+      const totalPaidAmount = clientInvoices.reduce((sum, invoice) => {
+        const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
+        return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
+      }, 0);
+      
+      // Calculate client's debt
+      const clientDebt = totalSalesAmount - totalPaidAmount;
+      
+      // Only add client if they have debt
+      if (clientDebt > 0) {
         acc.push({
-          clientId: inv.clientId,
+          clientId: client.id,
           clientName: client.name,
-          amount: inv.totalAmount
+          amountTTC: clientDebt
         });
       }
       return acc;
     }, []);
 
+    // Calculate total sales
+    const totalSales = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    
+    // Calculate total paid amount
+    const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    
+    // Calculate total debt (total sales - total paid)
+    const totalDebt = totalSales - totalPaid;
+    
+    // Calculate overdue amount from unpaid invoices that are past due
+    const overdueDebt = invoices
+      .filter(inv => {
+        // Get payments for this invoice
+        const invoicePayments = payments.filter(p => p.invoiceId === inv.id);
+        const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+        
+        // Check if there's remaining amount and it's overdue
+        return totalPaid < inv.totalAmountTTC && new Date(inv.dueDate) < new Date();
+      })
+      .reduce((sum, inv) => {
+        // Calculate remaining amount for this invoice
+        const invoicePayments = payments.filter(p => p.invoiceId === inv.id);
+        const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+        return sum + (inv.totalAmountTTC - totalPaid);
+      }, 0);
+    
+    // Upcoming debt is total debt minus overdue debt
+    const upcomingDebt = totalDebt - overdueDebt;
+
     return {
-      totalDebt,
-      overdueDebt,
-      upcomingDebt,
+      totalDebtTTC: totalDebt,
+      overdueDebtTTC: overdueDebt,
+      upcomingDebtTTC: upcomingDebt,
       debtByClient
     };
   };
 
   const getClientDebt = (clientId: string): number => {
+    // Calculate debt from unpaid invoices
     const clientInvoices = invoices.filter(inv => inv.clientId === clientId && !inv.isPaid);
-    return clientInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalInvoiceAmount = clientInvoices.reduce((sum, inv) => sum + inv.totalAmountTTC, 0);
+    
+    // Calculate total payments made for these invoices
+    const totalPayments = clientInvoices.reduce((sum, invoice) => {
+      const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
+      return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
+    }, 0);
+
+    // Calculate debt from uninvoiced sales
+    const uninvoicedSales = sales.filter(sale => sale.clientId === clientId && !sale.isInvoiced);
+    const uninvoicedAmount = uninvoicedSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    
+    // Total debt is unpaid invoices (minus payments) plus uninvoiced sales
+    return (totalInvoiceAmount - totalPayments) + uninvoicedAmount;
   };
 
   const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
@@ -307,13 +363,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const invoice = getInvoiceById(invoiceId);
     if (!invoice) return 0;
 
-    // Calculate TTC (Total with tax)
-    const totalTTC = invoice.totalAmount * 1.19; // Adding 19% TVA
-
     const totalPaid = getPaymentsByInvoice(invoiceId)
       .reduce((sum, payment) => sum + payment.amount, 0);
 
-    return totalTTC - totalPaid;
+    return invoice.totalAmountTTC - totalPaid;
   };
 
   const deletePayment = async (id: string) => {

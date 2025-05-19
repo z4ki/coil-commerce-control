@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../utils/format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useLanguage } from '../context/LanguageContext';
 
 interface MonthlySalesData {
   month: string;
@@ -65,6 +66,7 @@ const Dashboard = () => {
     invoices,
     getSalesByClient
   } = useAppContext();
+  const { t } = useLanguage();
   
   const salesSummary = getSalesSummary();
   const debtSummary = getDebtSummary();
@@ -93,67 +95,81 @@ const Dashboard = () => {
     .slice(0, 5);
 
   return (
-    <MainLayout title="Dashboard">
+    <MainLayout title={t('dashboard.title')}>
       <div className="space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <DataCard
-            title="Total Sales (TTC)"
+            title={t('dashboard.totalSales')}
             value={formatCurrency(totalSalesAmount)}
             icon={<DollarSign className="h-4 w-4" />}
-            description={`Average: ${formatCurrency(averageSaleAmount)}`}
+            description={t('dashboard.average').replace('{0}', formatCurrency(averageSaleAmount))}
           />
           <DataCard
-            title="Outstanding Debt (TTC)"
+            title={t('dashboard.outstandingDebt')}
             value={formatCurrency(debtSummary.totalDebtTTC)}
             icon={<AlertCircle className="h-4 w-4" />}
-            description={`Overdue: ${formatCurrency(debtSummary.overdueDebtTTC)}`}
+            description={t('dashboard.overdue').replace('{0}', formatCurrency(debtSummary.overdueDebtTTC))}
           />
           <DataCard
-            title="Total Clients"
+            title={t('dashboard.totalClients')}
             value={clients.length}
             icon={<Users className="h-4 w-4" />}
           />
           <DataCard
-            title="Uninvoiced Sales"
+            title={t('dashboard.uninvoicedSales')}
             value={formatCurrency(salesSummary.uninvoicedSales)}
             icon={<FileText className="h-4 w-4" />}
-            description="Sales without invoices"
+            description={t('dashboard.salesWithoutInvoices')}
           />
         </div>
 
         {/* Charts */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Sales Chart */}
-          <Card className="hoverable-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart2 className="h-5 w-5 text-muted-foreground" />
-                <span>Monthly Sales (TTC)</span>
-              </CardTitle>
+          {/* Monthly Sales Chart */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart2 className="h-5 w-5 text-muted-foreground" />
+                  <span>{t('dashboard.monthlySales')}</span>
+                </CardTitle>
+                <span className="text-xl font-bold">{formatCurrency(salesSummary.totalAmount)}</span>
+              </div>
+              <CardDescription>{t('dashboard.salesOverTime')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <MemoizedBarChart data={salesSummary.monthlySales} />
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={salesSummary.monthlySales}>
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                    <Tooltip 
+                      formatter={(value) => [formatCurrency(value as number), t('dashboard.amount')]}
+                      labelFormatter={(label) => t('dashboard.month').replace('{0}', label)}
+                    />
+                    <Bar dataKey="amountTTC" fill="#3b82f6" name={t('dashboard.amount')} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
-
+          
           {/* Top Clients by Debt */}
           <Card className="hoverable-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-muted-foreground" />
-                <span>Top Clients</span>
+                <span>{t('dashboard.topClients')}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Sales Count</TableHead>
-                    <TableHead className="text-right">Total Amount (TTC)</TableHead>
+                    <TableHead>{t('clients.name')}</TableHead>
+                    <TableHead>{t('clients.totalOrders')}</TableHead>
+                    <TableHead className="text-right">{t('sales.total')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -175,11 +191,11 @@ const Dashboard = () => {
         {/* Recent Activity */}
         <Card className="hoverable-card">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>{t('dashboard.recentSales')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground text-center py-8">
-              Activity data will appear here as you add sales and invoices.
+              {t('dashboard.noRecentActivity')}
             </p>
           </CardContent>
         </Card>

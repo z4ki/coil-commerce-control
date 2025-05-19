@@ -55,7 +55,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   const [clientSales, setClientSales] = useState<Sale[]>([]);
   const [selectedSales, setSelectedSales] = useState<string[]>(invoice?.salesIds || []);
   const [selectedClientId, setSelectedClientId] = useState<string>(invoice?.clientId || '');
-  const [totalAmount, setTotalAmount] = useState<number>(invoice?.totalAmount || 0);
+  const [totalAmount, setTotalAmount] = useState<number>(invoice?.totalAmountTTC || 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultValues: FormValues = {
@@ -108,8 +108,9 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   const calculateTotals = () => {
     const selectedSalesData = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean);
     const totalHT = selectedSalesData.reduce((sum, sale) => sum + (sale?.totalAmountHT || 0), 0);
-    const totalTTC = selectedSalesData.reduce((sum, sale) => sum + (sale?.totalAmountTTC || 0), 0);
-    return { totalHT, totalTTC };
+    const taxAmount = totalHT * 0.19; // 19% tax rate
+    const totalTTC = totalHT + taxAmount;
+    return { totalHT, totalTTC, taxAmount };
   };
 
   useEffect(() => {

@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAppContext } from '../../context/AppContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -39,6 +39,7 @@ interface ClientFormProps {
 
 const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
   const { addClient, updateClient } = useAppContext();
+  const { t } = useLanguage();
 
   const defaultValues: FormValues = {
     name: client?.name || '',
@@ -91,9 +92,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel>{t('clients.form.name')}</FormLabel>
               <FormControl>
-                <Input placeholder="John Doe" {...field} />
+                <Input placeholder={t('clients.form.placeholders.name')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -105,9 +106,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
           name="company"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Company</FormLabel>
+              <FormLabel>{t('clients.form.company')}</FormLabel>
               <FormControl>
-                <Input placeholder="ACME Corp" {...field} />
+                <Input placeholder={t('clients.form.placeholders.company')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -120,9 +121,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t('clients.form.email')}</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="john@example.com" {...field} />
+                  <Input type="email" placeholder={t('clients.form.placeholders.email')} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -134,9 +135,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>{t('clients.form.phone')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="+1 (555) 123-4567" {...field} />
+                  <Input placeholder={t('clients.form.placeholders.phone')} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -149,9 +150,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Address</FormLabel>
+              <FormLabel>{t('clients.form.address')}</FormLabel>
               <FormControl>
-                <Textarea placeholder="123 Main St, City, Country" {...field} />
+                <Textarea placeholder={t('clients.form.placeholders.address')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -165,9 +166,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             name="nif"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>NIF (Tax ID)</FormLabel>
+                <FormLabel>{t('clients.form.nif')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Tax Identification Number" {...field} />
+                  <Input placeholder={t('clients.form.placeholders.nif')} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -179,9 +180,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             name="nis"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>NIS (Statistical ID)</FormLabel>
+                <FormLabel>{t('clients.form.nis')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Statistical Identification Number" {...field} />
+                  <Input placeholder={t('clients.form.placeholders.nis')} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -195,9 +196,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             name="rc"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>RC (Commercial Register)</FormLabel>
+                <FormLabel>{t('clients.form.rc')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Commercial Register Number" {...field} />
+                  <Input placeholder={t('clients.form.placeholders.rc')} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -209,9 +210,9 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             name="ai"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>AI (Tax Article)</FormLabel>
+                <FormLabel>{t('clients.form.ai')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Tax Article Number" {...field} />
+                  <Input placeholder={t('clients.form.placeholders.ai')} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -221,10 +222,10 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
 
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="outline" type="button" onClick={onSuccess}>
-            Cancel
+            {t('clients.form.actions.cancel')}
           </Button>
           <Button type="submit">
-            {client ? 'Update' : 'Add'} Client
+            {client ? t('clients.form.actions.update') : t('clients.form.actions.add')}
           </Button>
         </div>
       </form>

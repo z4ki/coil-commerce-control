@@ -1,4 +1,3 @@
-
 import React from 'react';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
@@ -6,9 +5,10 @@ import MobileNav from './MobileNav';
 interface MainLayoutProps {
   children: React.ReactNode;
   title: string;
+  headerAction?: React.ReactNode;
 }
 
-const MainLayout = ({ children, title }: MainLayoutProps) => {
+const MainLayout = ({ children, title, headerAction }: MainLayoutProps) => {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar for desktop */}
@@ -21,6 +21,7 @@ const MainLayout = ({ children, title }: MainLayoutProps) => {
         <header className="bg-white border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold text-gray-800">{title}</h1>
+            {headerAction}
           </div>
         </header>
         

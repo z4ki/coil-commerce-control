@@ -29,32 +29,45 @@ const mapDbSaleToSale = async (dbSale: DbSale): Promise<Sale> => {
   }
   
   // Map sale items to our application structure
-  const items: SaleItem[] = (saleItems || []).map(item => ({
-    id: item.id,
-    description: item.description,
-    coilRef: item.coil_ref,
-    coilThickness: item.coil_thickness,
-    coilWidth: item.coil_width,
-    topCoatRAL: item.top_coat_ral,
-    backCoatRAL: item.back_coat_ral,
-    coilWeight: item.coil_weight,
-    quantity: item.quantity,
-    pricePerTon: item.price_per_ton,
-    totalAmount: item.total_amount,
-    sale_id: item.sale_id
-  }));
+  const items: SaleItem[] = (saleItems || []).map(item => {
+    const itemTotalHT = Number(item.quantity || 0) * Number(item.price_per_ton || 0);
+    return {
+      id: item.id,
+      description: item.description,
+      coilRef: item.coil_ref,
+      coilThickness: item.coil_thickness,
+      coilWidth: item.coil_width,
+      topCoatRAL: item.top_coat_ral,
+      backCoatRAL: item.back_coat_ral,
+      coilWeight: item.coil_weight,
+      quantity: Number(item.quantity || 0),
+      pricePerTon: Number(item.price_per_ton || 0),
+      totalAmountHT: itemTotalHT,
+      totalAmountTTC: itemTotalHT * (1 + (dbSale.tax_rate || 0.19)),
+      sale_id: item.sale_id
+    };
+  });
+  
+  const totalAmountHT = Number(dbSale.total_amount || 0);
+  const taxRate = Number(dbSale.tax_rate || 0.19);
+  const totalAmountTTC = totalAmountHT * (1 + taxRate);
+  const transportationFee = Number(dbSale.transportation_fee || 0);
+  const transportationFeeTTC = transportationFee * (1 + taxRate);
   
   return {
     id: dbSale.id,
     clientId: dbSale.client_id,
     date: new Date(dbSale.date),
     items: items,
-    totalAmount: dbSale.total_amount,
+    totalAmountHT: totalAmountHT,
+    totalAmountTTC: totalAmountTTC,
     isInvoiced: dbSale.is_invoiced,
     invoiceId: dbSale.invoice_id,
     notes: dbSale.notes,
-    transportationFee: dbSale.transportation_fee,
-    taxRate: dbSale.tax_rate,
+    transportationFee: transportationFee,
+    transportationFeeTTC: transportationFeeTTC,
+    taxRate: taxRate,
+    paymentMethod: 'cash', // Default value since it's not in the database yet
     createdAt: new Date(dbSale.created_at),
     updatedAt: dbSale.updated_at ? new Date(dbSale.updated_at) : undefined
   };
@@ -145,6 +158,11 @@ export const getSalesByFilter = async (filter: SalesFilter): Promise<Sale[]> => 
 };
 
 export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): Promise<Sale> => {
+  // Calculate total amount HT from items
+  const totalAmountHT = sale.items.reduce((sum, item) => 
+    sum + (Number(item.quantity || 0) * Number(item.pricePerTon || 0)), 0);
+  const totalAmountTTC = totalAmountHT * (1 + Number(sale.taxRate || 0.19));
+
   // First create the sale record
   const { data: newSale, error: saleError } = await supabase
     .from('sales')
@@ -153,9 +171,9 @@ export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedA
       date: sale.date.toISOString(),
       is_invoiced: sale.isInvoiced,
       notes: sale.notes,
-      transportation_fee: sale.transportationFee,
-      tax_rate: sale.taxRate,
-      total_amount: 0 // This will be updated by the trigger after items are inserted
+      transportation_fee: Number(sale.transportationFee || 0),
+      tax_rate: Number(sale.taxRate || 0.19),
+      total_amount: totalAmountHT // Store HT amount in database
     })
     .select()
     .single();
@@ -166,19 +184,22 @@ export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedA
   }
   
   // Now create all the sale items
-  const saleItems = sale.items.map(item => ({
-    sale_id: newSale.id,
-    description: item.description,
-    coil_ref: item.coilRef,
-    coil_thickness: item.coilThickness,
-    coil_width: item.coilWidth,
-    top_coat_ral: item.topCoatRAL,
-    back_coat_ral: item.backCoatRAL,
-    coil_weight: item.coilWeight,
-    quantity: item.quantity,
-    price_per_ton: item.pricePerTon,
-    total_amount: item.quantity * item.pricePerTon
-  }));
+  const saleItems = sale.items.map(item => {
+    const itemTotalHT = Number(item.quantity || 0) * Number(item.pricePerTon || 0);
+    return {
+      sale_id: newSale.id,
+      description: item.description,
+      coil_ref: item.coilRef,
+      coil_thickness: item.coilThickness,
+      coil_width: item.coilWidth,
+      top_coat_ral: item.topCoatRAL,
+      back_coat_ral: item.backCoatRAL,
+      coil_weight: item.coilWeight,
+      quantity: Number(item.quantity || 0),
+      price_per_ton: Number(item.pricePerTon || 0),
+      total_amount: itemTotalHT // Store HT amount in database
+    };
+  });
   
   const { error: itemsError } = await supabase
     .from('sale_items')
@@ -196,79 +217,84 @@ export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedA
 };
 
 export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Sale> => {
-  // First update the sale record
   interface UpdateData {
     client_id?: string;
     date?: string;
     is_invoiced?: boolean;
-    invoice_id?: string;
+    invoice_id?: string | null;
     notes?: string;
     transportation_fee?: number;
     tax_rate?: number;
+    total_amount?: number;
     updated_at: string;
   }
 
   const updateData: UpdateData = {
     updated_at: new Date().toISOString()
   };
-  
-  if (sale.clientId) updateData.client_id = sale.clientId;
-  if (sale.date) updateData.date = sale.date.toISOString();
+
+  if (sale.clientId !== undefined) updateData.client_id = sale.clientId;
+  if (sale.date !== undefined) updateData.date = sale.date.toISOString();
   if (sale.isInvoiced !== undefined) updateData.is_invoiced = sale.isInvoiced;
   if (sale.invoiceId !== undefined) updateData.invoice_id = sale.invoiceId;
   if (sale.notes !== undefined) updateData.notes = sale.notes;
-  if (sale.transportationFee !== undefined) updateData.transportation_fee = sale.transportationFee;
-  if (sale.taxRate !== undefined) updateData.tax_rate = sale.taxRate;
-  
-  const { error: updateError } = await supabase
-    .from('sales')
-    .update(updateData)
-    .eq('id', id);
-  
-  if (updateError) {
-    console.error('Error updating sale:', updateError);
-    throw updateError;
-  }
-  
-  // If items are being updated, handle them
+  if (sale.transportationFee !== undefined) updateData.transportation_fee = Number(sale.transportationFee || 0);
+  if (sale.taxRate !== undefined) updateData.tax_rate = Number(sale.taxRate || 0.19);
+
+  // If items are being updated, calculate new total
   if (sale.items) {
-    // First delete existing items
+    const totalAmountHT = sale.items.reduce((sum, item) => 
+      sum + (Number(item.quantity || 0) * Number(item.pricePerTon || 0)), 0);
+    updateData.total_amount = totalAmountHT;
+
+    // Update or create sale items
     const { error: deleteError } = await supabase
       .from('sale_items')
       .delete()
       .eq('sale_id', id);
-    
+
     if (deleteError) {
-      console.error('Error deleting existing sale items:', deleteError);
+      console.error('Error deleting old sale items:', deleteError);
       throw deleteError;
     }
-    
-    // Then insert new items
-    const saleItems = sale.items.map(item => ({
-      sale_id: id,
-      description: item.description,
-      coil_ref: item.coilRef,
-      coil_thickness: item.coilThickness,
-      coil_width: item.coilWidth,
-      top_coat_ral: item.topCoatRAL,
-      back_coat_ral: item.backCoatRAL,
-      coil_weight: item.coilWeight,
-      quantity: item.quantity,
-      price_per_ton: item.pricePerTon,
-      total_amount: item.quantity * item.pricePerTon
-    }));
-    
-    const { error: itemsError } = await supabase
+
+    const saleItems = sale.items.map(item => {
+      const itemTotalHT = Number(item.quantity || 0) * Number(item.pricePerTon || 0);
+      return {
+        sale_id: id,
+        description: item.description,
+        coil_ref: item.coilRef,
+        coil_thickness: item.coilThickness,
+        coil_width: item.coilWidth,
+        top_coat_ral: item.topCoatRAL,
+        back_coat_ral: item.backCoatRAL,
+        coil_weight: item.coilWeight,
+        quantity: Number(item.quantity || 0),
+        price_per_ton: Number(item.pricePerTon || 0),
+        total_amount: itemTotalHT
+      };
+    });
+
+    const { error: insertError } = await supabase
       .from('sale_items')
       .insert(saleItems);
-    
-    if (itemsError) {
-      console.error('Error creating new sale items:', itemsError);
-      throw itemsError;
+
+    if (insertError) {
+      console.error('Error creating new sale items:', insertError);
+      throw insertError;
     }
   }
-  
-  // Get the updated sale
+
+  const { error: updateError } = await supabase
+    .from('sales')
+    .update(updateData)
+    .eq('id', id);
+
+  if (updateError) {
+    console.error('Error updating sale:', updateError);
+    throw updateError;
+  }
+
   return await getSaleById(id) as Sale;
 };
 
@@ -284,3 +310,4 @@ export const deleteSale = async (id: string): Promise<void> => {
     throw error;
   }
 };
+

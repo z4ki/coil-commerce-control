@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { useLanguage } from '../context/LanguageContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,22 +42,21 @@ import { Link } from 'react-router-dom';
 
 const Invoices = () => {
   const { invoices, deleteInvoice, getClientById } = useAppContext();
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   const handleDeleteInvoice = (invoice: Invoice) => {
-    if (window.confirm('Are you sure you want to delete this invoice?')) {
+    if (window.confirm(t('invoices.deleteConfirm'))) {
       deleteInvoice(invoice.id);
-      toast.success('Invoice has been deleted');
+      toast.success(t('invoices.deleted'));
     }
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
     const client = getClientById(invoice.clientId);
-    
     if (!client) return false;
-    
     return (
       invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -65,7 +65,7 @@ const Invoices = () => {
   });
 
   return (
-    <MainLayout title="Invoices">
+    <MainLayout title={t('invoices.title')}>
       <div className="space-y-6">
         {/* Header with search and add button */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -73,7 +73,7 @@ const Invoices = () => {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input
               type="search"
-              placeholder="Search invoices..."
+              placeholder={t('invoices.searchPlaceholder')}
               className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -83,27 +83,27 @@ const Invoices = () => {
             setSelectedInvoice(null);
             setShowAddDialog(true);
           }}>
-            <Plus className="mr-1 h-4 w-4" /> Create Invoice
+            <Plus className="mr-1 h-4 w-4" /> {t('invoices.create')}
           </Button>
         </div>
 
         {/* Invoices Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Invoices</CardTitle>
+            <CardTitle>{t('invoices.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[80px]">Actions</TableHead>
+                    <TableHead>{t('invoices.invoiceNumber')}</TableHead>
+                    <TableHead>{t('invoices.client')}</TableHead>
+                    <TableHead>{t('invoices.date')}</TableHead>
+                    <TableHead>{t('invoices.dueDate')}</TableHead>
+                    <TableHead className="text-right">{t('invoices.amount')}</TableHead>
+                    <TableHead>{t('invoices.status')}</TableHead>
+                    <TableHead className="w-[80px]">{t('invoices.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -141,11 +141,11 @@ const Invoices = () => {
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
                                   <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">Open menu</span>
+                                  <span className="sr-only">{t('invoices.actions')}</span>
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuLabel>{t('invoices.actions')}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -154,21 +154,21 @@ const Invoices = () => {
                                   }}
                                 >
                                   <Edit className="mr-2 h-4 w-4" />
-                                  <span>Edit</span>
+                                  <span>{t('invoices.edit')}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleDeleteInvoice(invoice)}>
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  <span>Delete</span>
+                                  <span>{t('invoices.delete')}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
                                   <Link to={`/invoices/${invoice.id}`}>
                                     <FileText className="mr-2 h-4 w-4" />
-                                    <span>View Details</span>
+                                    <span>{t('invoices.viewDetails')}</span>
                                   </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
                                   <Download className="mr-2 h-4 w-4" />
-                                  <span>Download PDF</span>
+                                  <span>{t('invoices.downloadPDF')}</span>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -180,8 +180,8 @@ const Invoices = () => {
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 text-center">
                         {searchTerm
-                          ? "No invoices match your search."
-                          : "No invoices found. Create your first invoice."}
+                          ? t('invoices.noMatch')
+                          : t('invoices.noInvoices')}
                       </TableCell>
                     </TableRow>
                   )}
@@ -197,12 +197,12 @@ const Invoices = () => {
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="sticky top-0 z-50 bg-background pb-4 mb-4">
             <DialogTitle>
-              {selectedInvoice ? 'Edit Invoice' : 'Create New Invoice'}
+              {selectedInvoice ? t('invoices.editTitle') : t('invoices.createTitle')}
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
               {selectedInvoice 
-                ? 'Update the invoice details below.' 
-                : 'Fill in the details below to create a new invoice.'}
+                ? t('invoices.editDesc')
+                : t('invoices.createDesc')}
             </p>
           </DialogHeader>
           <div className="overflow-y-auto">

@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAppContext } from '../../context/AppContext';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -13,73 +13,73 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatDateInput, parseDateInput, formatCurrency } from '../../utils/format';
-import { toast } from 'sonner';
-import { Payment } from '../../types';
+import { useAppContext } from '@/context/AppContext';
+import { Payment } from '@/types';
+import { formatCurrency } from '@/utils/format';
+import { useLanguage } from '@/context/LanguageContext';
 
 const formSchema = z.object({
-  date: z.string().min(1, { message: 'Date is required' }),
-  amount: z.coerce.number().positive({ message: 'Amount must be positive' }),
-  method: z.enum(['cash', 'bank_transfer', 'check', 'credit_card'], {
-    required_error: 'Payment method is required',
-  }),
+  date: z.string(),
+  amount: z.number().min(0),
+  method: z.enum(['cash', 'bank_transfer', 'check', 'credit_card']),
   notes: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 interface PaymentFormProps {
-  invoiceId: string;
-  remainingAmount: number;
-  onSuccess?: () => void;
+  saleId: string;
   payment?: Payment;
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
 
-const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: PaymentFormProps) => {
-  const { addPayment, updatePayment } = useAppContext();
-
-  const defaultValues: FormValues = {
-    date: formatDateInput(payment?.date || new Date()),
-    amount: payment?.amount || remainingAmount,
-    method: payment?.method || 'bank_transfer',
-    notes: payment?.notes || '',
-  };
+export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFormProps) => {
+  const { addPayment, getSalePaymentStatus } = useAppContext();
+  const { t } = useLanguage();
+  const remainingAmount = getSalePaymentStatus(saleId)?.remainingAmount || 0;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: {
+      date: payment?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+      amount: payment?.amount || remainingAmount,
+      method: payment?.method || 'cash',
+      notes: payment?.notes || '',
+    },
   });
 
   const onSubmit = (data: FormValues) => {
-    const paymentData = {
-      date: parseDateInput(data.date),
-      amount: data.amount,
-      method: data.method,
-      notes: data.notes || '',
-    };
-    
     try {
-      if (payment) {
-        updatePayment(payment.id, paymentData);
-        toast.success('Payment has been updated');
-      } else {
-        addPayment(invoiceId, paymentData);
-        
-        if (data.amount > remainingAmount) {
-          toast.warning(`Payment of ${formatCurrency(data.amount)} exceeds the remaining amount of ${formatCurrency(remainingAmount)}. This will result in a credit balance.`);
-        } else {
-          toast.success('Payment has been recorded');
-        }
+      const paymentData = {
+        saleId,
+        date: new Date(data.date),
+        amount: data.amount,
+        method: data.method,
+        notes: data.notes || '',
+      };
+
+      if (data.amount > remainingAmount) {
+        toast.warning(`Payment of ${formatCurrency(data.amount)} exceeds the remaining amount of ${formatCurrency(remainingAmount)}. This will result in a credit balance.`);
       }
 
+      addPayment(paymentData);
+      toast.success(t('payments.recorded'));
+      
       if (onSuccess) {
         onSuccess();
       }
     } catch (error) {
-      console.error('Error processing payment:', error);
-      toast.error('Failed to process payment. Please try again.');
+      console.error('Error recording payment:', error);
+      toast.error(t('payments.error'));
     }
   };
 
@@ -91,7 +91,7 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
           name="date"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Payment Date</FormLabel>
+              <FormLabel>{t('payments.date')}</FormLabel>
               <FormControl>
                 <Input type="date" {...field} />
               </FormControl>
@@ -105,21 +105,15 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
           name="amount"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Amount</FormLabel>
-              <div className="space-y-2">
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="Enter amount" 
-                    {...field} 
-                    onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-                  />
-                </FormControl>
-                <p className="text-sm text-muted-foreground">
-                  Remaining amount to be paid: {formatCurrency(remainingAmount)}
-                </p>
-              </div>
+              <FormLabel>{t('payments.amount')}</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...field}
+                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -130,18 +124,18 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
           name="method"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Payment Method</FormLabel>
+              <FormLabel>{t('payments.method')}</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select payment method" />
+                    <SelectValue placeholder={t('payments.selectMethod')} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="check">Check</SelectItem>
-                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                  <SelectItem value="cash">{t('payments.methods.cash')}</SelectItem>
+                  <SelectItem value="bank_transfer">{t('payments.methods.bankTransfer')}</SelectItem>
+                  <SelectItem value="check">{t('payments.methods.check')}</SelectItem>
+                  <SelectItem value="credit_card">{t('payments.methods.creditCard')}</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -154,29 +148,26 @@ const PaymentForm = ({ invoiceId, remainingAmount, onSuccess, payment }: Payment
           name="notes"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Notes</FormLabel>
+              <FormLabel>{t('payments.notes')}</FormLabel>
               <FormControl>
-                <Textarea 
-                  placeholder="Any additional notes about this payment"
-                  {...field}
-                />
+                <Textarea {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" type="button" onClick={onSuccess}>
-            Cancel
-          </Button>
+        <div className="flex justify-end gap-2">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              {t('common.cancel')}
+            </Button>
+          )}
           <Button type="submit">
-            {payment ? 'Update' : 'Record'} Payment
+            {payment ? t('payments.update') : t('payments.add')}
           </Button>
         </div>
       </form>
     </Form>
   );
 };
-
-export default PaymentForm;

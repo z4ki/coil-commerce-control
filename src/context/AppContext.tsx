@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary } from '@/types';
+import { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, BulkPayment } from '@/types';
 import * as clientService from '@/services/clientService';
 import * as saleService from '@/services/saleService';
 import * as invoiceService from '@/services/invoiceService';
@@ -43,18 +43,28 @@ interface AppContextType {
   getPaymentsByInvoice: (invoiceId: string) => Payment[];
   getInvoiceRemainingAmount: (invoiceId: string) => number;
   deletePayment: (id: string) => Promise<void>;
-  addPayment: (invoiceId: string, paymentData: { 
-    date: Date; 
-    amount: number; 
-    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; 
-    notes?: string 
-  }) => Promise<Payment>;
-  updatePayment: (id: string, paymentData: Partial<{
-    date: Date;
-    amount: number;
-    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
-    notes?: string;
-  }>) => Promise<Payment>;
+  addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Payment>;
+  addBulkPayment: (payment: BulkPayment) => Promise<Payment[]>;
+  getPaymentsBySale: (saleId: string) => Payment[];
+  getSalePaymentStatus: (saleId: string) => {
+    totalAmount: number;
+    totalPaid: number;
+    remainingAmount: number;
+    isFullyPaid: boolean;
+    payments: Payment[];
+  } | null;
+  getInvoicePaymentStatus: (invoiceId: string) => {
+    totalAmount: number;
+    totalPaid: number;
+    remainingAmount: number;
+    isFullyPaid: boolean;
+    payments: Payment[];
+  } | null;
+  getClientBalance: (clientId: string) => {
+    totalSalesAmount: number;
+    totalPayments: number;
+    balance: number;
+  };
   cleanupDuplicatePayments: (invoiceId: string) => Promise<void>;
 }
 
@@ -390,103 +400,126 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const invoice = getInvoiceById(invoiceId);
     if (!invoice) return 0;
 
-    const totalPaid = getPaymentsByInvoice(invoiceId)
-      .reduce((sum, payment) => sum + payment.amount, 0);
-
-    return invoice.totalAmountTTC - totalPaid;
+    const status = getInvoicePaymentStatus(invoiceId);
+    return status ? status.remainingAmount : invoice.totalAmountTTC;
   };
 
   const deletePayment = async (id: string) => {
+    const payment = payments.find(p => p.id === id);
+    if (!payment) return;
+
     await paymentService.deletePayment(id);
     setPayments(prev => prev.filter(p => p.id !== id));
   };
 
-  const addPayment = async (invoiceId: string, paymentData: { 
-    date: Date; 
-    amount: number; 
-    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; 
-    notes?: string 
-  }) => {
-    // Create the new payment with the exact amount entered by the user
-    const newPayment = await paymentService.createPayment(invoiceId, paymentData);
+  const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
+    const newPayment = await paymentService.addPayment(payment);
     setPayments(prev => [...prev, newPayment]);
-
-    // Get the invoice
-    const invoice = getInvoiceById(invoiceId);
-    if (invoice) {
-      const invoicePayments = [...payments, newPayment].filter(p => p.invoiceId === invoiceId);
-      const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
-      
-      // Only mark as paid if total paid amount equals or exceeds invoice total
-      if (totalPaid >= invoice.totalAmountTTC && !invoice.isPaid) {
-        await updateInvoice(invoiceId, {
-          isPaid: true,
-          paidAt: new Date()
-        });
-      }
-    }
-
     return newPayment;
   };
 
-  const updatePayment = async (id: string, paymentData: Partial<{
-    date: Date;
-    amount: number;
-    method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
-    notes?: string;
-  }>) => {
-    const updatedPayment = await paymentService.updatePayment(id, paymentData);
-    setPayments(prev => prev.map(p => p.id === id ? updatedPayment : p));
+  const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> => {
+    const newPayments = await paymentService.addBulkPayment(payment);
+    setPayments(prev => [...prev, ...newPayments]);
+    return newPayments;
+  };
 
-    // Get the invoice and check if it should be marked as paid
-    const invoice = getInvoiceById(updatedPayment.invoiceId);
-    if (invoice) {
-      const invoicePayments = payments
-        .filter(p => p.invoiceId === updatedPayment.invoiceId)
-        .map(p => p.id === id ? updatedPayment : p);
-      
-      const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
-      
-      // Update invoice paid status based on total paid amount
-      if (totalPaid >= invoice.totalAmountTTC && !invoice.isPaid) {
-        await updateInvoice(invoice.id, {
-          isPaid: true,
-          paidAt: new Date()
-        });
-      } else if (totalPaid < invoice.totalAmountTTC && invoice.isPaid) {
-        await updateInvoice(invoice.id, {
-          isPaid: false,
-          paidAt: undefined
-        });
-      }
-    }
+  const getPaymentsBySale = (saleId: string) => {
+    return payments.filter(payment => payment.saleId === saleId);
+  };
 
-    return updatedPayment;
+  const getSalePaymentStatus = (saleId: string) => {
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return null;
+
+    const salePayments = getPaymentsBySale(saleId);
+    const totalPaid = salePayments.reduce((sum, p) => sum + p.amount, 0);
+
+    return {
+      totalAmount: sale.totalAmountTTC,
+      totalPaid,
+      remainingAmount: Math.max(0, sale.totalAmountTTC - totalPaid),
+      isFullyPaid: totalPaid >= sale.totalAmountTTC,
+      payments: salePayments
+    };
+  };
+
+  const getInvoicePaymentStatus = (invoiceId: string) => {
+    const invoice = invoices.find(i => i.id === invoiceId);
+    if (!invoice) return null;
+
+    const totalAmount = invoice.totalAmountTTC;
+    let totalPaid = 0;
+    const allPayments: Payment[] = [];
+
+    // Get payments for all sales in this invoice
+    invoice.salesIds.forEach(saleId => {
+      const salePayments = getPaymentsBySale(saleId);
+      totalPaid += salePayments.reduce((sum, p) => sum + p.amount, 0);
+      allPayments.push(...salePayments);
+    });
+
+    return {
+      totalAmount,
+      totalPaid,
+      remainingAmount: Math.max(0, totalAmount - totalPaid),
+      isFullyPaid: totalPaid >= totalAmount,
+      payments: allPayments
+    };
+  };
+
+  const getClientBalance = (clientId: string) => {
+    const clientSales = sales.filter(sale => sale.clientId === clientId);
+    const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    
+    const clientPayments = payments.filter(payment => payment.clientId === clientId);
+    const totalPayments = clientPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    
+    return {
+      totalSalesAmount,
+      totalPayments,
+      balance: totalSalesAmount - totalPayments
+    };
   };
 
   const cleanupDuplicatePayments = async (invoiceId: string) => {
-    const invoicePayments = payments.filter(p => p.invoiceId === invoiceId);
-    
-    // Group payments by their properties to find duplicates
-    const paymentGroups = invoicePayments.reduce((groups, payment) => {
-      const key = `${payment.amount}-${payment.method}-${new Date(payment.date).getTime()}`;
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(payment);
-      return groups;
-    }, {} as Record<string, Payment[]>);
+    const invoice = getInvoiceById(invoiceId);
+    if (!invoice) return;
 
-    // For each group of duplicate payments, keep the first one and delete the rest
-    for (const group of Object.values(paymentGroups)) {
-      if (group.length > 1) {
-        // Keep the first payment, delete the rest
-        const [keep, ...duplicates] = group;
-        for (const duplicate of duplicates) {
-          await deletePayment(duplicate.id);
+    const status = getInvoicePaymentStatus(invoiceId);
+    if (!status) return;
+
+    // Get all payments for this invoice's sales
+    const { payments: invoicePayments } = status;
+
+    // Sort payments by date (oldest first)
+    const sortedPayments = [...invoicePayments].sort(
+      (a, b) => a.date.getTime() - b.date.getTime()
+    );
+
+    // Keep only the payments that don't exceed the invoice total
+    let runningTotal = 0;
+    const paymentsToKeep = new Set<string>();
+
+    for (const payment of sortedPayments) {
+      if (runningTotal < invoice.totalAmountTTC) {
+        const remainingNeeded = invoice.totalAmountTTC - runningTotal;
+        if (payment.amount <= remainingNeeded) {
+          paymentsToKeep.add(payment.id);
+          runningTotal += payment.amount;
         }
       }
     }
+
+    // Delete payments that aren't in the keep set
+    const paymentsToDelete = invoicePayments.filter(
+      p => !paymentsToKeep.has(p.id)
+    );
+
+    // Delete excess payments
+    await Promise.all(
+      paymentsToDelete.map(p => deletePayment(p.id))
+    );
   };
 
   return (
@@ -517,7 +550,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       getPaymentsByInvoice,
       getInvoiceRemainingAmount,
       addPayment,
-      updatePayment,
+      addBulkPayment,
+      getPaymentsBySale,
+      getSalePaymentStatus,
+      getInvoicePaymentStatus,
+      getClientBalance,
       deletePayment,
       cleanupDuplicatePayments
     }}>

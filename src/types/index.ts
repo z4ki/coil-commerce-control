@@ -71,11 +71,29 @@ export interface Invoice {
 // Define the type for a payment
 export interface Payment {
   id: string;
-  invoiceId: string;
+  saleId: string;
+  clientId: string;
+  bulkPaymentId?: string;
   date: Date;
   amount: number;
   method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
   notes?: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+// Define the type for bulk payments
+export interface BulkPayment {
+  id: string;
+  clientId: string;
+  totalAmount: number;
+  date: Date;
+  method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
+  notes?: string;
+  distribution?: {
+    saleId: string;
+    amount: number;
+  }[];
   createdAt: Date;
   updatedAt?: Date;
 }

@@ -54,15 +54,17 @@ const Invoices = () => {
     }
   };
 
-  const filteredInvoices = invoices.filter((invoice) => {
-    const client = getClientById(invoice.clientId);
-    if (!client) return false;
-    return (
-      invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.company.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
+  const filteredInvoices = invoices
+    .filter((invoice) => {
+      const client = getClientById(invoice.clientId);
+      if (!client) return false;
+      return (
+        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.company.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    })
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
 
   return (
     <MainLayout title={t('invoices.title')}>
@@ -123,7 +125,16 @@ const Invoices = () => {
                             </Link>
                           </TableCell>
                           <TableCell>
-                            <div>{client?.name}</div>
+                            <div>
+                              {client && (
+                                <Link 
+                                  to={`/clients/${client.id}`}
+                                  className="text-primary hover:underline hover:text-primary/80"
+                                >
+                                  {client.name}
+                                </Link>
+                              )}
+                            </div>
                             <div className="text-xs text-muted-foreground">{client?.company}</div>
                           </TableCell>
                           <TableCell>{formatDate(invoice.date)}</TableCell>

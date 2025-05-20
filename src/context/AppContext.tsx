@@ -93,8 +93,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         if (!isMounted) return;
 
         setClients(clientsData);
-        setSales(salesData);
-        setInvoices(invoicesData);
+        // Sort sales by date in descending order
+        setSales(salesData.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        // Sort invoices by date in descending order
+        setInvoices(invoicesData.sort((a, b) => b.date.getTime() - a.date.getTime()));
         setLoading(prev => ({ ...prev, clients: false, sales: false, invoices: false }));
 
         const allPayments: Payment[] = [];
@@ -113,7 +115,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         }
 
         if (isMounted) {
-          setPayments(allPayments);
+          // Sort payments by date in descending order
+          setPayments(allPayments.sort((a, b) => b.date.getTime() - a.date.getTime()));
           setLoading(prev => ({ ...prev, payments: false }));
         }
       } catch (error) {
@@ -278,8 +281,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     // Get all invoices for this client
     const clientInvoices = invoices.filter(inv => inv.clientId === clientId);
     
-    // Calculate total amount client should pay
-    const totalInvoiceAmount = clientInvoices.reduce((sum, inv) => sum + inv.totalAmountTTC, 0);
+    // Get all sales for this client
+    const clientSales = sales.filter(sale => sale.clientId === clientId);
+    
+    // Calculate total amount from all sales (invoiced and uninvoiced)
+    const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
     
     // Calculate total amount client has paid
     const totalPayments = clientInvoices.reduce((sum, invoice) => {
@@ -287,8 +293,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
     }, 0);
     
-    // If totalPayments > totalInvoiceAmount, the difference is what we owe the client
-    return Math.max(0, totalPayments - totalInvoiceAmount);
+    // If totalPayments > totalSalesAmount, the difference is what we owe the client
+    return Math.max(0, totalPayments - totalSalesAmount);
   };
 
   const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
@@ -335,16 +341,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
     const existingInvoice = invoices.find(i => i.id === id);
     
-    // If marking as paid and wasn't paid before, create payment record
-    if (existingInvoice && invoice.isPaid && !existingInvoice.isPaid) {
-      await addPayment(id, {
-        date: new Date(),
-        amount: existingInvoice.totalAmountTTC,
-        method: 'bank_transfer',
-        notes: 'Payment marked as completed'
-      });
-    }
-    
+    // Remove automatic payment creation when marking as paid
     const updatedInvoice = await invoiceService.updateInvoice(id, invoice);
     setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...updatedInvoice } : i));
 
@@ -410,17 +407,17 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     method: 'cash' | 'bank_transfer' | 'check' | 'credit_card'; 
     notes?: string 
   }) => {
-    // Create the new payment
+    // Create the new payment with the exact amount entered by the user
     const newPayment = await paymentService.createPayment(invoiceId, paymentData);
     setPayments(prev => [...prev, newPayment]);
 
-    // Get the invoice and check if it should be marked as paid
+    // Get the invoice
     const invoice = getInvoiceById(invoiceId);
     if (invoice) {
       const invoicePayments = [...payments, newPayment].filter(p => p.invoiceId === invoiceId);
       const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
       
-      // If total paid amount equals or exceeds invoice total, mark as paid
+      // Only mark as paid if total paid amount equals or exceeds invoice total
       if (totalPaid >= invoice.totalAmountTTC && !invoice.isPaid) {
         await updateInvoice(invoiceId, {
           isPaid: true,

@@ -31,11 +31,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import ClientForm from '../components/clients/ClientForm';
 import { toast } from 'sonner';
 import { Invoice, Sale } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const ClientDetail = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const { t } = useLanguage();
   
   const {
     getClientById,
@@ -48,8 +50,8 @@ const ClientDetail = () => {
   } = useAppContext();
 
   const client = getClientById(clientId || '');
-  const clientSales = getSalesByClient(clientId || '');
-  const clientInvoices = getInvoicesByClient(clientId || '');
+  const clientSales = getSalesByClient(clientId || '').sort((a, b) => b.date.getTime() - a.date.getTime());
+  const clientInvoices = getInvoicesByClient(clientId || '').sort((a, b) => b.date.getTime() - a.date.getTime());
   const creditBalance = getClientCreditBalance(clientId || '');
 
   // Get all payments for all client invoices
@@ -100,23 +102,23 @@ const ClientDetail = () => {
   };
 
   const handleDeleteClient = () => {
-    if (window.confirm(`Are you sure you want to delete ${client?.name}?`)) {
+    if (window.confirm(t('clients.deleteConfirm').replace('{0}', client?.name || ''))) {
       deleteClient(clientId || '');
-      toast.success(`${client?.name} has been deleted`);
+      toast.success(t('clients.deleted').replace('{0}', client?.name || ''));
       navigate('/clients');
     }
   };
 
   if (!client) {
     return (
-      <MainLayout title="Client Not Found">
+      <MainLayout title={t('general.error')}>
         <div className="flex flex-col items-center justify-center h-full space-y-4">
-          <h2 className="text-2xl font-semibold">Client not found</h2>
-          <p className="text-muted-foreground">The client you're looking for doesn't exist or has been deleted.</p>
+          <h2 className="text-2xl font-semibold">{t('general.error')}</h2>
+          <p className="text-muted-foreground">{t('clients.notFound')}</p>
           <Link to="/clients">
             <Button>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Return to Clients
+              {t('general.back')}
             </Button>
           </Link>
         </div>
@@ -131,15 +133,15 @@ const ClientDetail = () => {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => navigate('/clients')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Clients
+            {t('general.back')}
           </Button>
           <Button variant="outline" onClick={() => setShowEditDialog(true)}>
             <Edit className="mr-2 h-4 w-4" />
-            Edit
+            {t('general.edit')}
           </Button>
           <Button variant="destructive" onClick={handleDeleteClient}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {t('general.delete')}
           </Button>
         </div>
       }
@@ -149,34 +151,34 @@ const ClientDetail = () => {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader>
-              <CardTitle>Financial Summary</CardTitle>
+              <CardTitle>{t('clients.financialSummary')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total Sales:</span>
+                  <span className="text-sm text-muted-foreground">{t('sales.total')}:</span>
                   <span className="font-medium">{formatCurrency(totalSalesAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Invoiced Sales:</span>
+                  <span className="text-sm text-muted-foreground">{t('sales.invoiced')}:</span>
                   <span className="font-medium">{formatCurrency(totalInvoicedAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Uninvoiced Sales:</span>
+                  <span className="text-sm text-muted-foreground">{t('sales.uninvoiced')}:</span>
                   <span className="font-medium">{formatCurrency(totalUninvoicedAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total Paid:</span>
+                  <span className="text-sm text-muted-foreground">{t('sales.totalPaid')}:</span>
                   <span className="font-medium text-green-600">{formatCurrency(totalPaidAmount)}</span>
                 </div>
                 {creditBalance > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-blue-600">Credit Balance:</span>
+                    <span className="text-sm text-blue-600">{t('clients.creditBalance')}:</span>
                     <span className="font-medium text-blue-600">{formatCurrency(creditBalance)}</span>
                   </div>
                 )}
                 <div className="pt-2 mt-2 border-t flex justify-between items-center">
-                  <span className="text-sm font-medium">Outstanding Debt:</span>
+                  <span className="text-sm font-medium">{t('clients.debt')}:</span>
                   <span className={`font-bold ${clientDebt > 0 ? 'text-destructive' : ''}`}>
                     {formatCurrency(clientDebt)}
                   </span>
@@ -189,25 +191,25 @@ const ClientDetail = () => {
         {/* Tabs for Sales, Invoices, and Payments */}
         <Tabs defaultValue="sales" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="sales">{t('sales.title')}</TabsTrigger>
+            <TabsTrigger value="invoices">{t('invoices.title')}</TabsTrigger>
+            <TabsTrigger value="payments">{t('form.payment.title')}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="sales">
             <Card>
               <CardHeader>
-                <CardTitle>Sales History</CardTitle>
+                <CardTitle>{t('sales.history')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>{t('sales.date')}</TableHead>
+                        <TableHead>{t('sales.items')}</TableHead>
+                        <TableHead className="text-right">{t('sales.total')}</TableHead>
+                        <TableHead>{t('sales.status')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -215,21 +217,29 @@ const ClientDetail = () => {
                         clientSales.map((sale) => (
                           <TableRow key={sale.id}>
                             <TableCell>{formatDate(sale.date)}</TableCell>
-                            <TableCell>{sale.items.length} items</TableCell>
+                            <TableCell>{sale.items.length} {t('general.items')}</TableCell>
                             <TableCell className="text-right font-medium">
                               {formatCurrency(sale.totalAmountTTC)}
                             </TableCell>
                             <TableCell>
-                              <StatusBadge 
-                                status={getSaleStatus(sale)} 
-                              />
+                              <div className="flex items-center gap-2">
+                                <StatusBadge status={getSaleStatus(sale)} />
+                                {sale.isInvoiced && sale.invoiceId && (
+                                  <Link 
+                                    to={`/invoices/${sale.invoiceId}`}
+                                    className="text-primary hover:underline hover:text-primary/80"
+                                  >
+                                    {t('sales.viewInvoice')}
+                                  </Link>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
                           <TableCell colSpan={4} className="h-24 text-center">
-                            No sales recorded for this client.
+                            {t('sales.noSales')}
                           </TableCell>
                         </TableRow>
                       )}

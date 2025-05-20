@@ -110,6 +110,7 @@ const translations: { [key in Language]: Translations } = {
       'notes': 'Notes',
       'payment': 'Payment',
       'invoice': 'Invoice',
+      'viewInvoice': 'View Invoice',
       'quotation': 'Quotation',
       'delivery': 'Delivery',
       'confirmation': 'Confirmation',
@@ -119,7 +120,11 @@ const translations: { [key in Language]: Translations } = {
       'markedAsNotInvoiced': 'Sale marked as not invoiced',
       'markedAsInvoiced': 'Sale marked as invoiced',
       'exportPending': 'Exporting {0}...',
-      'noSales': 'No sales found'
+      'noSales': 'No sales found',
+      'history': 'Sales History',
+      'invoiced': 'Invoiced Sales',
+      'uninvoiced': 'Uninvoiced Sales',
+      'totalPaid': 'Total Paid'
     },
 
     // Clients
@@ -552,6 +557,7 @@ const translations: { [key in Language]: Translations } = {
       'notes': 'Notes',
       'payment': 'Paiement',
       'invoice': 'Facture',
+      'viewInvoice': 'Voir la facture',
       'quotation': 'Devis',
       'delivery': 'Livraison',
       'confirmation': 'Confirmation',
@@ -561,7 +567,11 @@ const translations: { [key in Language]: Translations } = {
       'markedAsNotInvoiced': 'Vente marquée comme non facturée',
       'markedAsInvoiced': 'Vente marquée comme facturée',
       'exportPending': 'Export de {0} en cours...',
-      'noSales': 'Aucune vente trouvée'
+      'noSales': 'Aucune vente trouvée',
+      'history': 'Historique des ventes',
+      'invoiced': 'Ventes facturées',
+      'uninvoiced': 'Ventes non facturées',
+      'totalPaid': 'Total payé'
     },
 
     // Clients

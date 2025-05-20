@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAppContext } from '../../context/AppContext';
+import { useAppSettings } from '../../context/AppSettingsContext';
+import { useInvoiceSettings } from '../../context/InvoiceSettingsContext';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -52,6 +54,8 @@ interface InvoiceFormProps {
 
 const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   const { addInvoice, updateInvoice, clients, getSalesByClient, sales, getClientById, addPayment } = useAppContext();
+  const { settings: appSettings, updateInvoiceSettings } = useAppSettings();
+  const { settings: invoiceSettings } = useInvoiceSettings();
   const [clientSales, setClientSales] = useState<Sale[]>([]);
   const [selectedSales, setSelectedSales] = useState<string[]>(invoice?.salesIds || []);
   const [selectedClientId, setSelectedClientId] = useState<string>(invoice?.clientId || '');
@@ -59,11 +63,11 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultValues: FormValues = {
-    prefix: invoice?.invoiceNumber?.split('-')[0] || 'FAC',
-    invoiceNumber: invoice?.invoiceNumber || generateInvoiceNumber(),
+    prefix: invoice?.invoiceNumber?.split('-')[0] || invoiceSettings.defaultPrefix,
+    invoiceNumber: invoice?.invoiceNumber || generateInvoiceNumber(invoiceSettings.defaultPrefix, appSettings.invoice.nextNumber),
     clientId: invoice?.clientId || '',
     date: formatDateInput(invoice?.date || new Date()),
-    dueDate: formatDateInput(invoice?.dueDate || new Date(new Date().setDate(new Date().getDate() + 30))),
+    dueDate: formatDateInput(invoice?.dueDate || new Date(new Date().setDate(new Date().getDate() + appSettings.invoice.paymentTerms))),
     isPaid: invoice?.isPaid || false,
     salesIds: invoice?.salesIds || [],
   };
@@ -79,11 +83,11 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   // Update invoice number when prefix changes
   useEffect(() => {
     const prefix = form.watch('prefix');
-    if (!invoice && !isInvoiceNumberManuallyEdited) { // Only auto-generate for new invoices and if not manually edited
-      const newInvoiceNumber = generateInvoiceNumber(prefix);
+    if (!invoice && !isInvoiceNumberManuallyEdited) {
+      const newInvoiceNumber = generateInvoiceNumber(prefix, appSettings.invoice.nextNumber);
       form.setValue('invoiceNumber', newInvoiceNumber);
     }
-  }, [form.watch('prefix'), isInvoiceNumberManuallyEdited]);
+  }, [form.watch('prefix'), isInvoiceNumberManuallyEdited, appSettings.invoice.nextNumber]);
 
   // When client is changed, update available sales
   useEffect(() => {
@@ -146,29 +150,12 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       };
 
       if (invoice) {
-        // If updating and marking as paid
-        if (data.isPaid && !invoice.isPaid) {
-          await addPayment(invoice.id, {
-            date: new Date(),
-            amount: totalTTC,
-            method: 'bank_transfer',
-            notes: 'Payment marked as completed'
-          });
-        }
         await updateInvoice(invoice.id, invoiceData);
         toast.success('Invoice has been updated');
       } else {
-        // Create new invoice
-        const newInvoice = await addInvoice(invoiceData);
-        // If creating as paid, add payment record
-        if (data.isPaid) {
-          await addPayment(newInvoice.id, {
-            date: new Date(),
-            amount: totalTTC,
-            method: 'bank_transfer',
-            notes: 'Payment marked as completed on creation'
-          });
-        }
+        await addInvoice(invoiceData);
+        // Increment the next invoice number
+        updateInvoiceSettings({ nextNumber: appSettings.invoice.nextNumber + 1 });
         toast.success('Invoice has been created');
       }
 
@@ -176,8 +163,8 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         onSuccess();
       }
     } catch (error) {
-      console.error('Error saving invoice:', error);
-      toast.error('Failed to save invoice. Please try again.');
+      console.error('Error submitting invoice:', error);
+      toast.error('An error occurred while saving the invoice');
     } finally {
       setIsSubmitting(false);
     }

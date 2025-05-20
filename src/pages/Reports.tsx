@@ -35,6 +35,7 @@ import { BarChart2, DollarSign, Download } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { useLanguage } from '../context/LanguageContext';
+import { Link } from 'react-router-dom';
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -59,6 +60,34 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     );
   }
   return null;
+};
+
+interface LabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  outerRadius: number;
+  percent: number;
+  index: number;
+}
+
+const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent }: LabelProps) => {
+  const radius = outerRadius + 10;
+  const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
+  const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="white"
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      fontSize={12}
+    >
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
 };
 
 const Reports = () => {
@@ -98,8 +127,18 @@ const Reports = () => {
     }
     
     return {
-      sales: sales.filter(sale => new Date(sale.date) >= startDate),
-      invoices: invoices.filter(invoice => new Date(invoice.date) >= startDate)
+      sales: sales
+        .filter(sale => {
+          if (startDate && new Date(sale.date) < startDate) return false;
+          return true;
+        })
+        .sort((a, b) => b.date.getTime() - a.date.getTime()),
+      invoices: invoices
+        .filter(invoice => {
+          if (startDate && new Date(invoice.date) < startDate) return false;
+          return true;
+        })
+        .sort((a, b) => b.date.getTime() - a.date.getTime()),
     };
   }, [timeRange, sales, invoices]);
   
@@ -234,66 +273,64 @@ const Reports = () => {
           </Card>
         </div>
         
-        {/* Status Distribution Charts */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Invoice Status Distribution */}
-          <Card>
+        {/* Charts Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Invoice Status Chart */}
+          <Card className="min-h-[400px]">
             <CardHeader>
-              <CardTitle className="text-lg">{t('reports.invoiceStatus')}</CardTitle>
+              <CardTitle>{t('reports.invoiceStatus')}</CardTitle>
               <CardDescription>{t('reports.invoiceStatusDesc')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex justify-center">
-              <div className="h-64 w-full max-w-xs">
+            <CardContent>
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={invoiceStatusData}
+                      dataKey="value"
+                      nameKey="name"
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
                       outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      label={renderCustomizedLabel}
                     >
                       {invoiceStatusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Legend />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Legend verticalAlign="bottom" height={36} />
+                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
-          
-          {/* Sales Invoice Status */}
-          <Card>
+
+          {/* Sales Status Chart */}
+          <Card className="min-h-[400px]">
             <CardHeader>
-              <CardTitle className="text-lg">{t('reports.salesStatus')}</CardTitle>
+              <CardTitle>{t('reports.salesStatus')}</CardTitle>
               <CardDescription>{t('reports.salesStatusDesc')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex justify-center">
-              <div className="h-64 w-full max-w-xs">
+            <CardContent>
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={saleInvoiceStatusData}
+                      dataKey="value"
+                      nameKey="name"
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
                       outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      label={renderCustomizedLabel}
                     >
                       {saleInvoiceStatusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Legend />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Legend verticalAlign="bottom" height={36} />
+                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -301,29 +338,26 @@ const Reports = () => {
           </Card>
         </div>
         
-        {/* Detailed Reports Tabs */}
+        {/* Detailed Reports */}
         <Card>
           <CardHeader>
             <CardTitle>{t('reports.detailedReports')}</CardTitle>
             <CardDescription>{t('reports.detailedDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="debt" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="debt">{t('reports.clientDebtReport')}</TabsTrigger>
-                <TabsTrigger value="sales">{t('reports.salesReport')}</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="debt" className="space-y-4">
+            <div className="space-y-6">
+              {/* Client Debt Report */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">{t('reports.clientDebtReport')}</h3>
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('clients.contact')}</TableHead>
+                        <TableHead>{t('clients.name')}</TableHead>
                         <TableHead>{t('clients.company')}</TableHead>
                         <TableHead className="text-right">{t('reports.outstandingAmount')}</TableHead>
-                        <TableHead>{t('reports.overdueInvoices')}</TableHead>
-                        <TableHead>{t('reports.upcomingInvoices')}</TableHead>
+                        <TableHead className="text-right">{t('reports.overdueInvoices')}</TableHead>
+                        <TableHead className="text-right">{t('reports.upcomingInvoices')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -339,13 +373,28 @@ const Reports = () => {
                           
                           return (
                             <TableRow key={client.id}>
-                              <TableCell className="font-medium">{client.name}</TableCell>
+                              <TableCell className="font-medium">
+                                <Link 
+                                  to={`/clients/${client.id}`}
+                                  className="text-primary hover:underline hover:text-primary/80"
+                                >
+                                  {client.name}
+                                </Link>
+                              </TableCell>
                               <TableCell>{client.company}</TableCell>
-                              <TableCell className="text-right font-semibold text-destructive">
+                              <TableCell className="text-right font-medium text-destructive">
                                 {formatCurrency(totalDebt)}
                               </TableCell>
-                              <TableCell>{overdueInvoices.length}</TableCell>
-                              <TableCell>{upcomingInvoices.length}</TableCell>
+                              <TableCell className="text-right">
+                                {overdueInvoices.length > 0 ? (
+                                  <span className="text-destructive font-medium">{overdueInvoices.length}</span>
+                                ) : (
+                                  '0'
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {upcomingInvoices.length}
+                              </TableCell>
                             </TableRow>
                           );
                         }).filter(Boolean)
@@ -356,70 +405,11 @@ const Reports = () => {
                           </TableCell>
                         </TableRow>
                       )}
-                      {clients.length > 0 && !clients.some(client => {
-                        const clientInvoices = filteredData.invoices.filter(inv => inv.clientId === client.id && !inv.isPaid);
-                        return clientInvoices.length > 0;
-                      }) && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            {t('reports.noOutstandingDebts')}
-                          </TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </div>
-              </TabsContent>
-              
-              <TabsContent value="sales" className="space-y-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('sales.date')}</TableHead>
-                        <TableHead>{t('sales.client')}</TableHead>
-                        <TableHead>{t('sales.items')}</TableHead>
-                        <TableHead className="text-right">{t('sales.total')}</TableHead>
-                        <TableHead>{t('sales.status')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredData.sales.length > 0 ? (
-                        filteredData.sales.map((sale) => {
-                          const client = getClientById(sale.clientId);
-                          if (!client) return null;
-                          
-                          return (
-                            <TableRow key={sale.id}>
-                              <TableCell>{formatDate(sale.date)}</TableCell>
-                              <TableCell>
-                                <div className="font-medium">{client.name}</div>
-                                <div className="text-xs text-muted-foreground">{client.company}</div>
-                              </TableCell>
-                              <TableCell>{sale.items.length} {t('general.items')}</TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(sale.totalAmountTTC)}
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge 
-                                  status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
-                                />
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            {t('reports.noSalesData')}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

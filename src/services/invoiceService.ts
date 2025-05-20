@@ -9,9 +9,9 @@ interface DbInvoiceResponse {
   date: string;
   due_date: string;
   total_amount: number;
-  total_amount_ht?: number;
-  total_amount_ttc?: number;
-  tax_rate?: number;
+  total_amount_ht: number;
+  total_amount_ttc: number;
+  tax_rate: number;
   is_paid: boolean;
   paid_at?: string;
   created_at: string;
@@ -183,18 +183,15 @@ export const getInvoiceById = async (id: string): Promise<Invoice | null> => {
 };
 
 export const createInvoice = async (
-  invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'invoiceNumber'> & { prefix?: string }
+  invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> & { prefix?: string }
 ): Promise<Invoice> => {
   try {
-    // Generate invoice number with custom prefix
-    const invoiceNumber = generateInvoiceNumber(invoice.prefix || 'FAC');
-    
     const insertData: DbInvoiceInsert = {
-      invoice_number: invoiceNumber,
+      invoice_number: invoice.invoiceNumber,
       client_id: invoice.clientId,
       date: invoice.date.toISOString(),
       due_date: invoice.dueDate.toISOString(),
-      total_amount: invoice.totalAmountHT, // Keep the old field for backward compatibility
+      total_amount: invoice.totalAmountHT,
       total_amount_ht: invoice.totalAmountHT,
       total_amount_ttc: invoice.totalAmountTTC,
       tax_rate: invoice.taxRate,

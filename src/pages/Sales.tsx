@@ -192,9 +192,19 @@ const Sales = () => {
                           {formatCurrency(sale.totalAmountTTC)}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge 
-                            status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
-                          />
+                          <div className="flex items-center gap-2">
+                            <StatusBadge 
+                              status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
+                            />
+                            {sale.isInvoiced && sale.invoiceId && (
+                              <Link 
+                                to={`/invoices/${sale.invoiceId}`}
+                                className="text-primary hover:underline hover:text-primary/80"
+                              >
+                                {t('sales.viewInvoice')}
+                              </Link>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>

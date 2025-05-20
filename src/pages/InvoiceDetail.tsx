@@ -54,7 +54,7 @@ const InvoiceDetail = () => {
   const invoice = getInvoiceById(invoiceId || '');
   const client = invoice ? getClientById(invoice.clientId) : undefined;
   const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
-  const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
+  const payments = invoice ? getPaymentsByInvoice(invoice.id).sort((a, b) => b.date.getTime() - a.date.getTime()) : [];
   const totalHT = invoice ? invoice.totalAmountHT : 0;
   const totalTVA = totalHT * 0.19;
   const totalTTC = totalHT + totalTVA;
@@ -183,9 +183,6 @@ const InvoiceDetail = () => {
       title={`Invoice ${invoice?.invoiceNumber || ''}`}
       headerAction={
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleCleanupDuplicates}>
-            Clean Up Duplicates
-          </Button>
           <Button variant="outline" onClick={() => setShowEditDialog(true)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit

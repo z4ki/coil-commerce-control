@@ -23,7 +23,7 @@ const Sidebar = () => {
       <div className="flex items-center justify-center h-16 border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-3">
           <img src="/lovable-uploads/9e20d722-b154-48fe-9e9d-616d64585926.png" alt="Logo" className="h-8" />
-          <h1 className="text-xl font-bold">GROUPE HA</h1>
+          <h1 className="text-lg font-bold">GROUPE HA</h1>
         </div>
       </div>
       
@@ -35,14 +35,14 @@ const Sidebar = () => {
               <NavLink 
                 to={item.path} 
                 className={({ isActive }) => 
-                  `flex items-center px-4 py-3 rounded-md transition-colors ${
+                  `flex items-center px-4 py-2.5 rounded-md transition-colors text-sm ${
                     isActive 
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
                       : 'hover:bg-sidebar-accent/50'
                   }`
                 }
               >
-                <item.icon className="mr-3 h-5 w-5" />
+                <item.icon className="mr-3 h-4 w-4" />
                 <span>{item.name}</span>
               </NavLink>
             </li>

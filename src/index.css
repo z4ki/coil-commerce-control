@@ -91,6 +91,30 @@
 
   body {
     @apply bg-background text-foreground;
+    font-size: 0.9375rem; /* Reduced base font size */
+  }
+
+  /* Adjust heading sizes */
+  h1 {
+    font-size: 1.5rem; /* 24px */
+  }
+  
+  h2 {
+    font-size: 1.25rem; /* 20px */
+  }
+  
+  h3 {
+    font-size: 1.125rem; /* 18px */
+  }
+  
+  /* Adjust table text size */
+  .table {
+    font-size: 0.875rem; /* 14px */
+  }
+  
+  /* Adjust input and button text size */
+  input, button, select {
+    font-size: 0.875rem; /* 14px */
   }
 }
 

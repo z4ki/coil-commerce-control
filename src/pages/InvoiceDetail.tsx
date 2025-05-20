@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
-import { useAppSettings } from '../context/SettingsContext';
+import { useAppSettings } from '@/context/AppSettingsContext';
 import { useLanguage } from '@/context/LanguageContext';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -51,11 +51,8 @@ const InvoiceDetail = () => {
     getClientById,
     getSaleById,
     updateInvoice,
-    getPaymentsByInvoice,
-    getInvoiceRemainingAmount,
     deletePayment,
     addPayment,
-    cleanupDuplicatePayments,
     getInvoicePaymentStatus,
     getSalePaymentStatus,
   } = useAppContext();
@@ -189,7 +186,7 @@ const InvoiceDetail = () => {
       setIsGeneratingPDF(false);
     }
   };
-
+  
   if (!invoice || !client) {
     return (
       <MainLayout title={t('invoices.notFound')}>
@@ -225,7 +222,7 @@ const InvoiceDetail = () => {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
+            <div>
                 <h3 className="font-semibold">{t('clients.client')}</h3>
                 <p>{client.name}</p>
                 <p className="text-sm text-muted-foreground">{client.company}</p>
@@ -235,8 +232,8 @@ const InvoiceDetail = () => {
                 <div className="flex items-center gap-2">
                   <StatusBadge status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending'} />
                   {isOverdue && <p className="text-sm text-destructive">{t('invoices.overdue')}</p>}
-                </div>
-              </div>
+            </div>
+            </div>
               <div>
                 <h3 className="font-semibold">{t('invoices.dates')}</h3>
                 <p>{t('invoices.issuedOn')}: {formatDate(invoice.date)}</p>
@@ -276,24 +273,24 @@ const InvoiceDetail = () => {
             <CardTitle>{t('sales.title')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
                   <TableHead>{t('sales.date')}</TableHead>
                   <TableHead>{t('sales.items')}</TableHead>
                   <TableHead>{t('sales.totalAmount')}</TableHead>
                   <TableHead>{t('sales.amountPaid')}</TableHead>
                   <TableHead>{t('sales.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                 {invoice.salesIds.map(saleId => {
                   const sale = getSaleById(saleId);
                   if (!sale) return null;
                   const saleStatus = getSalePaymentStatus(saleId);
                   return (
                     <TableRow key={saleId}>
-                      <TableCell>{formatDate(sale.date)}</TableCell>
+                        <TableCell>{formatDate(sale.date)}</TableCell>
                       <TableCell>{sale.items.length} {t('sales.items')}</TableCell>
                       <TableCell>{formatCurrency(sale.totalAmountTTC)}</TableCell>
                       <TableCell>
@@ -313,12 +310,12 @@ const InvoiceDetail = () => {
                           <Plus className="mr-2 h-4 w-4" />
                           {t('payments.add')}
                         </Button>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                      </TableRow>
                   );
                 })}
-              </TableBody>
-            </Table>
+                  </TableBody>
+                </Table>
           </CardContent>
         </Card>
 
@@ -327,36 +324,36 @@ const InvoiceDetail = () => {
             <CardTitle>{t('payments.title')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
                   <TableHead>{t('payments.date')}</TableHead>
                   <TableHead>{t('payments.amount')}</TableHead>
                   <TableHead>{t('payments.method')}</TableHead>
                   <TableHead>{t('payments.notes')}</TableHead>
                   <TableHead>{t('common.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                 {payments.map(payment => (
-                  <TableRow key={payment.id}>
-                    <TableCell>{formatDate(payment.date)}</TableCell>
+                        <TableRow key={payment.id}>
+                          <TableCell>{formatDate(payment.date)}</TableCell>
                     <TableCell>{formatCurrency(payment.amount)}</TableCell>
                     <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
                     <TableCell>{payment.notes}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeletePayment(payment.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                          <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeletePayment(payment.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
           </CardContent>
         </Card>
       </div>
@@ -366,23 +363,23 @@ const InvoiceDetail = () => {
           <DialogHeader>
             <DialogTitle>{t('invoices.edit')}</DialogTitle>
           </DialogHeader>
-          <InvoiceForm
-            invoice={invoice}
+          <InvoiceForm 
+            invoice={invoice} 
             onSuccess={() => setShowEditDialog(false)}
           />
         </DialogContent>
       </Dialog>
-
+      
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('payments.add')}</DialogTitle>
           </DialogHeader>
           {selectedSaleId && (
-            <PaymentForm
+          <PaymentForm 
               saleId={selectedSaleId}
-              onSuccess={() => {
-                setShowPaymentDialog(false);
+            onSuccess={() => {
+              setShowPaymentDialog(false);
                 setSelectedSaleId(null);
               }}
               onCancel={() => {

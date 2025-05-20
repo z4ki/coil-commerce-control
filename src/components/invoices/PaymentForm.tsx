@@ -43,10 +43,11 @@ interface PaymentFormProps {
 }
 
 export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFormProps) => {
-  const { addPayment, getSalePaymentStatus } = useAppContext();
+  const { addPayment, getSalePaymentStatus, getSaleById } = useAppContext();
   const { t } = useLanguage();
+  const sale = getSaleById(saleId);
   const remainingAmount = getSalePaymentStatus(saleId)?.remainingAmount || 0;
-
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -57,10 +58,15 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
     },
   });
 
-  const onSubmit = (data: FormValues) => {
+  if (!sale) {
+    return <div>{t('sales.notFound')}</div>;
+  }
+
+  const onSubmit = async (data: FormValues) => {
     try {
       const paymentData = {
         saleId,
+        clientId: sale.clientId,
         date: new Date(data.date),
         amount: data.amount,
         method: data.method,
@@ -68,10 +74,12 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
       };
 
       if (data.amount > remainingAmount) {
-        toast.warning(`Payment of ${formatCurrency(data.amount)} exceeds the remaining amount of ${formatCurrency(remainingAmount)}. This will result in a credit balance.`);
+        toast.warning(t('payments.warning.exceedsRemaining')
+          .replace('{amount}', formatCurrency(data.amount))
+          .replace('{remaining}', formatCurrency(remainingAmount)));
       }
 
-      addPayment(paymentData);
+      await addPayment(paymentData);
       toast.success(t('payments.recorded'));
       
       if (onSuccess) {
@@ -110,8 +118,12 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
                 <Input
                   type="number"
                   step="0.01"
-                  {...field}
-                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                  min="0"
+                  value={field.value || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    field.onChange(value);
+                  }}
                 />
               </FormControl>
               <FormMessage />

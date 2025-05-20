@@ -46,7 +46,6 @@ export interface Sale {
   totalAmountHT: number;
   totalAmountTTC: number;
   taxRate: number;
-  paymentMethod: string;
   createdAt: Date;
   updatedAt?: Date;
 }

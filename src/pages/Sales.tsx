@@ -23,13 +23,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download, MoreVertical, Trash } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download, MoreVertical, Trash, DollarSign } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { Sale } from '../types';
 import { toast } from 'sonner';
 import SaleForm from '../components/sales/SaleForm';
 import { useLanguage } from '../context/LanguageContext';
+import { PaymentForm } from '@/components/invoices/PaymentForm';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,11 +69,13 @@ const SaleDialog = ({ open, onOpenChange, sale }: SaleDialogProps) => {
 };
 
 const Sales = () => {
-  const { sales, clients, deleteSale, updateSale, getClientById } = useAppContext();
+  const { sales, clients, deleteSale, updateSale, getClientById, getSalePaymentStatus } = useAppContext();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [selectedSaleForPayment, setSelectedSaleForPayment] = useState<string | null>(null);
   const [expandedSales, setExpandedSales] = useState<{[key: string]: boolean}>({});
 
   const handleDeleteSale = (sale: Sale) => {
@@ -102,6 +105,11 @@ const Sales = () => {
       ...prev,
       [saleId]: !prev[saleId]
     }));
+  };
+
+  const handleAddPayment = (saleId: string) => {
+    setSelectedSaleForPayment(saleId);
+    setShowPaymentDialog(true);
   };
 
   const filteredSales = sales
@@ -160,6 +168,7 @@ const Sales = () => {
                 filteredSales.map((sale) => {
                   const client = getClientById(sale.clientId);
                   const isExpanded = expandedSales[sale.id] || false;
+                  const paymentStatus = getSalePaymentStatus(sale.id);
                   return (
                     <React.Fragment key={sale.id}>
                       <TableRow>
@@ -188,14 +197,32 @@ const Sales = () => {
                           <div className="text-xs text-muted-foreground">{client?.company}</div>
                         </TableCell>
                         <TableCell>{sale.items.length} {t('general.items')}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(sale.totalAmountTTC)}
+                        <TableCell className="text-right">
+                          <div className="font-medium">{formatCurrency(sale.totalAmountTTC)}</div>
+                          {paymentStatus && (
+                            <div className="text-xs text-muted-foreground">
+                              {t('sales.paid')}: {formatCurrency(paymentStatus.totalPaid)}
+                              {paymentStatus.remainingAmount > 0 && (
+                                <div>
+                                  {t('sales.remaining')}: {formatCurrency(paymentStatus.remainingAmount)}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <StatusBadge 
                               status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
                             />
+                            {paymentStatus && (
+                              <StatusBadge 
+                                status={
+                                  paymentStatus.isFullyPaid ? 'paid' :
+                                  paymentStatus.totalPaid > 0 ? 'partial' : 'unpaid'
+                                } 
+                              />
+                            )}
                             {sale.isInvoiced && sale.invoiceId && (
                               <Link 
                                 to={`/invoices/${sale.invoiceId}`}
@@ -206,27 +233,28 @@ const Sales = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
                                 <MoreVertical className="h-4 w-4" />
-                                <span className="sr-only">{t('general.actions')}</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setSelectedSale(sale)}>
+                              <DropdownMenuItem onClick={() => handleAddPayment(sale.id)}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                {t('payments.add')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedSale(sale);
+                                setShowAddDialog(true);
+                              }}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 {t('general.edit')}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
                                 <Trash className="mr-2 h-4 w-4" />
                                 {t('general.delete')}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleExportInvoice(sale)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                {t('general.export')}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -332,16 +360,31 @@ const Sales = () => {
         <SaleDialog
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
+          sale={selectedSale || undefined}
         />
       )}
       
-      {selectedSale && (
-        <SaleDialog
-          open={!!selectedSale}
-          onOpenChange={(open) => !open && setSelectedSale(null)}
-          sale={selectedSale}
-        />
-      )}
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('payments.add')}</DialogTitle>
+          </DialogHeader>
+          {selectedSaleForPayment && (
+            <PaymentForm
+              saleId={selectedSaleForPayment}
+              onSuccess={() => {
+                setShowPaymentDialog(false);
+                setSelectedSaleForPayment(null);
+              }}
+              onCancel={() => {
+                setShowPaymentDialog(false);
+                setSelectedSaleForPayment(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };

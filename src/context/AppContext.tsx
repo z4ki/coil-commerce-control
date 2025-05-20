@@ -40,8 +40,6 @@ interface AppContextType {
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string) => Promise<void>;
   getInvoiceById: (id: string) => Invoice | undefined;
-  getPaymentsByInvoice: (invoiceId: string) => Payment[];
-  getInvoiceRemainingAmount: (invoiceId: string) => number;
   deletePayment: (id: string) => Promise<void>;
   addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Payment>;
   addBulkPayment: (payment: BulkPayment) => Promise<Payment[]>;
@@ -65,7 +63,6 @@ interface AppContextType {
     totalPayments: number;
     balance: number;
   };
-  cleanupDuplicatePayments: (invoiceId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -94,10 +91,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       try {
         setLoading({ clients: true, sales: true, invoices: true, payments: true });
 
-        const [clientsData, salesData, invoicesData] = await Promise.all([
+        const [clientsData, salesData, invoicesData, paymentsData] = await Promise.all([
           clientService.getClients(),
           saleService.getSales(),
-          invoiceService.getInvoices()
+          invoiceService.getInvoices(),
+          paymentService.getPayments() // Get all payments directly
         ]);
 
         if (!isMounted) return;
@@ -107,28 +105,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         setSales(salesData.sort((a, b) => b.date.getTime() - a.date.getTime()));
         // Sort invoices by date in descending order
         setInvoices(invoicesData.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        setLoading(prev => ({ ...prev, clients: false, sales: false, invoices: false }));
-
-        const allPayments: Payment[] = [];
-        const batchSize = 5;
-        for (let i = 0; i < invoicesData.length; i += batchSize) {
-          const batch = invoicesData.slice(i, i + batchSize);
-          const batchPayments = await Promise.all(
-            batch.map(invoice =>
-              paymentService.getPaymentsByInvoiceId(invoice.id).catch(err => {
-                console.error(`Payment error for ${invoice.id}:`, err);
-                return [];
-              })
-            )
-          );
-          allPayments.push(...batchPayments.flat());
-        }
-
-        if (isMounted) {
-          // Sort payments by date in descending order
-          setPayments(allPayments.sort((a, b) => b.date.getTime() - a.date.getTime()));
-          setLoading(prev => ({ ...prev, payments: false }));
-        }
+        // Sort payments by date in descending order
+        setPayments(paymentsData.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        
+        setLoading({ clients: false, sales: false, invoices: false, payments: false });
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Failed to load data. Please refresh.');
@@ -210,12 +190,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       const clientSales = sales.filter(sale => sale.clientId === client.id);
       const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
       
-      // Get all payments for this client's invoices
-      const clientInvoices = invoices.filter(inv => inv.clientId === client.id);
-      const totalPaidAmount = clientInvoices.reduce((sum, invoice) => {
-        const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
-        return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
-      }, 0);
+      // Get all payments for this client's sales
+      const clientPayments = payments.filter(p => p.clientId === client.id);
+      const totalPaidAmount = clientPayments.reduce((sum, p) => sum + p.amount, 0);
       
       // Calculate client's debt (never show negative debt)
       const clientDebt = Math.max(0, totalSalesAmount - totalPaidAmount);
@@ -240,21 +217,22 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     // Calculate total debt (never show negative debt)
     const totalDebt = Math.max(0, totalSales - totalPaid);
     
-    // Calculate overdue amount from unpaid invoices that are past due
-    const overdueDebt = invoices
-      .filter(inv => {
-        // Get payments for this invoice
-        const invoicePayments = payments.filter(p => p.invoiceId === inv.id);
-        const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
+    // Calculate overdue amount from unpaid sales
+    const overdueDebt = sales
+      .filter(sale => {
+        // Get payments for this sale
+        const salePayments = payments.filter(p => p.saleId === sale.id);
+        const totalPaid = salePayments.reduce((sum, p) => sum + p.amount, 0);
         
         // Check if there's remaining amount and it's overdue
-        return totalPaid < inv.totalAmountTTC && new Date(inv.dueDate) < new Date();
+        const invoice = invoices.find(inv => inv.id === sale.invoiceId);
+        return totalPaid < sale.totalAmountTTC && invoice && new Date(invoice.dueDate) < new Date();
       })
-      .reduce((sum, inv) => {
-        // Calculate remaining amount for this invoice
-        const invoicePayments = payments.filter(p => p.invoiceId === inv.id);
-        const totalPaid = invoicePayments.reduce((sum, p) => sum + p.amount, 0);
-        return sum + Math.max(0, inv.totalAmountTTC - totalPaid);
+      .reduce((sum, sale) => {
+        // Calculate remaining amount for this sale
+        const salePayments = payments.filter(p => p.saleId === sale.id);
+        const totalPaid = salePayments.reduce((sum, p) => sum + p.amount, 0);
+        return sum + Math.max(0, sale.totalAmountTTC - totalPaid);
       }, 0);
     
     // Upcoming debt is total debt minus overdue debt (never show negative)
@@ -269,42 +247,29 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const getClientDebt = (clientId: string): number => {
-    // Calculate debt from unpaid invoices
-    const clientInvoices = invoices.filter(inv => inv.clientId === clientId && !inv.isPaid);
-    const totalInvoiceAmount = clientInvoices.reduce((sum, inv) => sum + inv.totalAmountTTC, 0);
+    // Get all sales for this client
+    const clientSales = sales.filter(sale => sale.clientId === clientId);
+    const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
     
-    // Calculate total payments made for these invoices
-    const totalPayments = clientInvoices.reduce((sum, invoice) => {
-      const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
-      return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
-    }, 0);
-
-    // Calculate debt from uninvoiced sales
-    const uninvoicedSales = sales.filter(sale => sale.clientId === clientId && !sale.isInvoiced);
-    const uninvoicedAmount = uninvoicedSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    // Get all payments for this client
+    const clientPayments = payments.filter(p => p.clientId === clientId);
+    const totalPaidAmount = clientPayments.reduce((sum, p) => sum + p.amount, 0);
     
-    // Total debt is unpaid invoices (minus payments) plus uninvoiced sales (never show negative)
-    return Math.max(0, (totalInvoiceAmount - totalPayments) + uninvoicedAmount);
+    // Total debt is total sales minus total payments (never show negative)
+    return Math.max(0, totalSalesAmount - totalPaidAmount);
   };
 
   const getClientCreditBalance = (clientId: string): number => {
-    // Get all invoices for this client
-    const clientInvoices = invoices.filter(inv => inv.clientId === clientId);
-    
     // Get all sales for this client
     const clientSales = sales.filter(sale => sale.clientId === clientId);
-    
-    // Calculate total amount from all sales (invoiced and uninvoiced)
     const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
     
-    // Calculate total amount client has paid
-    const totalPayments = clientInvoices.reduce((sum, invoice) => {
-      const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
-      return sum + invoicePayments.reduce((pSum, p) => pSum + p.amount, 0);
-    }, 0);
+    // Get all payments for this client
+    const clientPayments = payments.filter(p => p.clientId === clientId);
+    const totalPaidAmount = clientPayments.reduce((sum, p) => sum + p.amount, 0);
     
-    // If totalPayments > totalSalesAmount, the difference is what we owe the client
-    return Math.max(0, totalPayments - totalSalesAmount);
+    // If totalPaidAmount > totalSalesAmount, the difference is what we owe the client
+    return Math.max(0, totalPaidAmount - totalSalesAmount);
   };
 
   const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
@@ -392,18 +357,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     return invoices.find(invoice => invoice.id === id);
   };
 
-  const getPaymentsByInvoice = (invoiceId: string) => {
-    return payments.filter(payment => payment.invoiceId === invoiceId);
-  };
-
-  const getInvoiceRemainingAmount = (invoiceId: string) => {
-    const invoice = getInvoiceById(invoiceId);
-    if (!invoice) return 0;
-
-    const status = getInvoicePaymentStatus(invoiceId);
-    return status ? status.remainingAmount : invoice.totalAmountTTC;
-  };
-
   const deletePayment = async (id: string) => {
     const payment = payments.find(p => p.id === id);
     if (!payment) return;
@@ -414,7 +367,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
     const newPayment = await paymentService.addPayment(payment);
-    setPayments(prev => [...prev, newPayment]);
+    setPayments(prevPayments => [...prevPayments, newPayment].sort((a, b) => b.date.getTime() - a.date.getTime()));
     return newPayment;
   };
 
@@ -429,17 +382,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const getSalePaymentStatus = (saleId: string) => {
-    const sale = sales.find(s => s.id === saleId);
+    const sale = getSaleById(saleId);
     if (!sale) return null;
 
     const salePayments = getPaymentsBySale(saleId);
-    const totalPaid = salePayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = salePayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const remainingAmount = Math.max(0, sale.totalAmountTTC - totalPaid);
 
     return {
       totalAmount: sale.totalAmountTTC,
       totalPaid,
-      remainingAmount: Math.max(0, sale.totalAmountTTC - totalPaid),
-      isFullyPaid: totalPaid >= sale.totalAmountTTC,
+      remainingAmount,
+      isFullyPaid: remainingAmount === 0,
       payments: salePayments
     };
   };
@@ -482,46 +436,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
   };
 
-  const cleanupDuplicatePayments = async (invoiceId: string) => {
-    const invoice = getInvoiceById(invoiceId);
-    if (!invoice) return;
-
-    const status = getInvoicePaymentStatus(invoiceId);
-    if (!status) return;
-
-    // Get all payments for this invoice's sales
-    const { payments: invoicePayments } = status;
-
-    // Sort payments by date (oldest first)
-    const sortedPayments = [...invoicePayments].sort(
-      (a, b) => a.date.getTime() - b.date.getTime()
-    );
-
-    // Keep only the payments that don't exceed the invoice total
-    let runningTotal = 0;
-    const paymentsToKeep = new Set<string>();
-
-    for (const payment of sortedPayments) {
-      if (runningTotal < invoice.totalAmountTTC) {
-        const remainingNeeded = invoice.totalAmountTTC - runningTotal;
-        if (payment.amount <= remainingNeeded) {
-          paymentsToKeep.add(payment.id);
-          runningTotal += payment.amount;
-        }
-      }
-    }
-
-    // Delete payments that aren't in the keep set
-    const paymentsToDelete = invoicePayments.filter(
-      p => !paymentsToKeep.has(p.id)
-    );
-
-    // Delete excess payments
-    await Promise.all(
-      paymentsToDelete.map(p => deletePayment(p.id))
-    );
-  };
-
   return (
     <AppContext.Provider value={{
       clients,
@@ -547,16 +461,13 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       updateInvoice,
       deleteInvoice,
       getInvoiceById,
-      getPaymentsByInvoice,
-      getInvoiceRemainingAmount,
+      deletePayment,
       addPayment,
       addBulkPayment,
       getPaymentsBySale,
       getSalePaymentStatus,
       getInvoicePaymentStatus,
-      getClientBalance,
-      deletePayment,
-      cleanupDuplicatePayments
+      getClientBalance
     }}>
       {children}
     </AppContext.Provider>

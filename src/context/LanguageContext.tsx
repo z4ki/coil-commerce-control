@@ -27,7 +27,8 @@ const translations: { [key in Language]: Translations } = {
       'paid': 'Paid',
       'unpaid': 'Unpaid',
       'overdue': 'Overdue',
-      'pending': 'Pending'
+      'pending': 'Pending',
+      'partiallyPaid': 'Partially Paid'
     },
 
     // General
@@ -124,7 +125,13 @@ const translations: { [key in Language]: Translations } = {
       'history': 'Sales History',
       'invoiced': 'Invoiced Sales',
       'uninvoiced': 'Uninvoiced Sales',
-      'totalPaid': 'Total Paid'
+      'totalPaid': 'Total Paid',
+      'paid': 'Amount Paid',
+      'remaining': 'Remaining Amount',
+      'paymentStatus': 'Payment Status',
+      'fullyPaid': 'Fully Paid',
+      'partiallyPaid': 'Partially Paid',
+      'unpaid': 'Unpaid'
     },
 
     // Clients
@@ -464,6 +471,33 @@ const translations: { [key in Language]: Translations } = {
       'createTitle': 'Create New Invoice',
       'editDesc': 'Update the invoice details below.',
       'createDesc': 'Fill in the details below to create a new invoice.'
+    },
+
+    // Payments
+    'payments': {
+      'title': 'Payments',
+      'add': 'Add Payment',
+      'edit': 'Edit Payment',
+      'delete': 'Delete Payment',
+      'date': 'Payment Date',
+      'amount': 'Amount',
+      'method': 'Payment Method',
+      'notes': 'Notes',
+      'status': 'Payment Status',
+      'recorded': 'Payment recorded successfully',
+      'error': 'Error recording payment',
+      'deleteConfirm': 'Are you sure you want to delete this payment?',
+      'deleted': 'Payment deleted successfully',
+      'selectMethod': 'Select payment method',
+      'warning': {
+        'exceedsRemaining': 'Payment of {amount} exceeds the remaining amount of {remaining}. This will result in a credit balance.'
+      },
+      'methods': {
+        'cash': 'Cash',
+        'bank_transfer': 'Bank Transfer',
+        'check': 'Check',
+        'credit_card': 'Credit Card'
+      }
     }
   },
   fr: {
@@ -474,7 +508,8 @@ const translations: { [key in Language]: Translations } = {
       'paid': 'Payé',
       'unpaid': 'Non Payé',
       'overdue': 'En Retard',
-      'pending': 'En Attente'
+      'pending': 'En Attente',
+      'partiallyPaid': 'Partiellement payé'
     },
 
     // General
@@ -571,7 +606,13 @@ const translations: { [key in Language]: Translations } = {
       'history': 'Historique des ventes',
       'invoiced': 'Ventes facturées',
       'uninvoiced': 'Ventes non facturées',
-      'totalPaid': 'Total payé'
+      'totalPaid': 'Total payé',
+      'paid': 'Montant payé',
+      'remaining': 'Montant restant',
+      'paymentStatus': 'État de paiement',
+      'fullyPaid': 'Entièrement payé',
+      'partiallyPaid': 'Partiellement payé',
+      'unpaid': 'Non payé'
     },
 
     // Clients
@@ -911,6 +952,33 @@ const translations: { [key in Language]: Translations } = {
       'createTitle': 'Créer une nouvelle facture',
       'editDesc': 'Mettez à jour les détails de la facture ci-dessous.',
       'createDesc': 'Remplissez les détails ci-dessous pour créer une nouvelle facture.'
+    },
+
+    // Payments
+    'payments': {
+      'title': 'Payments',
+      'add': 'Add Payment',
+      'edit': 'Edit Payment',
+      'delete': 'Delete Payment',
+      'date': 'Payment Date',
+      'amount': 'Amount',
+      'method': 'Payment Method',
+      'notes': 'Notes',
+      'status': 'Payment Status',
+      'recorded': 'Payment recorded successfully',
+      'error': 'Error recording payment',
+      'deleteConfirm': 'Are you sure you want to delete this payment?',
+      'deleted': 'Payment deleted successfully',
+      'selectMethod': 'Select payment method',
+      'warning': {
+        'exceedsRemaining': 'Payment of {amount} exceeds the remaining amount of {remaining}. This will result in a credit balance.'
+      },
+      'methods': {
+        'cash': 'Cash',
+        'bank_transfer': 'Bank Transfer',
+        'check': 'Check',
+        'credit_card': 'Credit Card'
+      }
     }
   }
 };

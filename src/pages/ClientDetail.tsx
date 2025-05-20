@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useAppContext } from '../context/AppContext';
-import MainLayout from '../components/layout/MainLayout';
+import { useAppContext } from '@/context/AppContext';
+import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -25,13 +25,13 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { ArrowLeft, Edit, Trash2, Mail, Phone } from 'lucide-react';
-import { formatCurrency, formatDate } from '../utils/format';
-import StatusBadge from '../components/ui/StatusBadge';
+import { formatCurrency, formatDate } from '@/utils/format';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import ClientForm from '../components/clients/ClientForm';
+import ClientForm from '@/components/clients/ClientForm';
 import { toast } from 'sonner';
-import { Invoice, Sale } from '../types';
-import { useLanguage } from '../contexts/LanguageContext';
+import { Invoice, Sale } from '@/types';
+import { useLanguage } from '@/context/LanguageContext';
 
 const ClientDetail = () => {
   const { clientId } = useParams<{ clientId: string }>();
@@ -45,8 +45,9 @@ const ClientDetail = () => {
     getSalesByClient,
     getInvoicesByClient,
     getClientDebt,
-    getPaymentsByInvoice,
+    getPaymentsBySale,
     getClientCreditBalance,
+    getSaleById,
   } = useAppContext();
 
   const client = getClientById(clientId || '');
@@ -54,15 +55,15 @@ const ClientDetail = () => {
   const clientInvoices = getInvoicesByClient(clientId || '').sort((a, b) => b.date.getTime() - a.date.getTime());
   const creditBalance = getClientCreditBalance(clientId || '');
 
-  // Get all payments for all client invoices
+  // Get all payments for all client sales
   const clientPayments = useMemo(() => {
-    return clientInvoices.flatMap(invoice => 
-      getPaymentsByInvoice(invoice.id).map(payment => ({
+    return clientSales.flatMap(sale => 
+      getPaymentsBySale(sale.id).map(payment => ({
         ...payment,
-        invoice
+        sale
       }))
     ).sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [clientInvoices, getPaymentsByInvoice]);
+  }, [clientSales, getPaymentsBySale]);
 
   const totalSalesAmount = useMemo(() => 
     clientSales.reduce((total, sale) => total + sale.totalAmountTTC, 0),
@@ -311,42 +312,49 @@ const ClientDetail = () => {
           <TabsContent value="payments">
             <Card>
               <CardHeader>
-                <CardTitle>Payment History</CardTitle>
+                <CardTitle>{t('payments.title')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead>Payment Method</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>{t('payments.date')}</TableHead>
+                        <TableHead>{t('sales.title')}</TableHead>
+                        <TableHead>{t('payments.method')}</TableHead>
+                        <TableHead className="text-right">{t('payments.amount')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {clientPayments.length > 0 ? (
-                        clientPayments.map((payment) => (
-                          <TableRow key={payment.id}>
-                            <TableCell>{formatDate(payment.date)}</TableCell>
-                            <TableCell>
-                              <Link 
-                                to={`/invoices/${payment.invoice.id}`}
-                                className="text-primary hover:underline"
-                              >
-                                {payment.invoice.invoiceNumber}
-                              </Link>
-                            </TableCell>
-                            <TableCell>{payment.method}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(payment.amount)}
-                            </TableCell>
-                          </TableRow>
-                        ))
+                        clientPayments.map((payment) => {
+                          const sale = payment.sale;
+                          return (
+                            <TableRow key={payment.id}>
+                              <TableCell>{formatDate(payment.date)}</TableCell>
+                              <TableCell>
+                                {sale && (
+                                  <div>
+                                    <div className="font-medium">
+                                      {formatDate(sale.date)}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC)}
+                                    </div>
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(payment.amount)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                       ) : (
                         <TableRow>
                           <TableCell colSpan={4} className="h-24 text-center">
-                            No payments recorded for this client.
+                            {t('general.noData')}
                           </TableCell>
                         </TableRow>
                       )}

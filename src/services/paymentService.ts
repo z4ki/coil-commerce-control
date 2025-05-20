@@ -5,7 +5,7 @@ interface DbPaymentResponse {
   id: string;
   sale_id: string;
   client_id: string;
-  bulk_payment_id?: string;
+  bulk_payment_id?: string | null;
   date: string;
   amount: number;
   method: string;
@@ -17,18 +17,18 @@ interface DbPaymentResponse {
 interface DbPaymentInsert {
   sale_id: string;
   client_id: string;
-  bulk_payment_id?: string;
+  bulk_payment_id?: string | null;
   date: string;
   amount: number;
   method: string;
-  notes?: string | null;
+  notes: string | null;
 }
 
 const mapDbPaymentToPayment = (dbPayment: DbPaymentResponse): Payment => ({
   id: dbPayment.id,
   saleId: dbPayment.sale_id,
   clientId: dbPayment.client_id,
-  bulkPaymentId: dbPayment.bulk_payment_id,
+  bulkPaymentId: dbPayment.bulk_payment_id || undefined,
   date: new Date(dbPayment.date),
   amount: dbPayment.amount,
   method: dbPayment.method as Payment['method'],
@@ -43,9 +43,9 @@ export const getPaymentsBySale = async (saleId: string): Promise<Payment[]> => {
     .select('*')
     .eq('sale_id', saleId)
     .order('date', { ascending: false });
-
+    
   if (error) throw error;
-  return (data as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+  return (data as unknown as DbPaymentResponse[]).map(mapDbPaymentToPayment);
 };
 
 export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> => {
@@ -56,33 +56,50 @@ export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> 
     .order('date', { ascending: false });
 
   if (error) throw error;
-  return (data as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+  return (data as unknown as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+};
+
+export const getPayments = async (): Promise<Payment[]> => {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .order('date', { ascending: false });
+
+  if (error) throw error;
+  return (data as unknown as DbPaymentResponse[]).map(mapDbPaymentToPayment);
 };
 
 export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
   const insertData: DbPaymentInsert = {
     sale_id: payment.saleId,
     client_id: payment.clientId,
-    bulk_payment_id: payment.bulkPaymentId,
     date: payment.date.toISOString(),
     amount: payment.amount,
     method: payment.method,
-    notes: payment.notes
+    notes: payment.notes || null
   };
+
+  // Only add bulk_payment_id if it exists
+  if (payment.bulkPaymentId) {
+    insertData.bulk_payment_id = payment.bulkPaymentId;
+  }
 
   const { data, error } = await supabase
     .from('payments')
-    .insert(insertData)
+    .insert([insertData])
     .select()
     .single();
-
-  if (error) throw error;
-  return mapDbPaymentToPayment(data as DbPaymentResponse);
+    
+  if (error) {
+    console.error('Error adding payment:', error);
+    throw error;
+  }
+  return mapDbPaymentToPayment(data as unknown as DbPaymentResponse);
 };
 
 export const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> => {
   const bulkPaymentId = crypto.randomUUID();
-  const payments: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>[] = [];
+  const payments: DbPaymentInsert[] = [];
   let remainingAmount = payment.totalAmount;
 
   // If distribution is specified, create payments according to it
@@ -91,32 +108,21 @@ export const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> =
       if (remainingAmount <= 0) break;
       const amount = Math.min(dist.amount, remainingAmount);
       payments.push({
-        saleId: dist.saleId,
-        clientId: payment.clientId,
-        bulkPaymentId,
-        date: payment.date,
+        sale_id: dist.saleId,
+        client_id: payment.clientId,
+        bulk_payment_id: bulkPaymentId,
+        date: payment.date.toISOString(),
         amount,
         method: payment.method,
-        notes: payment.notes
+        notes: payment.notes || null
       });
       remainingAmount -= amount;
     }
   }
 
-  // Create all payments in a transaction
-  const insertData: DbPaymentInsert[] = payments.map(p => ({
-    sale_id: p.saleId,
-    client_id: p.clientId,
-    bulk_payment_id: p.bulkPaymentId,
-    date: p.date.toISOString(),
-    amount: p.amount,
-    method: p.method,
-    notes: p.notes
-  }));
-
   const { data, error } = await supabase
     .from('payments')
-    .insert(insertData)
+    .insert(payments)
     .select();
 
   if (error) throw error;
@@ -134,14 +140,14 @@ export const updatePayment = async (id: string, payment: Partial<Omit<Payment, '
   if (payment.amount !== undefined) updateData.amount = payment.amount;
   if (payment.method !== undefined) updateData.method = payment.method;
   if (payment.notes !== undefined) updateData.notes = payment.notes;
-
+    
   const { data, error } = await supabase
     .from('payments')
     .update(updateData)
     .eq('id', id)
     .select()
     .single();
-
+    
   if (error) throw error;
   return mapDbPaymentToPayment(data as DbPaymentResponse);
 };
@@ -151,6 +157,6 @@ export const deletePayment = async (id: string): Promise<void> => {
     .from('payments')
     .delete()
     .eq('id', id);
-
+    
   if (error) throw error;
 };

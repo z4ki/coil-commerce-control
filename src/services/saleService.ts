@@ -67,7 +67,6 @@ const mapDbSaleToSale = async (dbSale: DbSale): Promise<Sale> => {
     transportationFee: transportationFee,
     transportationFeeTTC: transportationFeeTTC,
     taxRate: taxRate,
-    paymentMethod: 'cash', // Default value since it's not in the database yet
     createdAt: new Date(dbSale.created_at),
     updatedAt: dbSale.updated_at ? new Date(dbSale.updated_at) : undefined
   };

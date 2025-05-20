@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface StatusBadgeProps {
-  status: 'paid' | 'unpaid' | 'overdue' | 'invoiced' | 'notInvoiced';
+  status: 'paid' | 'unpaid' | 'overdue' | 'invoiced' | 'notInvoiced' | 'partial';
   className?: string;
 }
 
@@ -15,6 +15,8 @@ const StatusBadge = ({ status, className }: StatusBadgeProps) => {
     switch (status) {
       case 'paid':
         return 'bg-green-100 text-green-800 hover:bg-green-200';
+      case 'partial':
+        return 'bg-blue-100 text-blue-800 hover:bg-blue-200';
       case 'unpaid':
         return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
       case 'overdue':
@@ -32,6 +34,8 @@ const StatusBadge = ({ status, className }: StatusBadgeProps) => {
     switch (status) {
       case 'paid':
         return t('status.paid');
+      case 'partial':
+        return t('status.partiallyPaid');
       case 'unpaid':
         return t('status.unpaid');
       case 'overdue':

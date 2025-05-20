@@ -53,7 +53,6 @@ type FormValues = {
   }[];
   transportationFee: number;
   notes?: string;
-  paymentMethod: string;
 };
 
 interface SaleFormProps {
@@ -117,7 +116,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     items: items,
     transportationFee: sale?.transportationFee || 0,
     notes: sale?.notes || '',
-    paymentMethod: sale?.paymentMethod || '',
   };
 
   const formSchema = z.object({
@@ -140,7 +138,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     })).min(1, { message: t('form.sale.itemRequired') }),
     transportationFee: z.coerce.number().min(0).default(0),
     notes: z.string().optional(),
-    paymentMethod: z.string().min(1, { message: t('form.required') }),
   });
 
   const form = useForm<FormValues>({
@@ -340,7 +337,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         taxRate: TAX_RATE,
         totalAmountHT: finalTotals.totalHT,
         totalAmountTTC: finalTotals.totalTTC,
-        paymentMethod: data.paymentMethod,
       };
 
       if (sale) {
@@ -408,7 +404,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       transportationFee: formData.transportationFee,
       transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
       taxRate: TAX_RATE,
-      paymentMethod: formData.paymentMethod,
       createdAt: sale?.createdAt || new Date(),
       updatedAt: new Date()
     };
@@ -475,7 +470,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       transportationFee: formData.transportationFee,
       transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
       taxRate: TAX_RATE,
-      paymentMethod: formData.paymentMethod,
       createdAt: sale?.createdAt || new Date(),
       updatedAt: new Date()
     };
@@ -585,35 +579,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
                       }}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="paymentMethod"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('form.payment.method')}</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('form.payment.method')} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="cash">{t('form.payment.methods.cash')}</SelectItem>
-                      <SelectItem value="bank">{t('form.payment.methods.bank')}</SelectItem>
-                      <SelectItem value="check">{t('form.payment.methods.check')}</SelectItem>
-                      <SelectItem value="card">{t('form.payment.methods.card')}</SelectItem>
-                      <SelectItem value="other">{t('form.payment.methods.other')}</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

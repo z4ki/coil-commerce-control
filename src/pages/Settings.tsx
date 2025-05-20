@@ -89,7 +89,7 @@ const Settings = () => {
                   </Select>
                 </div>
                 
-                <div className="space-y-2">
+                {/* <div className="space-y-2">
                   <Label htmlFor="currency">{t('general.currency')}</Label>
                   <Select
                     value={settings.currency}
@@ -102,9 +102,9 @@ const Settings = () => {
                       <SelectItem value="DZD">DZD (DA)</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                </div> */}
                 
-                <div className="flex items-center space-x-2">
+                {/* <div className="flex items-center space-x-2">
                   <Switch
                     id="notifications"
                     checked={settings.notifications}
@@ -113,7 +113,7 @@ const Settings = () => {
                   <Label htmlFor="notifications">
                     {t('general.notifications')}
                   </Label>
-                </div>
+                </div> */}
                 
                 <div className="flex items-center space-x-2">
                   <Switch

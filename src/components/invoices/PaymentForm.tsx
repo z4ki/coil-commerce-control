@@ -43,7 +43,7 @@ interface PaymentFormProps {
 }
 
 export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFormProps) => {
-  const { addPayment, getSalePaymentStatus, getSaleById } = useAppContext();
+  const { addPayment, getSalePaymentStatus, getSaleById, updateInvoice, getInvoiceById } = useAppContext();
   const { t } = useLanguage();
   const sale = getSaleById(saleId);
   const remainingAmount = getSalePaymentStatus(saleId)?.remainingAmount || 0;
@@ -81,6 +81,24 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
 
       await addPayment(paymentData);
       toast.success(t('payments.recorded'));
+
+      // If the sale is part of an invoice, check if all sales in the invoice are now paid
+      if (sale.invoiceId) {
+        const invoice = getInvoiceById(sale.invoiceId);
+        if (invoice) {
+          const allSalesPaid = invoice.salesIds.every(id => {
+            const status = getSalePaymentStatus(id);
+            return status?.isFullyPaid;
+          });
+
+          if (allSalesPaid) {
+            await updateInvoice(sale.invoiceId, {
+              isPaid: true,
+              paidAt: new Date()
+            });
+          }
+        }
+      }
       
       if (onSuccess) {
         onSuccess();

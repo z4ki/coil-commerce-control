@@ -152,34 +152,34 @@ const ClientDetail = () => {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader>
-              <CardTitle>{t('clients.financialSummary')}</CardTitle>
+              <CardTitle>{t('clientDetails.financialSummary')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sales.total')}:</span>
+                  <span className="text-sm text-muted-foreground">{t('clientDetails.salesTotal')}:</span>
                   <span className="font-medium">{formatCurrency(totalSalesAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sales.invoiced')}:</span>
+                  <span className="text-sm text-muted-foreground">{t('clientDetails.invoicedAmount')}:</span>
                   <span className="font-medium">{formatCurrency(totalInvoicedAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sales.uninvoiced')}:</span>
+                  <span className="text-sm text-muted-foreground">{t('clientDetails.uninvoicedAmount')}:</span>
                   <span className="font-medium">{formatCurrency(totalUninvoicedAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sales.totalPaid')}:</span>
+                  <span className="text-sm text-muted-foreground">{t('clientDetails.paidAmount')}:</span>
                   <span className="font-medium text-green-600">{formatCurrency(totalPaidAmount)}</span>
                 </div>
                 {creditBalance > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-blue-600">{t('clients.creditBalance')}:</span>
+                    <span className="text-sm text-blue-600">{t('clientDetails.creditBalance')}:</span>
                     <span className="font-medium text-blue-600">{formatCurrency(creditBalance)}</span>
                   </div>
                 )}
                 <div className="pt-2 mt-2 border-t flex justify-between items-center">
-                  <span className="text-sm font-medium">{t('clients.debt')}:</span>
+                  <span className="text-sm font-medium">{t('clientDetails.outstandingDebt')}:</span>
                   <span className={`font-bold ${clientDebt > 0 ? 'text-destructive' : ''}`}>
                     {formatCurrency(clientDebt)}
                   </span>

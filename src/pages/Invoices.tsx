@@ -97,7 +97,7 @@ const Invoices = () => {
           <CardContent>
             <div className="rounded-md border">
               <Table>
-                <TableHeader>
+              <TableHeader className="bg-gray-100">
                   <TableRow>
                     <TableHead>{t('invoices.invoiceNumber')}</TableHead>
                     <TableHead>{t('invoices.client')}</TableHead>

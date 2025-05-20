@@ -498,6 +498,39 @@ const translations: { [key in Language]: Translations } = {
         'check': 'Check',
         'credit_card': 'Credit Card'
       }
+    },
+
+    // Client Details
+    'clientDetails': {
+      'title': 'Client Details',
+      'financialSummary': 'Financial Summary',
+      'salesTotal': 'Total Sales',
+      'invoicedAmount': 'Invoiced Amount',
+      'uninvoicedAmount': 'Uninvoiced Amount',
+      'paidAmount': 'Paid Amount',
+      'creditBalance': 'Credit Balance',
+      'outstandingDebt': 'Outstanding Debt',
+      'salesHistory': 'Sales History',
+      'invoiceHistory': 'Invoice History',
+      'paymentHistory': 'Payment History'
+    },
+
+    // Invoice Details
+    'invoiceDetails': {
+      'title': 'Invoice Details',
+      'client': 'Client',
+      'status': 'Status',
+      'dates': 'Dates',
+      'issuedOn': 'Issued On',
+      'dueBy': 'Due By',
+      'amounts': 'Amounts',
+      'subtotal': 'Subtotal',
+      'tax': 'Tax',
+      'total': 'Total',
+      'amountPaid': 'Amount Paid',
+      'remainingAmount': 'Remaining Amount',
+      'sales': 'Related Sales',
+      'payments': 'Payments'
     }
   },
   fr: {
@@ -979,6 +1012,39 @@ const translations: { [key in Language]: Translations } = {
         'check': 'Check',
         'credit_card': 'Credit Card'
       }
+    },
+
+    // Client Details
+    'clientDetails': {
+      'title': 'Client Details',
+      'financialSummary': 'Financial Summary',
+      'salesTotal': 'Total Sales',
+      'invoicedAmount': 'Invoiced Amount',
+      'uninvoicedAmount': 'Uninvoiced Amount',
+      'paidAmount': 'Paid Amount',
+      'creditBalance': 'Credit Balance',
+      'outstandingDebt': 'Outstanding Debt',
+      'salesHistory': 'Sales History',
+      'invoiceHistory': 'Invoice History',
+      'paymentHistory': 'Payment History'
+    },
+
+    // Invoice Details
+    'invoiceDetails': {
+      'title': 'Invoice Details',
+      'client': 'Client',
+      'status': 'Status',
+      'dates': 'Dates',
+      'issuedOn': 'Issued On',
+      'dueBy': 'Due By',
+      'amounts': 'Amounts',
+      'subtotal': 'Subtotal',
+      'tax': 'Tax',
+      'total': 'Total',
+      'amountPaid': 'Amount Paid',
+      'remainingAmount': 'Remaining Amount',
+      'sales': 'Related Sales',
+      'payments': 'Payments'
     }
   }
 };

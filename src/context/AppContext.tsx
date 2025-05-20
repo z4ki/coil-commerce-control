@@ -315,8 +315,20 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
     const existingInvoice = invoices.find(i => i.id === id);
+    if (!existingInvoice) return;
     
-    // Remove automatic payment creation when marking as paid
+    // If salesIds are being updated, check if all new sales are paid
+    if (invoice.salesIds) {
+      const allSalesPaid = invoice.salesIds.every(saleId => {
+        const saleStatus = getSalePaymentStatus(saleId);
+        return saleStatus?.isFullyPaid;
+      });
+      
+      // Automatically update isPaid status based on sales payment status
+      invoice.isPaid = allSalesPaid;
+      invoice.paidAt = allSalesPaid ? new Date() : undefined;
+    }
+    
     const updatedInvoice = await invoiceService.updateInvoice(id, invoice);
     setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...updatedInvoice } : i));
 

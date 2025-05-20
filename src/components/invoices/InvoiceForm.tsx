@@ -41,7 +41,6 @@ const formSchema = z.object({
   clientId: z.string().min(1, { message: 'Veuillez sélectionner un client' }),
   date: z.string().min(1, { message: 'La date est requise' }),
   dueDate: z.string().min(1, { message: 'La date d\'échéance est requise' }),
-  isPaid: z.boolean().default(false),
   salesIds: z.array(z.string()).optional(),
 });
 
@@ -53,7 +52,16 @@ interface InvoiceFormProps {
 }
 
 const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
-  const { addInvoice, updateInvoice, clients, getSalesByClient, sales, getClientById, addPayment } = useAppContext();
+  const { 
+    addInvoice, 
+    updateInvoice, 
+    clients, 
+    getSalesByClient, 
+    sales, 
+    getClientById, 
+    addPayment,
+    getSalePaymentStatus 
+  } = useAppContext();
   const { settings: appSettings, updateInvoiceSettings } = useAppSettings();
   const { settings: invoiceSettings } = useInvoiceSettings();
   const [clientSales, setClientSales] = useState<Sale[]>([]);
@@ -68,7 +76,6 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     clientId: invoice?.clientId || '',
     date: formatDateInput(invoice?.date || new Date()),
     dueDate: formatDateInput(invoice?.dueDate || new Date(new Date().setDate(new Date().getDate() + appSettings.invoice.paymentTerms))),
-    isPaid: invoice?.isPaid || false,
     salesIds: invoice?.salesIds || [],
   };
 
@@ -136,6 +143,12 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
 
       const { totalHT, totalTTC } = calculateTotals();
 
+      // Check if all selected sales are fully paid
+      const allSalesPaid = selectedSales.every(saleId => {
+        const status = getSalePaymentStatus(saleId);
+        return status?.isFullyPaid === true;
+      });
+
       // Ensure all required fields are provided
       const invoiceData = {
         invoiceNumber: data.invoiceNumber,
@@ -146,7 +159,8 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         totalAmountHT: totalHT,
         totalAmountTTC: totalTTC,
         taxRate: 0.19,
-        isPaid: data.isPaid,
+        isPaid: allSalesPaid, // Automatically set isPaid based on sales payment status
+        paidAt: allSalesPaid ? new Date() : undefined
       };
 
       if (invoice) {
@@ -285,27 +299,6 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="isPaid"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>Marquer comme payée</FormLabel>
-                <p className="text-sm text-muted-foreground">
-                  Cochez cette case si la facture a déjà été payée.
-                </p>
-              </div>
-            </FormItem>
-          )}
-        />
 
         {selectedClientId && (
           <div className="space-y-4">

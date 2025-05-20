@@ -50,16 +50,11 @@ const Sidebar = () => {
         </ul>
       </nav>
       
-      {/* User profile */}
+      {/* Footer */}
       <div className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-sidebar-primary flex items-center justify-center">
-            <span className="font-medium text-sidebar-primary-foreground">A</span>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium">{t('general.adminUser')}</p>
-            <p className="text-xs opacity-70">contact@groupeha.com</p>
-          </div>
+        <div className="flex flex-col items-center text-center">
+          <p className="text-sm  font-medium">GROUPE<span className="text-red-600"> HA </span>@Azizi</p>
+          <p className="text-xs text-red-600 mt-1 font-semibold italic ">"Colors That Last, Quality That Endures"</p>
         </div>
       </div>
     </div>

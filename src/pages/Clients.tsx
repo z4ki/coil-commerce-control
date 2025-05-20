@@ -82,7 +82,7 @@ const Clients = () => {
           <CardContent>
             <div className="rounded-md border">
               <Table>
-                <TableHeader>
+              <TableHeader className="bg-gray-100">
                   <TableRow>
                     <TableHead>{t('clients.name')}</TableHead>
                     <TableHead>{t('clients.company')}</TableHead>

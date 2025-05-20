@@ -152,7 +152,7 @@ const Sales = () => {
         {/* Sales Table */}
         <div className="rounded-md border">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-gray-100">
               <TableRow>
                 <TableHead className="w-[50px]"></TableHead>
                 <TableHead>{t('sales.date')}</TableHead>

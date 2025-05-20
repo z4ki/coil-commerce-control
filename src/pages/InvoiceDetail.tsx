@@ -218,48 +218,48 @@ const InvoiceDetail = () => {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>{t('invoices.details')}</CardTitle>
+            <CardTitle>{t('invoiceDetails.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
-            <div>
-                <h3 className="font-semibold">{t('clients.client')}</h3>
+              <div>
+                <h3 className="font-semibold">{t('invoiceDetails.client')}</h3>
                 <p>{client.name}</p>
                 <p className="text-sm text-muted-foreground">{client.company}</p>
               </div>
               <div>
-                <h3 className="font-semibold">{t('invoices.status')}</h3>
+                <h3 className="font-semibold">{t('invoiceDetails.status')}</h3>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending'} />
+                  <StatusBadge status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} />
                   {isOverdue && <p className="text-sm text-destructive">{t('invoices.overdue')}</p>}
-            </div>
-            </div>
-              <div>
-                <h3 className="font-semibold">{t('invoices.dates')}</h3>
-                <p>{t('invoices.issuedOn')}: {formatDate(invoice.date)}</p>
-                <p>{t('invoices.dueBy')}: {formatDate(invoice.dueDate)}</p>
+                </div>
               </div>
               <div>
-                <h3 className="font-semibold">{t('invoices.amounts')}</h3>
+                <h3 className="font-semibold">{t('invoiceDetails.dates')}</h3>
+                <p>{t('invoiceDetails.issuedOn')}: {formatDate(invoice.date)}</p>
+                <p>{t('invoiceDetails.dueBy')}: {formatDate(invoice.dueDate)}</p>
+              </div>
+              <div>
+                <h3 className="font-semibold">{t('invoiceDetails.amounts')}</h3>
                 <div className="space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{t('invoices.subtotal')}:</span>
+                    <span className="text-muted-foreground">{t('invoiceDetails.subtotal')}:</span>
                     <span>{formatCurrency(invoice.totalAmountHT)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{t('invoices.tax')}:</span>
+                    <span className="text-muted-foreground">{t('invoiceDetails.tax')}:</span>
                     <span>{formatCurrency(taxAmount)}</span>
                   </div>
                   <div className="flex justify-between pt-1 border-t">
-                    <span className="font-medium">{t('invoices.total')}:</span>
+                    <span className="font-medium">{t('invoiceDetails.total')}:</span>
                     <span className="font-bold">{formatCurrency(invoice.totalAmountTTC)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>{t('invoices.amountPaid')}:</span>
+                    <span>{t('invoiceDetails.amountPaid')}:</span>
                     <span>{formatCurrency(totalPaid)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>{t('invoices.remainingAmount')}:</span>
+                    <span>{t('invoiceDetails.remainingAmount')}:</span>
                     <span>{formatCurrency(remainingAmount)}</span>
                   </div>
                 </div>
@@ -270,33 +270,33 @@ const InvoiceDetail = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>{t('sales.title')}</CardTitle>
+            <CardTitle>{t('invoiceDetails.sales')}</CardTitle>
           </CardHeader>
           <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
+            <Table>
+              <TableHeader>
+                <TableRow>
                   <TableHead>{t('sales.date')}</TableHead>
                   <TableHead>{t('sales.items')}</TableHead>
                   <TableHead>{t('sales.totalAmount')}</TableHead>
                   <TableHead>{t('sales.amountPaid')}</TableHead>
                   <TableHead>{t('sales.actions')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {invoice.salesIds.map(saleId => {
                   const sale = getSaleById(saleId);
                   if (!sale) return null;
                   const saleStatus = getSalePaymentStatus(saleId);
                   return (
                     <TableRow key={saleId}>
-                        <TableCell>{formatDate(sale.date)}</TableCell>
+                      <TableCell>{formatDate(sale.date)}</TableCell>
                       <TableCell>{sale.items.length} {t('sales.items')}</TableCell>
                       <TableCell>{formatCurrency(sale.totalAmountTTC)}</TableCell>
                       <TableCell>
                         {formatCurrency(saleStatus?.totalPaid || 0)}
                         {saleStatus?.isFullyPaid && (
-                          <Badge className="ml-2" variant="success">
+                          <Badge className="ml-2" variant="default">
                             {t('sales.paid')}
                           </Badge>
                         )}
@@ -310,50 +310,50 @@ const InvoiceDetail = () => {
                           <Plus className="mr-2 h-4 w-4" />
                           {t('payments.add')}
                         </Button>
-                        </TableCell>
-                      </TableRow>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-                  </TableBody>
-                </Table>
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>{t('payments.title')}</CardTitle>
+            <CardTitle>{t('invoiceDetails.payments')}</CardTitle>
           </CardHeader>
           <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
+            <Table>
+              <TableHeader>
+                <TableRow>
                   <TableHead>{t('payments.date')}</TableHead>
                   <TableHead>{t('payments.amount')}</TableHead>
                   <TableHead>{t('payments.method')}</TableHead>
                   <TableHead>{t('payments.notes')}</TableHead>
                   <TableHead>{t('common.actions')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {payments.map(payment => (
-                        <TableRow key={payment.id}>
-                          <TableCell>{formatDate(payment.date)}</TableCell>
+                  <TableRow key={payment.id}>
+                    <TableCell>{formatDate(payment.date)}</TableCell>
                     <TableCell>{formatCurrency(payment.amount)}</TableCell>
                     <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
                     <TableCell>{payment.notes}</TableCell>
-                          <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeletePayment(payment.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeletePayment(payment.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>

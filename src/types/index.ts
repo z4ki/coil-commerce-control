@@ -2,15 +2,14 @@
 export interface Client {
   id: string;
   name: string;
-  company: string;
-  email: string;
-  phone: string;
+  company?: string;
   address: string;
-  notes?: string;
-  nif?: string; // Numéro d'Identification Fiscale
-  nis?: string; // Numéro d'Identification Statistique
-  rc?: string;  // Registre du Commerce
-  ai?: string;  // Article d'Imposition
+  phone: string;
+  email: string;
+  nif?: string;
+  nis?: string;
+  rc?: string;
+  ai?: string;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -29,7 +28,6 @@ export interface SaleItem {
   pricePerTon: number;
   totalAmountHT: number;
   totalAmountTTC: number;
-  sale_id?: string;
 }
 
 // Define the type for a sale
@@ -53,16 +51,18 @@ export interface Sale {
 // Define the type for an invoice
 export interface Invoice {
   id: string;
-  invoiceNumber: string;
   clientId: string;
+  invoiceNumber: string;
   date: Date;
   dueDate: Date;
   salesIds: string[];
   totalAmountHT: number;
   totalAmountTTC: number;
-  taxRate: number;
   isPaid: boolean;
-  paidAt?: Date;
+  taxRate: number;
+  paymentMethod?: string;
+  transportationFee?: number;
+  transportationFeeTTC?: number;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -70,11 +70,10 @@ export interface Invoice {
 // Define the type for a payment
 export interface Payment {
   id: string;
-  saleId: string;
   clientId: string;
-  bulkPaymentId?: string;
-  date: Date;
+  saleId: string;
   amount: number;
+  date: Date;
   method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
   notes?: string;
   createdAt: Date;
@@ -109,20 +108,25 @@ export interface DashboardStats {
   outstandingAmount: number;
 }
 
-// Define the type for application settings
+// Define the type for company settings
+export interface CompanySettings {
+  name: string;
+  logo?: string;
+  address: string;
+  phone: string;
+  email: string;
+  nif: string;
+  nis: string;
+  rc: string;
+  ai: string;
+}
+
+// Define the type for app settings
 export interface AppSettings {
-  id?: string;
-  companyName: string;
-  companyAddress: string;
-  companyPhone: string;
-  companyEmail: string;
-  companyLogo?: string;
-  taxRate: number;
+  company: CompanySettings;
+  language: string;
+  theme: string;
   currency: string;
-  nif?: string;
-  nis?: string;
-  rc?: string;
-  ai?: string;
 }
 
 // Added missing types that were referenced in the code

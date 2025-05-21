@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ['jspdf', 'jspdf-autotable']
+  },
   esbuild: {
     supported: {
       'top-level-await': true

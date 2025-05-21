@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../context/AppContext';
-import MainLayout from '../components/layout/MainLayout';
+import { useAppContext } from '@/context/AppContext';
+import { useLanguage } from '@/context/LanguageContext';
+import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -24,12 +25,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download, MoreVertical, Trash, DollarSign } from 'lucide-react';
-import { formatCurrency, formatDate } from '../utils/format';
-import StatusBadge from '../components/ui/StatusBadge';
-import { Sale } from '../types';
+import { formatCurrency, formatDate } from '@/utils/format';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Sale } from '@/types';
 import { toast } from 'sonner';
-import SaleForm from '../components/sales/SaleForm';
-import { useLanguage } from '../context/LanguageContext';
+import SaleForm from '@/components/sales/SaleForm';
 import { PaymentForm } from '@/components/invoices/PaymentForm';
 import {
   DropdownMenu,
@@ -39,6 +39,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
+import { generateSalePDF } from '@/utils/pdfService';
 
 interface SaleDialogProps {
   open: boolean;
@@ -128,6 +129,24 @@ const Sales = () => {
 
   const handleExportQuotation = (sale: Sale) => {
     toast.info(t('sales.exportPending').replace('{0}', 'Quotation'));
+  };
+
+  const handleExportPDF = async (sale: Sale) => {
+    const client = getClientById(sale.clientId);
+    if (!client) {
+      toast.error(t('sales.clientNotFound'));
+      return;
+    }
+
+    try {
+      toast.info(t('sales.exportPending'));
+      const doc = await generateSalePDF(sale, client);
+      doc.save(`Devis_${formatDate(sale.date, 'YYYYMMDD')}_${sale.id.substring(0, 4)}.pdf`);
+      toast.success(t('sales.pdfGenerated'));
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(error instanceof Error ? error.message : t('sales.pdfError'));
+    }
   };
 
   return (
@@ -231,6 +250,14 @@ const Sales = () => {
                                 {t('sales.viewInvoice')}
                               </Link>
                             )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleExportPDF(sale)}
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              <span>{t('general.export')}</span>
+                            </Button>
                           </div>
                         </TableCell>
                         <TableCell>

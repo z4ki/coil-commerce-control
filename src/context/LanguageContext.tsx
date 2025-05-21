@@ -131,7 +131,10 @@ const translations: { [key in Language]: Translations } = {
       'paymentStatus': 'Payment Status',
       'fullyPaid': 'Fully Paid',
       'partiallyPaid': 'Partially Paid',
-      'unpaid': 'Unpaid'
+      'unpaid': 'Unpaid',
+      'clientNotFound': 'Client not found',
+      'pdfGenerated': 'Quotation generated successfully',
+      'pdfError': 'Error generating quotation'
     },
 
     // Clients
@@ -470,7 +473,10 @@ const translations: { [key in Language]: Translations } = {
       'editTitle': 'Edit Invoice',
       'createTitle': 'Create New Invoice',
       'editDesc': 'Update the invoice details below.',
-      'createDesc': 'Fill in the details below to create a new invoice.'
+      'createDesc': 'Fill in the details below to create a new invoice.',
+      'clientNotFound': 'Client not found',
+      'pdfGenerated': 'Invoice generated successfully',
+      'pdfError': 'Error generating invoice'
     },
 
     // Payments
@@ -531,7 +537,16 @@ const translations: { [key in Language]: Translations } = {
       'remainingAmount': 'Remaining Amount',
       'sales': 'Related Sales',
       'payments': 'Payments'
-    }
+    },
+
+    // PDF Export
+    'pdf': {
+      'export': 'Export as PDF',
+      'generated': 'PDF generated successfully',
+      'error': 'Error generating PDF',
+      'clientNotFound': 'Client not found',
+      'saleNotFound': 'Sale not found',
+    },
   },
   fr: {
     // Status
@@ -645,7 +660,10 @@ const translations: { [key in Language]: Translations } = {
       'paymentStatus': 'État de paiement',
       'fullyPaid': 'Entièrement payé',
       'partiallyPaid': 'Partiellement payé',
-      'unpaid': 'Non payé'
+      'unpaid': 'Non payé',
+      'clientNotFound': 'Client introuvable',
+      'pdfGenerated': 'Devis généré avec succès',
+      'pdfError': 'Erreur lors de la génération du devis'
     },
 
     // Clients
@@ -984,7 +1002,10 @@ const translations: { [key in Language]: Translations } = {
       'editTitle': 'Modifier la facture',
       'createTitle': 'Créer une nouvelle facture',
       'editDesc': 'Mettez à jour les détails de la facture ci-dessous.',
-      'createDesc': 'Remplissez les détails ci-dessous pour créer une nouvelle facture.'
+      'createDesc': 'Remplissez les détails ci-dessous pour créer une nouvelle facture.',
+      'clientNotFound': 'Client introuvable',
+      'pdfGenerated': 'Facture générée avec succès',
+      'pdfError': 'Erreur lors de la génération de la facture'
     },
 
     // Payments
@@ -1045,7 +1066,16 @@ const translations: { [key in Language]: Translations } = {
       'remainingAmount': 'Remaining Amount',
       'sales': 'Related Sales',
       'payments': 'Payments'
-    }
+    },
+
+    // PDF Export
+    'pdf': {
+      'export': 'Exporter en PDF',
+      'generated': 'PDF généré avec succès',
+      'error': 'Erreur lors de la génération du PDF',
+      'clientNotFound': 'Client introuvable',
+      'saleNotFound': 'Vente introuvable',
+    },
   }
 };
 

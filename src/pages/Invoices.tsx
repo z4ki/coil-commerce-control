@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../context/AppContext';
-import { useLanguage } from '../context/LanguageContext';
-import MainLayout from '../components/layout/MainLayout';
+import { useAppContext } from '@/context/AppContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useAppSettings } from '@/context/AppSettingsContext';
+import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,15 +34,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Plus, Search, Edit, Trash2, FileText, MoreVertical, Download } from 'lucide-react';
-import { formatCurrency, formatDate } from '../utils/format';
-import StatusBadge from '../components/ui/StatusBadge';
-import { Invoice } from '../types';
+import { formatCurrency, formatDate } from '@/utils/format';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Invoice } from '@/types';
 import { toast } from 'sonner';
-import InvoiceForm from '../components/invoices/InvoiceForm';
+import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { Link } from 'react-router-dom';
+import { generateInvoicePDF } from '@/utils/pdfService';
 
 const Invoices = () => {
-  const { invoices, deleteInvoice, getClientById } = useAppContext();
+  const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useAppContext();
+  const { settings } = useAppSettings();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -54,15 +57,37 @@ const Invoices = () => {
     }
   };
 
+  const handleExportPDF = async (invoice: Invoice) => {
+    const client = getClientById(invoice.clientId);
+    if (!client) {
+      toast.error(t('invoices.clientNotFound'));
+      return;
+    }
+
+    const sales = invoice.salesIds.map(id => getSaleById(id)).filter(Boolean);
+    const paymentStatus = getInvoicePaymentStatus(invoice.id);
+    const payments = paymentStatus?.payments || [];
+
+    try {
+      const companyInfo = {
+        ...settings.company,
+        nif: settings.company.taxId,
+      };
+      const doc = await generateInvoicePDF(invoice, client, sales, payments, companyInfo);
+      doc.save(`Facture_${invoice.invoiceNumber}.pdf`);
+      toast.success(t('invoices.pdfGenerated'));
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(t('invoices.pdfError'));
+    }
+  };
+
   const filteredInvoices = invoices
     .filter((invoice) => {
       const client = getClientById(invoice.clientId);
       if (!client) return false;
-      return (
-        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.company.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const searchString = `${invoice.invoiceNumber} ${client.name} ${client.company}`.toLowerCase();
+      return searchString.includes(searchTerm.toLowerCase());
     })
     .sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -112,6 +137,7 @@ const Invoices = () => {
                   {filteredInvoices.length > 0 ? (
                     filteredInvoices.map((invoice) => {
                       const client = getClientById(invoice.clientId);
+                      const paymentStatus = getInvoicePaymentStatus(invoice.id);
                       const isOverdue = !invoice.isPaid && new Date() > invoice.dueDate;
                       
                       return (
@@ -177,9 +203,9 @@ const Invoices = () => {
                                     <span>{t('invoices.viewDetails')}</span>
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExportPDF(invoice)}>
                                   <Download className="mr-2 h-4 w-4" />
-                                  <span>{t('invoices.downloadPDF')}</span>
+                                  <span>{t('general.export')}</span>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>

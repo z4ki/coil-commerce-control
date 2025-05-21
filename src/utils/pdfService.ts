@@ -3,32 +3,64 @@ import 'jspdf-autotable';
 import { Client, Invoice, Sale, SaleItem, Payment } from '../types';
 import { getSettings } from '../services/settingsService';
 import { formatCurrency, formatDate } from './format';
+import { numberToWords } from './numberToWords';
 
 // Add autoTable type to jsPDF
 declare module 'jspdf' {
   interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-    lastAutoTable: any;
+    autoTable: (options: AutoTableOptions) => jsPDF;
+    lastAutoTable: {
+      finalY: number;
+    };
   }
 }
 
-// Helper function for autoTable
-const autoTable = (doc: jsPDF, options: any) => {
-  return doc.autoTable(options);
-};
+interface AutoTableOptions {
+  head: string[][];
+  body: string[][];
+  startY: number;
+  theme: string;
+  headStyles: {
+    fillColor: [number, number, number];
+    textColor: [number, number, number];
+    fontStyle: string;
+    halign: string;
+  };
+  styles: {
+    font: string;
+    fontSize: number;
+    cellPadding: number;
+    overflow: string;
+    cellWidth: 'auto' | 'wrap' | number;
+  };
+  columnStyles: {
+    [key: number]: { 
+      halign: string;
+      cellWidth?: 'auto' | 'wrap' | number;
+    };
+  };
+  margin?: { top: number };
+  alternateRowStyles?: {
+    fillColor: [number, number, number];
+  };
+}
 
-// Company info (could be moved to a settings object/context in the future)
-const companyInfo = {
-  name: 'Groupe HA',
-  logo: '/lovable-uploads/9e20d722-b154-48fe-9e9d-616d64585926.png',
-  address: '123 Zone Industrielle, Alger, Algérie',
-  phone: '+213 XX XX XX XX',
-  email: 'contact@groupeha.com',
-  nif: '12345678901234',
-  nis: '98765432109876',
-  rc: 'RC-XXXX-XXXX',
-  ai: 'AI-XXXX-XXXX',
-};
+interface CompanyInfo {
+  name: string;
+  logo?: string;
+  address: string;
+  phone: string;
+  email: string;
+  nif: string;
+  nis: string;
+  rc: string;
+  ai: string;
+}
+
+interface ExtendedInvoice extends Invoice {
+  paymentMethod?: string;
+  transportationFee?: number;
+}
 
 interface PdfOptions {
   showLogo?: boolean;
@@ -37,96 +69,118 @@ interface PdfOptions {
   subtitle?: string;
 }
 
+// Helper function to format currency like "1 000,00 DA"
+const formatCurrencyForPDF = (amount: number): string => {
+  const parts = amount.toFixed(2).replace('.', ',').split(',');
+  const wholePart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${wholePart},${parts[1]} DA`;
+};
+
+/**
+ * Add a common header with logo and company information
+ */
+const addHeaderWithLogo = async (doc: jsPDF, title: string, subtitle: string, companyInfo: CompanyInfo): Promise<void> => {
+  // Add logo image
+  try {
+    const logo = companyInfo.logo;
+    if (logo) {
+      doc.addImage(logo, 'PNG', 14, 10, 30, 15); // Adjusted size and position
+    }
+  } catch (error) {
+    console.error('Error adding logo:', error);
+  }
+  
+  // Add company name and tagline
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(companyInfo.name, 14, 40);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Usine de revêtement et traitement des méteaux', 14, 46);
+  
+  // Add document title and reference
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DEVIS', 14, 60);
+  if (subtitle) {
+    doc.setFontSize(10);
+    doc.text(subtitle, 14, 66);
+  }
+};
+
+/**
+ * Add client information section
+ */
+const addClientInfo = (doc: jsPDF, client: Client, date: Date): void => {
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  // Client info
+  doc.text('Client:', 14, 80);
+  doc.setFont('helvetica', 'bold');
+  doc.text(client.name, 14, 86);
+  if (client.address) {
+    doc.setFont('helvetica', 'normal');
+    doc.text(client.address, 14, 92);
+  }
+  
+  // Date and validity
+  doc.text('Date:', 140, 80);
+  doc.text(formatDate(date), 160, 80);
+  doc.text('Validité:', 140, 86);
+  
+  const validityDate = new Date(date);
+  validityDate.setDate(validityDate.getDate() + 30);
+  doc.text(formatDate(validityDate), 160, 86);
+};
+
 /**
  * Generate a PDF for an invoice
  */
 export const generateInvoicePDF = async (
-  invoice: Invoice,
+  invoice: ExtendedInvoice,
   client: Client,
   sales: Sale[],
   payments: Payment[],
-  companyInfo: {
-    name: string;
-    logo?: string;
-    address: string;
-    phone: string;
-    email: string;
-    taxId: string;
-    nis: string;
-    rc: string;
-    ai: string;
-  }
+  companyInfo: CompanyInfo
 ): Promise<jsPDF> => {
   // Create a new PDF document
   const doc = new jsPDF();
-  const opt = {
-    showLogo: true,
-    showFooter: true,
-    title: `FACTURE N° ${invoice.invoiceNumber}`,
-    subtitle: '',
-    ...options,
-  };
   
-  // Add common header with logo and company info
-  addHeaderWithLogo(doc, opt.title, opt.subtitle);
+  // Add header with logo and company info
+  await addHeaderWithLogo(doc, 'FACTURE', '', companyInfo);
   
-  // Add invoice info
-  doc.setFontSize(10);
-  doc.setTextColor(100);
+  // Add company and client information
+  addClientInfo(doc, client, invoice.date);
   
-  // Client info (left side)
-  doc.text('Client:', 14, 55);
-  doc.setFont('helvetica', 'bold');
-  doc.text(client.name, 14, 60);
-  doc.setFont('helvetica', 'normal');
-  doc.text(client.company, 14, 65);
-  doc.text(client.address.split('\n').join(', '), 14, 70);
-  
-  // Invoice details (right side)
-  doc.text('Facture N°:', 140, 55);
-  doc.setFont('helvetica', 'bold');
-  doc.text(invoice.invoiceNumber, 165, 55);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Date:', 140, 60);
-  doc.text(formatDate(invoice.date), 165, 60);
-  doc.text('Échéance:', 140, 65);
-  doc.text(formatDate(invoice.dueDate), 165, 65);
-  
-  // Invoice items table
-  const tableColumn = ["Description", "Quantité", "Prix unitaire", "Total HT"];
-  const tableRows: any[] = [];
+  // Items table
+  const tableColumn = ['Réference', 'Description', 'Poids/T', 'Prix U.', 'Total'];
+  const tableRows: string[][] = [];
   
   let totalHT = 0;
   
   // Add all items from all sales
   sales.forEach(sale => {
     sale.items.forEach(item => {
-      let description = item.description;
-      if (item.coilRef) {
-        description += `\nRéf: ${item.coilRef}`;
-      }
-      if (item.coilThickness && item.coilWidth) {
-        description += `\n${item.coilThickness}mm x ${item.coilWidth}mm`;
-      }
-      if (item.topCoatRAL || item.backCoatRAL) {
-        description += `\nRAL: ${item.topCoatRAL || '-'}/${item.backCoatRAL || '-'}`;
-      }
+      const description = `BOBINES D'ACIER PRELAQUE ${item.coilThickness}*${item.coilWidth} RAL ${item.topCoatRAL}`;
       
       tableRows.push([
+        item.coilRef || '-',
         description,
-        `${item.quantity} tonnes`,
+        item.quantity.toFixed(1),
         formatCurrency(item.pricePerTon),
-        formatCurrency(item.totalAmount),
+        formatCurrency(item.totalAmountHT),
       ]);
       
-      totalHT += item.totalAmount;
+      totalHT += item.totalAmountHT;
     });
     
     // Add transportation fee if any
     if (sale.transportationFee && sale.transportationFee > 0) {
       tableRows.push([
-        "Frais de transport",
-        "1",
+        '-',
+        'Transport',
+        '1',
         formatCurrency(sale.transportationFee),
         formatCurrency(sale.transportationFee),
       ]);
@@ -135,103 +189,64 @@ export const generateInvoicePDF = async (
   });
   
   // Generate the table
-  autoTable(doc, {
+  doc.autoTable({
     head: [tableColumn],
     body: tableRows,
-    startY: 80,
-    theme: 'striped',
+    startY: 105,
+    theme: 'grid',
     headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: 255,
+      fillColor: [255, 255, 255] as [number, number, number],
+      textColor: [0, 0, 0] as [number, number, number],
       fontStyle: 'bold',
+      halign: 'center',
     },
-    alternateRowStyles: {
-      fillColor: [240, 240, 240],
+    styles: {
+      font: 'helvetica',
+      fontSize: 9,
+      cellPadding: 5,
+      overflow: 'linebreak',
+      cellWidth: 'wrap',
     },
-    margin: { top: 80 },
-    styles: { overflow: 'linebreak', cellWidth: 'wrap' },
     columnStyles: {
-      0: { cellWidth: 80 },
+      0: { halign: 'left' },
+      1: { halign: 'left' },
+      2: { halign: 'right' },
       3: { halign: 'right' },
+      4: { halign: 'right' },
     },
   });
   
-  // Calculate the final y position after the table
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = doc.lastAutoTable.finalY + 10;
   
   // Add summary section
-  doc.setFontSize(10);
-  
-  // TVA calculation (assuming 19%)
   const tvaRate = 0.19;
   const tvaAmount = totalHT * tvaRate;
-  const totalTTC = totalHT + tvaAmount;
-  
-  // Payment information if any
-  let totalPaid = 0;
-  if (payments.length > 0) {
-    payments.forEach(payment => {
-      totalPaid += payment.amount;
-    });
-  }
-  
-  const remainingAmount = totalTTC - totalPaid;
+  const totalTTC = totalHT + tvaAmount + (invoice.transportationFee || 0);
   
   // Right-aligned summary table
   const summaryX = 120;
+  doc.setFontSize(10);
+  
   const summaryData = [
     ['Total HT:', formatCurrency(totalHT)],
-    [`TVA (${(tvaRate * 100).toFixed(0)}%):`, formatCurrency(tvaAmount)],
+    ['TVA (19%):', formatCurrency(tvaAmount)],
+    ['Transport:', formatCurrency(invoice.transportationFee || 0)],
     ['Total TTC:', formatCurrency(totalTTC)],
   ];
   
-  if (totalPaid > 0) {
-    summaryData.push(['Payé:', formatCurrency(totalPaid)]);
-    summaryData.push(['Reste à payer:', formatCurrency(remainingAmount)]);
-  }
-  
   // Add summary data
   summaryData.forEach((row, index) => {
-    const isTotal = index === 2 || index === summaryData.length - 1;
     const y = finalY + (index * 6);
-    
-    if (isTotal) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-    } else {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-    }
-    
+    doc.setFont('helvetica', index === 3 ? 'bold' : 'normal');
     doc.text(row[0], summaryX, y);
     doc.text(row[1], 195, y, { align: 'right' });
   });
   
-  // Add payment status
-  if (invoice.isPaid) {
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 128, 0); // Green color
-    doc.text('PAYÉE', 195, finalY + (summaryData.length * 6) + 10, { align: 'right' });
-    doc.setTextColor(0); // Reset to black
-  } else if (new Date() > invoice.dueDate) {
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 0, 0); // Red color
-    doc.text('EN RETARD', 195, finalY + (summaryData.length * 6) + 10, { align: 'right' });
-    doc.setTextColor(0); // Reset to black
-  }
-  
-  // Add footer with payment details and terms
-  const footerY = finalY + (summaryData.length * 6) + 20;
-  
+  // Add amount in words
+  const amountInWords = numberToWords(totalTTC);
   doc.setFontSize(9);
-  doc.setTextColor(100);
-  doc.text('Modalités de paiement:', 14, footerY);
-  doc.text('Virement bancaire ou chèque à l\'ordre de Groupe HA', 14, footerY + 5);
-  
-  // Add page numbers and company info at the bottom
-  if (opt.showFooter) {
-    addFooter(doc);
-  }
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Arrêter la presente facture à la somme de ${amountInWords} dinars et zéro centime.`, 14, finalY + 30);
   
   return doc;
 };
@@ -244,6 +259,24 @@ export const generateSalePDF = async (
   client: Client,
   options: PdfOptions = {}
 ): Promise<jsPDF> => {
+  // Get company settings
+  const settings = await getSettings();
+  if (!settings) {
+    throw new Error('Company settings not found');
+  }
+
+  const companyInfo: CompanyInfo = {
+    name: settings.companyName,
+    logo: settings.companyLogo || undefined,
+    address: settings.companyAddress,
+    phone: settings.companyPhone,
+    email: settings.companyEmail,
+    nif: settings.nif || '',
+    nis: settings.nis || '',
+    rc: settings.rc || '',
+    ai: settings.ai || '',
+  };
+
   // Create a new PDF document
   const doc = new jsPDF();
   const opt = {
@@ -254,219 +287,97 @@ export const generateSalePDF = async (
     ...options,
   };
   
-  // Add common header with logo and company info
-  addHeaderWithLogo(doc, opt.title, opt.subtitle);
-  
-  // Add quotation info
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  
-  // Client info (left side)
-  doc.text('Client:', 14, 55);
-  doc.setFont('helvetica', 'bold');
-  doc.text(client.name, 14, 60);
-  doc.setFont('helvetica', 'normal');
-  doc.text(client.company, 14, 65);
-  doc.text(client.address.split('\n').join(', '), 14, 70);
-  
-  // Sale details (right side)
-  doc.text('Date:', 140, 55);
-  doc.text(formatDate(sale.date), 165, 55);
-  doc.text('Validité:', 140, 60);
-  
-  // Set validity to 30 days from sale date
-  const validityDate = new Date(sale.date);
-  validityDate.setDate(validityDate.getDate() + 30);
-  doc.text(formatDate(validityDate), 165, 60);
+  // Add header and client info
+  await addHeaderWithLogo(doc, opt.title, opt.subtitle, companyInfo);
+  addClientInfo(doc, client, sale.date);
   
   // Sale items table
   const tableColumn = ["Description", "Quantité", "Prix unitaire", "Total HT"];
-  const tableRows: any[] = [];
-  
-  let totalHT = 0;
-  
-  // Add all items from the sale
-  sale.items.forEach(item => {
-    let description = item.description;
-    if (item.coilRef) {
-      description += `\nRéf: ${item.coilRef}`;
-    }
-    if (item.coilThickness && item.coilWidth) {
-      description += `\n${item.coilThickness}mm x ${item.coilWidth}mm`;
-    }
-    if (item.topCoatRAL || item.backCoatRAL) {
-      description += `\nRAL: ${item.topCoatRAL || '-'}/${item.backCoatRAL || '-'}`;
-    }
+  const tableRows = sale.items.map(item => {
+    const description = `BOBINES D'ACIER PRELAQUE ${item.coilThickness}*${item.coilWidth} RAL ${item.topCoatRAL}`;
+    const ref = item.coilRef ? `\nRéf: ${item.coilRef}` : '';
+    const dimensions = `${item.coilThickness}mm x ${item.coilWidth}mm`;
     
-    tableRows.push([
-      description,
-      `${item.quantity} tonnes`,
-      formatCurrency(item.pricePerTon),
-      formatCurrency(item.totalAmount),
-    ]);
-    
-    totalHT += item.totalAmount;
+    return [
+      description + ref + '\n' + dimensions,
+      item.quantity.toFixed(1) + ' tonnes',
+      formatCurrencyForPDF(item.pricePerTon),
+      formatCurrencyForPDF(item.totalAmountHT),
+    ];
   });
-  
-  // Add transportation fee if any
-  if (sale.transportationFee && sale.transportationFee > 0) {
-    tableRows.push([
-      "Frais de transport",
-      "1",
-      formatCurrency(sale.transportationFee),
-      formatCurrency(sale.transportationFee),
-    ]);
-    totalHT += sale.transportationFee;
-  }
   
   // Generate the table
-  autoTable(doc, {
+  doc.autoTable({
     head: [tableColumn],
     body: tableRows,
-    startY: 80,
-    theme: 'striped',
+    startY: 100,
+    theme: 'grid',
     headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: 255,
+      fillColor: [41, 128, 185] as [number, number, number],
+      textColor: [255, 255, 255] as [number, number, number],
       fontStyle: 'bold',
+      halign: 'left'
+    },
+    styles: {
+      font: 'helvetica',
+      fontSize: 9,
+      cellPadding: 6,
+      overflow: 'linebreak',
+      cellWidth: 'auto'
+    },
+    columnStyles: {
+      0: { cellWidth: 80, halign: 'left' },
+      1: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 40, halign: 'right' },
+      3: { cellWidth: 40, halign: 'right' }
     },
     alternateRowStyles: {
-      fillColor: [240, 240, 240],
-    },
-    margin: { top: 80 },
-    styles: { overflow: 'linebreak', cellWidth: 'wrap' },
-    columnStyles: {
-      0: { cellWidth: 80 },
-      3: { halign: 'right' },
-    },
+      fillColor: [245, 245, 245] as [number, number, number]
+    }
   });
   
-  // Calculate the final y position after the table
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = doc.lastAutoTable.finalY + 10;
   
   // Add summary section
   doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
   
-  // TVA calculation (assuming 19%)
-  const tvaRate = 0.19;
-  const tvaAmount = totalHT * tvaRate;
-  const totalTTC = totalHT + tvaAmount;
-  
-  // Right-aligned summary table
-  const summaryX = 120;
+  const summaryX = 130;
   const summaryData = [
-    ['Total HT:', formatCurrency(totalHT)],
-    [`TVA (${(tvaRate * 100).toFixed(0)}%):`, formatCurrency(tvaAmount)],
-    ['Total TTC:', formatCurrency(totalTTC)],
+    ['Total HT:', formatCurrencyForPDF(sale.totalAmountHT)],
+    ['TVA (19%):', formatCurrencyForPDF(sale.totalAmountTTC - sale.totalAmountHT)],
+    ['Total TTC:', formatCurrencyForPDF(sale.totalAmountTTC)],
   ];
   
-  // Add summary data
   summaryData.forEach((row, index) => {
-    const isTotal = index === 2;
     const y = finalY + (index * 6);
-    
-    if (isTotal) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-    } else {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-    }
-    
+    doc.setFont('helvetica', index === 2 ? 'bold' : 'normal');
     doc.text(row[0], summaryX, y);
     doc.text(row[1], 195, y, { align: 'right' });
   });
   
-  // Add terms
-  const termsY = finalY + (summaryData.length * 6) + 15;
-  doc.setFontSize(10);
+  // Add conditions
+  const conditionsY = finalY + 30;
   doc.setFont('helvetica', 'bold');
-  doc.text('Conditions:', 14, termsY);
+  doc.text('Conditions:', 14, conditionsY);
   doc.setFont('helvetica', 'normal');
-  doc.text('• Devis valable 30 jours à compter de la date d\'émission.', 14, termsY + 6);
-  doc.text('• Livraison: à convenir selon disponibilité.', 14, termsY + 12);
-  doc.text('• Modalité de paiement: à convenir.', 14, termsY + 18);
+  doc.text([
+    '• Devis valable 30 jours à compter de la date d\'émission.',
+    '• Livraison: à convenir selon disponibilité.',
+    '• Modalité de paiement: à convenir.',
+  ], 14, conditionsY + 6);
   
-  // Add notes if available
-  if (sale.notes) {
-    doc.text('Notes:', 14, termsY + 30);
-    doc.text(sale.notes, 14, termsY + 36);
-  }
+  // Add footer with company info
+  const pageHeight = doc.internal.pageSize.height;
+  doc.setFontSize(8);
+  doc.text([
+    `${companyInfo.name}`,
+    `NIF: ${companyInfo.nif} | NIS: ${companyInfo.nis}`,
+  ], 14, pageHeight - 10);
   
-  // Add page numbers and company info at the bottom
-  if (opt.showFooter) {
-    addFooter(doc);
-  }
+  doc.text(`Page 1 sur 1`, doc.internal.pageSize.width / 2, pageHeight - 10, { align: 'center' });
   
   return doc;
-};
-
-/**
- * Add a common header with logo and company information
- */
-const addHeaderWithLogo = async (doc: jsPDF, title: string, subtitle = ''): Promise<void> => {
-  // Add logo image
-  try {
-    const logo = companyInfo.logo;
-    doc.addImage(logo, 'PNG', 14, 10, 40, 20);
-  } catch (error) {
-    console.error('Error adding logo:', error);
-  }
-  
-  // Add company name and info
-  doc.setFontSize(10);
-  doc.setTextColor(80);
-  doc.text(companyInfo.name, 60, 15);
-  doc.text(companyInfo.address, 60, 20);
-  doc.text(`Tel: ${companyInfo.phone}`, 60, 25);
-  doc.text(`Email: ${companyInfo.email}`, 60, 30);
-  
-  // Add company identifiers
-  doc.text(`NIF: ${companyInfo.nif}`, 140, 15);
-  doc.text(`NIS: ${companyInfo.nis}`, 140, 20);
-  doc.text(`RC: ${companyInfo.rc}`, 140, 25);
-  doc.text(`AI: ${companyInfo.ai}`, 140, 30);
-  
-  // Add horizontal line
-  doc.setLineWidth(0.5);
-  doc.setDrawColor(200);
-  doc.line(14, 38, 196, 38);
-  
-  // Add document title
-  doc.setFontSize(16);
-  doc.setTextColor(0);
-  doc.setFont('helvetica', 'bold');
-  doc.text(title, 105, 45, { align: 'center' });
-  
-  // Add subtitle if available
-  if (subtitle) {
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(subtitle, 105, 52, { align: 'center' });
-  }
-};
-
-/**
- * Add footer to document with page numbers and company info
- */
-const addFooter = (doc: jsPDF): void => {
-  const pageCount = doc.getNumberOfPages();
-  
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    
-    const pageHeight = doc.internal.pageSize.height;
-    
-    // Add page number
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text(`Page ${i} sur ${pageCount}`, 105, pageHeight - 10, { align: 'center' });
-    
-    // Add company info at the bottom
-    doc.setFontSize(8);
-    doc.text(companyInfo.name, 14, pageHeight - 15);
-    doc.text(`NIF: ${companyInfo.nif} | NIS: ${companyInfo.nis}`, 14, pageHeight - 10);
-  }
 };
 
 export default {

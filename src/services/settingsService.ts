@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { AppSettings } from '@/types';
+import { AppSettings, CompanySettings } from '@/types';
 
 interface DbSettings {
   id: string;
@@ -16,7 +16,41 @@ interface DbSettings {
   ai: string | null;
 }
 
-export const getSettings = async (): Promise<AppSettings | null> => {
+interface UpdateSettingsInput {
+  company?: {
+    name?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logo?: string;
+    nif?: string;
+    nis?: string;
+    rc?: string;
+    ai?: string;
+  };
+  currency?: string;
+}
+
+// Default settings
+const defaultCompanySettings: CompanySettings = {
+  name: 'My Company',
+  address: 'Company Address',
+  phone: 'Phone Number',
+  email: 'company@example.com',
+  nif: '',
+  nis: '',
+  rc: '',
+  ai: ''
+};
+
+const defaultSettings: AppSettings = {
+  company: defaultCompanySettings,
+  language: 'fr',
+  theme: 'light',
+  currency: 'DZD'
+};
+
+export const getSettings = async (): Promise<AppSettings> => {
   try {
     // Fetch settings
     const { data, error } = await supabase
@@ -30,17 +64,26 @@ export const getSettings = async (): Promise<AppSettings | null> => {
         return createDefaultSettings();
       }
       console.error('Error fetching settings:', error);
-      throw error;
+      return defaultSettings;
     }
     
-    return mapSettingsFromDb(data);
+    const mappedSettings = mapSettingsFromDb(data);
+    
+    // Ensure all required company settings fields exist
+    return {
+      ...mappedSettings,
+      company: {
+        ...defaultCompanySettings,
+        ...mappedSettings.company
+      }
+    };
   } catch (error) {
     console.error('Error in getSettings:', error);
-    throw error;
+    return defaultSettings;
   }
 };
 
-export const updateSettings = async (settings: Partial<AppSettings>): Promise<AppSettings> => {
+export const updateSettings = async (settings: UpdateSettingsInput): Promise<AppSettings> => {
   try {
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
@@ -49,17 +92,16 @@ export const updateSettings = async (settings: Partial<AppSettings>): Promise<Ap
     const { data, error } = await supabase
       .from('settings')
       .update({
-        company_name: settings.companyName,
-        company_address: settings.companyAddress,
-        company_phone: settings.companyPhone,
-        company_email: settings.companyEmail,
-        company_logo: settings.companyLogo,
-        tax_rate: settings.taxRate,
+        company_name: settings.company?.name,
+        company_address: settings.company?.address,
+        company_phone: settings.company?.phone,
+        company_email: settings.company?.email,
+        company_logo: settings.company?.logo,
         currency: settings.currency,
-        nif: settings.nif,
-        nis: settings.nis,
-        rc: settings.rc,
-        ai: settings.ai,
+        nif: settings.company?.nif,
+        nis: settings.company?.nis,
+        rc: settings.company?.rc,
+        ai: settings.company?.ai,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', user.id)
@@ -81,47 +123,49 @@ export const updateSettings = async (settings: Partial<AppSettings>): Promise<Ap
 // Helper function to map database fields to AppSettings type
 const mapSettingsFromDb = (data: DbSettings): AppSettings => {
   return {
-    id: data.id,
-    companyName: data.company_name,
-    companyAddress: data.company_address,
-    companyPhone: data.company_phone,
-    companyEmail: data.company_email,
-    companyLogo: data.company_logo,
-    taxRate: data.tax_rate,
-    currency: data.currency,
-    nif: data.nif,
-    nis: data.nis,
-    rc: data.rc,
-    ai: data.ai
+    company: {
+      name: data.company_name || defaultCompanySettings.name,
+      address: data.company_address || defaultCompanySettings.address,
+      phone: data.company_phone || defaultCompanySettings.phone,
+      email: data.company_email || defaultCompanySettings.email,
+      logo: data.company_logo || undefined,
+      nif: data.nif || defaultCompanySettings.nif,
+      nis: data.nis || defaultCompanySettings.nis,
+      rc: data.rc || defaultCompanySettings.rc,
+      ai: data.ai || defaultCompanySettings.ai
+    },
+    language: 'fr',
+    theme: 'light',
+    currency: data.currency || defaultSettings.currency
   };
 };
 
 // Create default settings
 const createDefaultSettings = async (): Promise<AppSettings> => {
   try {
-    const defaultSettings = {
-      company_name: 'My Company',
-      company_address: 'Company Address',
-      company_phone: 'Phone Number',
-      company_email: 'company@example.com',
+    const defaultDbSettings = {
+      company_name: defaultCompanySettings.name,
+      company_address: defaultCompanySettings.address,
+      company_phone: defaultCompanySettings.phone,
+      company_email: defaultCompanySettings.email,
       tax_rate: 0.19,
-      currency: 'DZD'
+      currency: defaultSettings.currency
     };
     
     const { data, error } = await supabase
       .from('settings')
-      .insert(defaultSettings)
+      .insert(defaultDbSettings)
       .select()
       .single();
     
     if (error) {
       console.error('Error creating default settings:', error);
-      throw error;
+      return defaultSettings;
     }
     
     return mapSettingsFromDb(data);
   } catch (error) {
     console.error('Error in createDefaultSettings:', error);
-    throw error;
+    return defaultSettings;
   }
 };

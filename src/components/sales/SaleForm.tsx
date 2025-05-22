@@ -27,7 +27,7 @@ import { Sale, SaleItem } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { Plus, FileText, Download } from 'lucide-react';
 import SaleItemForm from './SaleItemForm';
-import { generateSalePDF } from '../../utils/pdfService';
+import { generateSalePDF, saveSalePDF } from '../../utils/pdfService.tsx';
 import { useLanguage } from '../../context/LanguageContext';
 
 // Tax rate constant
@@ -356,7 +356,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     }
   };
 
-  const handleExportInvoice = () => {
+  const handleExportPDF = async () => {
     const formData = form.getValues();
     if (!formData.clientId) {
       toast.error(t('form.error'));
@@ -365,7 +365,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
     const client = getClientById(formData.clientId);
     if (!client) {
-      toast.error(t('form.error'));
+      toast.error(t('sales.clientNotFound'));
       return;
     }
 
@@ -408,84 +408,15 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       updatedAt: new Date()
     };
 
-    setTimeout(async () => {
-      try {
-        const doc = await generateSalePDF(tempSale, client, { title: 'FACTURE PROFORMA' });
-        doc.save(`Facture_Proforma_${formatDate(new Date())}.pdf`);
-        toast.success(t('form.success'));
-      } catch (error) {
-        console.error('Error generating PDF:', error);
-        toast.error(t('form.error'));
-      } finally {
-        setIsGeneratingPDF(false);
-      }
-    }, 100);
-  };
-
-  const handleExportQuotation = () => {
-    const formData = form.getValues();
-    if (!formData.clientId) {
-      toast.error(t('form.error'));
-      return;
+    try {
+      await saveSalePDF(tempSale, client);
+      toast.success(t('sales.pdfGenerated'));
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(t('sales.pdfError'));
+    } finally {
+      setIsGeneratingPDF(false);
     }
-
-    const client = getClientById(formData.clientId);
-    if (!client) {
-      toast.error(t('form.error'));
-      return;
-    }
-
-    setIsGeneratingPDF(true);
-    
-    // Create a temporary sale object for PDF generation
-    const tempSale: Sale = {
-      id: sale?.id || uuidv4(),
-      clientId: formData.clientId,
-      date: parseDateInput(formData.date),
-      items: formData.items.map(item => {
-        const quantity = Number(item.quantity || 0);
-        const pricePerTon = Number(item.pricePerTon || 0);
-        const totalHT = quantity * pricePerTon;
-        const totalTTC = totalHT * (1 + TAX_RATE);
-        
-        return {
-          id: item.id,
-          description: item.description,
-          coilRef: item.coilRef,
-          coilThickness: item.coilThickness,
-          coilWidth: item.coilWidth,
-          topCoatRAL: item.topCoatRAL,
-          backCoatRAL: item.backCoatRAL,
-          coilWeight: item.coilWeight,
-          quantity: quantity,
-          pricePerTon: pricePerTon,
-          totalAmountHT: totalHT,
-          totalAmountTTC: totalTTC
-        };
-      }),
-      totalAmountHT: calculateFinalTotal().totalHT,
-      totalAmountTTC: calculateFinalTotal().totalTTC,
-      isInvoiced: sale?.isInvoiced || false,
-      notes: formData.notes,
-      transportationFee: formData.transportationFee,
-      transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
-      taxRate: TAX_RATE,
-      createdAt: sale?.createdAt || new Date(),
-      updatedAt: new Date()
-    };
-
-    setTimeout(async () => {
-      try {
-        const doc = await generateSalePDF(tempSale, client);
-        doc.save(`Devis_${formatDate(new Date())}.pdf`);
-        toast.success(t('form.success'));
-      } catch (error) {
-        console.error('Error generating PDF:', error);
-        toast.error(t('form.error'));
-      } finally {
-        setIsGeneratingPDF(false);
-      }
-    }, 100);
   };
 
   return (
@@ -638,19 +569,10 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
               type="button"
               variant="outline"
               className="w-full"
-              onClick={handleExportQuotation}
+              onClick={handleExportPDF}
               disabled={isGeneratingPDF}
             >
               <FileText className="h-4 w-4 mr-1" /> {t('general.export')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleExportInvoice}
-              disabled={isGeneratingPDF}
-            >
-              <Download className="h-4 w-4 mr-1" /> {t('general.export')}
             </Button>
           </div>
         </div>

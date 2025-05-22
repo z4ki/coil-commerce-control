@@ -33,7 +33,7 @@ import {
 import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { PaymentForm } from '@/components/invoices/PaymentForm';
 import { toast } from 'sonner';
-import { generateInvoicePDF } from '@/utils/pdfService';
+import { generateInvoicePDF } from '@/utils/pdfService.tsx';
 import { Badge } from '@/components/ui/badge';
 
 const InvoiceDetail = () => {
@@ -113,42 +113,56 @@ const InvoiceDetail = () => {
     setShowPaymentDialog(true);
   };
 
-  const handlePrintInvoice = () => {
+  const handlePrintInvoice = async () => {
     if (!invoice || !client) return;
     
     setIsGeneratingPDF(true);
     
-    setTimeout(async () => {
-      try {
-        const doc = await generateInvoicePDF(invoice, client, sales, payments, settings.company);
-        doc.autoPrint();
-        window.open(doc.output('bloburl'), '_blank');
-      } catch (error) {
-        console.error('Error generating PDF:', error);
-        toast.error(t('invoices.pdfError'));
-      } finally {
-        setIsGeneratingPDF(false);
-      }
-    }, 100);
+    try {
+      const pdfBlob = await generateInvoicePDF(invoice, client, sales, payments, settings.company);
+      const url = URL.createObjectURL(pdfBlob);
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      
+      iframe.onload = () => {
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      };
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(t('invoices.pdfError'));
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
   
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!invoice || !client) return;
     
     setIsGeneratingPDF(true);
     
-    setTimeout(async () => {
-      try {
-        const doc = await generateInvoicePDF(invoice, client, sales, payments, settings.company);
-        doc.save(`Facture_${invoice.invoiceNumber}.pdf`);
-        toast.success(t('invoices.pdfGenerated'));
-      } catch (error) {
-        console.error('Error generating PDF:', error);
-        toast.error(t('invoices.pdfError'));
-      } finally {
-        setIsGeneratingPDF(false);
-      }
-    }, 100);
+    try {
+      const pdfBlob = await generateInvoicePDF(invoice, client, sales, payments, settings.company);
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Facture_${invoice.invoiceNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(t('invoices.pdfGenerated'));
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(t('invoices.pdfError'));
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
   
   const getPaymentMethodLabel = (method: string) => {

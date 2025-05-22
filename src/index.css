@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import the Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -121,11 +124,11 @@
 @import url('https://fonts.googleapis.com/css2?family=InterVariable:opsz,wght@8..144,100..900&display=swap');
 
 html, body, #root {
-  font-family: 'InterVariable', 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 body {
-  font-family: 'InterVariable', 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .hoverable-card {

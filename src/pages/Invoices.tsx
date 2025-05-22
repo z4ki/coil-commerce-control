@@ -40,7 +40,7 @@ import { Invoice } from '@/types';
 import { toast } from 'sonner';
 import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { Link } from 'react-router-dom';
-import { generateInvoicePDF } from '@/utils/pdfService';
+import { saveInvoicePDF } from '@/utils/pdfService.tsx';
 
 const Invoices = () => {
   const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useAppContext();
@@ -69,12 +69,7 @@ const Invoices = () => {
     const payments = paymentStatus?.payments || [];
 
     try {
-      const companyInfo = {
-        ...settings.company,
-        nif: settings.company.taxId,
-      };
-      const doc = await generateInvoicePDF(invoice, client, sales, payments, companyInfo);
-      doc.save(`Facture_${invoice.invoiceNumber}.pdf`);
+      await saveInvoicePDF(invoice, client, sales, payments);
       toast.success(t('invoices.pdfGenerated'));
     } catch (error) {
       console.error('Error generating PDF:', error);

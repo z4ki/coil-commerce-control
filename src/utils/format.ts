@@ -2,13 +2,18 @@
  * Format a monetary value to currency format
  */
 export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('fr-DZ', {
-    style: 'currency',
-    currency: 'DZD',
+  // Format number with French formatting (uses spaces for thousands)
+  const formattedNumber = amount.toLocaleString('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).replace(/\s/g, '\u00A0');;
+  
+  // Keep spaces for PDF display
+  return formattedNumber;
 };
+
+
+
 
 /**
  * Format a date to a readable string

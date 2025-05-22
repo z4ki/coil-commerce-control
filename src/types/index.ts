@@ -111,10 +111,10 @@ export interface DashboardStats {
 // Define the type for company settings
 export interface CompanySettings {
   name: string;
-  logo?: string;
   address: string;
   phone: string;
   email: string;
+  logo?: string;
   nif: string;
   nis: string;
   rc: string;

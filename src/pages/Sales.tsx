@@ -39,7 +39,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
-import { generateSalePDF } from '@/utils/pdfService';
+import { saveSalePDF } from '@/utils/pdfService.tsx';
 
 interface SaleDialogProps {
   open: boolean;
@@ -139,13 +139,11 @@ const Sales = () => {
     }
 
     try {
-      toast.info(t('sales.exportPending'));
-      const doc = await generateSalePDF(sale, client);
-      doc.save(`Devis_${formatDate(sale.date, 'YYYYMMDD')}_${sale.id.substring(0, 4)}.pdf`);
+      await saveSalePDF(sale, client);
       toast.success(t('sales.pdfGenerated'));
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error(error instanceof Error ? error.message : t('sales.pdfError'));
+      toast.error(t('sales.pdfError'));
     }
   };
 

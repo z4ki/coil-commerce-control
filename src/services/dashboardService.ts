@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardStats } from '@/types';
 
@@ -56,6 +55,13 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   
   const outstandingAmount = totalRevenue - revenueCollected;
   
+  // Calculate payment method totals
+  const paymentMethodTotals = {
+    cash: (payments || []).filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0),
+    bank_transfer: (payments || []).filter(p => p.method === 'bank_transfer').reduce((sum, p) => sum + p.amount, 0),
+    check: (payments || []).filter(p => p.method === 'check').reduce((sum, p) => sum + p.amount, 0),
+  };
+  
   return {
     totalSales,
     totalInvoices,
@@ -64,6 +70,7 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     overdueInvoices,
     totalRevenue,
     revenueCollected,
-    outstandingAmount
+    outstandingAmount,
+    paymentMethodTotals
   };
 };

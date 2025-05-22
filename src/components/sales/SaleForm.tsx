@@ -53,6 +53,7 @@ type FormValues = {
   }[];
   transportationFee: number;
   notes?: string;
+  paymentMethod?: string;
 };
 
 interface SaleFormProps {
@@ -116,6 +117,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     items: items,
     transportationFee: sale?.transportationFee || 0,
     notes: sale?.notes || '',
+    paymentMethod: sale?.paymentMethod || '',
   };
 
   const formSchema = z.object({
@@ -138,6 +140,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     })).min(1, { message: t('form.sale.itemRequired') }),
     transportationFee: z.coerce.number().min(0).default(0),
     notes: z.string().optional(),
+    paymentMethod: z.enum(['cash', 'bank_transfer', 'check']).optional(),
   });
 
   const form = useForm<FormValues>({
@@ -337,6 +340,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         taxRate: TAX_RATE,
         totalAmountHT: finalTotals.totalHT,
         totalAmountTTC: finalTotals.totalTTC,
+        paymentMethod: data.paymentMethod || '',
       };
 
       if (sale) {
@@ -405,7 +409,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
       taxRate: TAX_RATE,
       createdAt: sale?.createdAt || new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      paymentMethod: formData.paymentMethod || '',
     };
 
     try {
@@ -516,15 +521,40 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
             />
           </div>
 
+          {/* Notes */}
           <FormField
             control={form.control}
             name="notes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('form.sale.notes')}</FormLabel>
+                <FormLabel>{t('saleForm.notes')}</FormLabel>
                 <FormControl>
-                  <Textarea placeholder={t('form.sale.notes')} {...field} className="resize-none" />
+                  <Textarea {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Payment Method */}
+          <FormField
+            control={form.control}
+            name="paymentMethod"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('saleForm.paymentMethod')}</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('payments.selectMethod')} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="cash">{t('payments.methods.cash')}</SelectItem>
+                    <SelectItem value="bank_transfer">{t('payments.methods.bank_transfer')}</SelectItem>
+                    <SelectItem value="check">{t('payments.methods.check')}</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

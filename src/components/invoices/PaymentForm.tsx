@@ -29,7 +29,7 @@ import { useLanguage } from '@/context/LanguageContext';
 const formSchema = z.object({
   date: z.string(),
   amount: z.number().min(0),
-  method: z.enum(['cash', 'bank_transfer', 'check', 'credit_card']),
+  method: z.enum(['cash', 'bank_transfer', 'check']),
   notes: z.string().optional(),
 });
 
@@ -163,9 +163,8 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="cash">{t('payments.methods.cash')}</SelectItem>
-                  <SelectItem value="bank_transfer">{t('payments.methods.bankTransfer')}</SelectItem>
+                  <SelectItem value="bank_transfer">{t('payments.methods.bank_transfer')}</SelectItem>
                   <SelectItem value="check">{t('payments.methods.check')}</SelectItem>
-                  <SelectItem value="credit_card">{t('payments.methods.creditCard')}</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

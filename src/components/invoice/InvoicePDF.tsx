@@ -137,6 +137,8 @@ const styles = StyleSheet.create({
   },
   infoColumn: {
     width: '45%',
+    borderRightWidth: 0.5,
+    borderColor: '#D7DAE0',
   },
   companyName: {
     fontSize: 10,

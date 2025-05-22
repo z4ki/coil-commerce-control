@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import DataCard from '../components/ui/DataCard';
-import { BarChart2, DollarSign, Users, FileText, AlertTriangle, AlertCircle } from 'lucide-react';
+import { BarChart2, DollarSign, Users, FileText, AlertTriangle, AlertCircle, Wallet, CreditCard } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../utils/format';
@@ -64,12 +64,19 @@ const Dashboard = () => {
     getSalesSummary, 
     getDebtSummary,
     invoices,
-    getSalesByClient
+    getSalesByClient,
+    payments
   } = useAppContext();
   const { t } = useLanguage();
   
   const salesSummary = getSalesSummary();
   const debtSummary = getDebtSummary();
+  
+  // Calculate payment method totals
+  const paymentMethodTotals = {
+    cash: payments.filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0),
+    bank_account: payments.filter(p => ['bank_transfer', 'check'].includes(p.method)).reduce((sum, p) => sum + p.amount, 0)
+  };
   
   // Count unpaid invoices
   const unpaidInvoices = invoices.filter(inv => !inv.isPaid).length;
@@ -112,15 +119,15 @@ const Dashboard = () => {
             description={t('dashboard.overdue').replace('{0}', formatCurrency(debtSummary.overdueDebtTTC))}
           />
           <DataCard
-            title={t('dashboard.totalClients')}
-            value={clients.length}
-            icon={<Users className="h-4 w-4" />}
+            title={t('payments.methods.cash')}
+            value={formatCurrency(paymentMethodTotals.cash)}
+            icon={<Wallet className="h-4 w-4" />}
           />
           <DataCard
-            title={t('dashboard.uninvoicedSales')}
-            value={formatCurrency(salesSummary.uninvoicedSales)}
-            icon={<FileText className="h-4 w-4" />}
-            description={t('dashboard.salesWithoutInvoices')}
+            title={t('dashboard.bankAccountBalance')}
+            value={formatCurrency(paymentMethodTotals.bank_account)}
+            icon={<CreditCard className="h-4 w-4" />}
+            description={t('dashboard.bankAndCheck')}
           />
         </div>
 

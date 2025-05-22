@@ -51,7 +51,7 @@ export const generateInvoicePDF = async (
 ): Promise<Blob> => {
   // Prepare the data for our PDF template
   const items = sales.flatMap(sale => sale.items.map(item => ({
-    description: `BOBINES D'ACIER PRELAQUE ${item.coilThickness || ''}*${item.coilWidth || ''} RAL ${item.topCoatRAL || ''}`,
+    description: `BOBINES D'ACIER PRELAQUE ${item.coilThickness || ''}*${item.coilWidth || ''} RAL ${item.topCoatRAL || ''} / ${item.backCoatRAL || ''}`,
     code: item.coilRef || '',
     weight: item.quantity || 0, // Using quantity as weight
     unitPrice: item.pricePerTon,

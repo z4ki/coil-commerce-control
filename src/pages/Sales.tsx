@@ -243,19 +243,11 @@ const Sales = () => {
                             {sale.isInvoiced && sale.invoiceId && (
                               <Link 
                                 to={`/invoices/${sale.invoiceId}`}
-                                className="text-primary hover:underline hover:text-primary/80"
+                                className="text-xs text-primary hover:underline hover:text-primary/80"
                               >
                                 {t('sales.viewInvoice')}
                               </Link>
                             )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleExportPDF(sale)}
-                            >
-                              <FileText className="h-4 w-4 mr-2" />
-                              <span>{t('general.export')}</span>
-                            </Button>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -266,10 +258,15 @@ const Sales = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleExportPDF(sale)}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                {t('general.export')}
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleAddPayment(sale.id)}>
                                 <DollarSign className="mr-2 h-4 w-4" />
                                 {t('payments.add')}
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => {
                                 setSelectedSale(sale);
                                 setShowAddDialog(true);

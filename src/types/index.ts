@@ -36,14 +36,12 @@ export interface Sale {
   clientId: string;
   date: Date;
   items: SaleItem[];
-  notes?: string;
-  isInvoiced: boolean;
-  invoiceId?: string | null;
-  transportationFee: number;
-  transportationFeeTTC: number;
   totalAmountHT: number;
   totalAmountTTC: number;
-  taxRate: number;
+  isInvoiced: boolean;
+  invoiceId?: string;
+  notes?: string;
+  paymentMethod?: 'cash' | 'bank_transfer' | 'check';
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -74,7 +72,7 @@ export interface Payment {
   saleId: string;
   amount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
+  method: 'cash' | 'bank_transfer' | 'check';
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
@@ -106,6 +104,11 @@ export interface DashboardStats {
   totalRevenue: number;
   revenueCollected: number;
   outstandingAmount: number;
+  paymentMethodTotals: {
+    cash: number;
+    bank_transfer: number;
+    check: number;
+  };
 }
 
 // Define the type for company settings

@@ -91,7 +91,9 @@ const translations: { [key in Language]: Translations } = {
       'month': 'Month: {0}',
       'topClients': 'Top Clients',
       'recentSales': 'Recent Activity',
-      'noRecentActivity': 'Activity data will appear here as you add sales and invoices'
+      'noRecentActivity': 'Activity data will appear here as you add sales and invoices',
+      'bankAccountBalance': 'Bank Account Balance',
+      'bankAndCheck': 'Bank transfers and checks'
     },
 
     // Sales
@@ -620,7 +622,9 @@ const translations: { [key in Language]: Translations } = {
       'month': 'Mois: {0}',
       'topClients': 'Meilleurs clients',
       'recentSales': 'Activité récente',
-      'noRecentActivity': 'Les données d\'activité apparaîtront ici au fur et à mesure que vous ajoutez des ventes et des factures'
+      'noRecentActivity': 'Les données d\'activité apparaîtront ici au fur et à mesure que vous ajoutez des ventes et des factures',
+      'bankAccountBalance': 'Solde Compte Bancaire',
+      'bankAndCheck': 'Virements Bancaires et Chèques'
     },
 
     // Sales

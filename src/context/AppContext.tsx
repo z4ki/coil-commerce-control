@@ -148,31 +148,40 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     return invoices.filter(invoice => invoice.clientId === clientId);
   };
 
-  const getSalesSummary = (): SalesSummary => {
+  const getSalesSummary = () => {
     const totalSales = sales.length;
     const invoicedSales = sales.filter(sale => sale.isInvoiced).length;
     const uninvoicedSales = totalSales - invoicedSales;
 
-    // Calculate total amount
-    const totalAmount = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    // Calculate total amount, handling null/undefined values
+    const totalAmount = sales.reduce((sum, sale) => {
+      const amount = sale.totalAmountTTC || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
 
     // Group sales by month and sort by date
     const monthlySales = sales
-      .reduce((acc: { month: string; amountTTC: number }[], sale) => {
-        const month = new Date(sale.date).toLocaleString('default', { month: 'long' });
-        const existingMonth = acc.find(m => m.month === month);
+      .reduce((acc: { month: string; monthKey: string; amountTTC: number }[], sale) => {
+        const date = new Date(sale.date);
+        const month = date.toLocaleString('default', { month: 'long' });
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        const existingMonth = acc.find(m => m.monthKey === monthKey);
         if (existingMonth) {
-          existingMonth.amountTTC += sale.totalAmountTTC;
+          // Handle null/undefined/NaN values
+          const amount = sale.totalAmountTTC || 0;
+          existingMonth.amountTTC += isNaN(amount) ? 0 : amount;
         } else {
-          acc.push({ month, amountTTC: sale.totalAmountTTC });
+          acc.push({ 
+            month,
+            monthKey,
+            amountTTC: isNaN(sale.totalAmountTTC || 0) ? 0 : (sale.totalAmountTTC || 0)
+          });
         }
         return acc;
       }, [])
-      .sort((a, b) => {
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                       'July', 'August', 'September', 'October', 'November', 'December'];
-        return months.indexOf(a.month) - months.indexOf(b.month);
-      });
+      .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+      .map(({ month, amountTTC }) => ({ month, amountTTC }));
 
     return {
       totalSales,
@@ -188,11 +197,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const debtByClient = clients.reduce((acc: { clientId: string; clientName: string; amountTTC: number }[], client) => {
       // Get all sales for this client
       const clientSales = sales.filter(sale => sale.clientId === client.id);
-      const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+      const totalSalesAmount = clientSales.reduce((sum, sale) => sum + (sale.totalAmountTTC || 0), 0);
       
       // Get all payments for this client's sales
       const clientPayments = payments.filter(p => p.clientId === client.id);
-      const totalPaidAmount = clientPayments.reduce((sum, p) => sum + p.amount, 0);
+      const totalPaidAmount = clientPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       
       // Calculate client's debt (never show negative debt)
       const clientDebt = Math.max(0, totalSalesAmount - totalPaidAmount);
@@ -209,10 +218,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     }, []);
 
     // Calculate total sales
-    const totalSales = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    const totalSales = sales.reduce((sum, sale) => sum + (sale.totalAmountTTC || 0), 0);
     
     // Calculate total paid amount
-    const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalPaid = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
     
     // Calculate total debt (never show negative debt)
     const totalDebt = Math.max(0, totalSales - totalPaid);
@@ -222,17 +231,17 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       .filter(sale => {
         // Get payments for this sale
         const salePayments = payments.filter(p => p.saleId === sale.id);
-        const totalPaid = salePayments.reduce((sum, p) => sum + p.amount, 0);
+        const totalPaid = salePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
         
         // Check if there's remaining amount and it's overdue
         const invoice = invoices.find(inv => inv.id === sale.invoiceId);
-        return totalPaid < sale.totalAmountTTC && invoice && new Date(invoice.dueDate) < new Date();
+        return totalPaid < (sale.totalAmountTTC || 0) && invoice && new Date(invoice.dueDate) < new Date();
       })
       .reduce((sum, sale) => {
         // Calculate remaining amount for this sale
         const salePayments = payments.filter(p => p.saleId === sale.id);
-        const totalPaid = salePayments.reduce((sum, p) => sum + p.amount, 0);
-        return sum + Math.max(0, sale.totalAmountTTC - totalPaid);
+        const totalPaid = salePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        return sum + Math.max(0, (sale.totalAmountTTC || 0) - totalPaid);
       }, 0);
     
     // Upcoming debt is total debt minus overdue debt (never show negative)
@@ -435,11 +444,19 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const getClientBalance = (clientId: string) => {
+    // Get all sales for this client and calculate total, handling null/undefined values
     const clientSales = sales.filter(sale => sale.clientId === clientId);
-    const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+    const totalSalesAmount = clientSales.reduce((sum, sale) => {
+      const amount = sale.totalAmountTTC || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
     
+    // Get all payments for this client and calculate total, handling null/undefined values
     const clientPayments = payments.filter(payment => payment.clientId === clientId);
-    const totalPayments = clientPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalPayments = clientPayments.reduce((sum, payment) => {
+      const amount = payment.amount || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
     
     return {
       totalSalesAmount,

@@ -10,6 +10,7 @@ export interface Client {
   nis?: string;
   rc?: string;
   ai?: string;
+  rib?: string;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -18,13 +19,13 @@ export interface Client {
 export interface SaleItem {
   id: string;
   description: string;
-  coilRef?: string; // Coil reference number
-  coilThickness?: number; // Thickness in mm
-  coilWidth?: number; // Width in mm
-  topCoatRAL?: string; // RAL color code for top coat
-  backCoatRAL?: string; // RAL color code for back coat
-  coilWeight?: number; // Weight of the coil
-  quantity: number; // In tons
+  coilRef?: string;
+  coilThickness?: number;
+  coilWidth?: number;
+  topCoatRAL?: string;
+  backCoatRAL?: string;
+  coilWeight?: number;
+  quantity: number;
   pricePerTon: number;
   totalAmountHT: number;
   totalAmountTTC: number;
@@ -42,6 +43,8 @@ export interface Sale {
   invoiceId?: string;
   notes?: string;
   paymentMethod?: 'cash' | 'bank_transfer' | 'check';
+  transportationFee?: number;
+  taxRate: number;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -49,18 +52,20 @@ export interface Sale {
 // Define the type for an invoice
 export interface Invoice {
   id: string;
-  clientId: string;
   invoiceNumber: string;
+  clientId: string;
+  salesIds: string[];
   date: Date;
   dueDate: Date;
-  salesIds: string[];
   totalAmountHT: number;
   totalAmountTTC: number;
-  isPaid: boolean;
   taxRate: number;
+  isPaid: boolean;
+  paidAt?: Date;
   paymentMethod?: string;
   transportationFee?: number;
   transportationFeeTTC?: number;
+  notes?: string;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -72,7 +77,7 @@ export interface Payment {
   saleId: string;
   amount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check';
+  method: 'cash' | 'bank_transfer' | 'check' | 'deferred';
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
@@ -117,18 +122,18 @@ export interface CompanySettings {
   address: string;
   phone: string;
   email: string;
-  logo?: string;
   nif: string;
   nis: string;
   rc: string;
   ai: string;
+  rib: string;
 }
 
 // Define the type for app settings
 export interface AppSettings {
   company: CompanySettings;
-  language: string;
-  theme: string;
+  language: 'en' | 'fr';
+  theme: 'light' | 'dark';
   currency: string;
 }
 
@@ -140,6 +145,7 @@ export interface SalesSummary {
   totalAmount: number;
   monthlySales: {
     month: string;
+    monthKey?: string;
     amountTTC: number;
   }[];
 }

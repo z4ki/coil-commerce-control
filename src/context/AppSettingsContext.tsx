@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getSettings, updateSettings } from '@/services/settingsService';
 
 interface CompanyProfile {
   name: string;
@@ -9,6 +10,7 @@ interface CompanyProfile {
   nis: string;
   rc: string;
   ai: string;
+  rib: string;
 }
 
 interface InvoiceSettings {
@@ -47,7 +49,8 @@ const defaultSettings: AppSettings = {
     taxId: '12345678901234',
     nis: '98765432109876',
     rc: 'RC-XXXX-XXXX',
-    ai: 'AI-XXXX-XXXX'
+    ai: 'AI-XXXX-XXXX',
+    rib: 'RIB-XXXX-XXXX'
   },
   invoice: {
     nextNumber: 10001,
@@ -61,13 +64,31 @@ const AppSettingsContext = createContext<AppSettingsContextType | undefined>(und
 
 export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const savedSettings = localStorage.getItem('appSettings');
-    return savedSettings ? JSON.parse(savedSettings) : defaultSettings;
+    // Initialize with default settings
+    return defaultSettings;
   });
 
+  // Load settings from database on mount
   useEffect(() => {
-    localStorage.setItem('appSettings', JSON.stringify(settings));
-    
+    const loadSettings = async () => {
+      try {
+        const dbSettings = await getSettings();
+        setSettings(prev => ({
+          ...prev,
+          company: {
+            ...dbSettings.company,
+            taxId: dbSettings.company.nif || '', // Map NIF to taxId
+          },
+          currency: 'DZD'
+        }));
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
     // Apply theme
     if (settings.darkMode) {
       document.documentElement.classList.add('dark');
@@ -79,21 +100,30 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     document.documentElement.lang = settings.language;
   }, [settings]);
 
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
+  const updateAppSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({
       ...prev,
       ...newSettings
     }));
   };
 
-  const updateCompanyProfile = (profile: Partial<CompanyProfile>) => {
-    setSettings(prev => ({
-      ...prev,
-      company: {
-        ...prev.company,
-        ...profile
-      }
-    }));
+  const updateCompanyProfile = async (profile: Partial<CompanyProfile>) => {
+    try {
+      // Update database
+      await updateSettings({ company: profile });
+      
+      // Update local state
+      setSettings(prev => ({
+        ...prev,
+        company: {
+          ...prev.company,
+          ...profile
+        }
+      }));
+    } catch (error) {
+      console.error('Error updating company profile:', error);
+      throw error;
+    }
   };
 
   const updateInvoiceSettings = (invoiceSettings: Partial<InvoiceSettings>) => {
@@ -109,7 +139,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   return (
     <AppSettingsContext.Provider value={{
       settings,
-      updateSettings,
+      updateSettings: updateAppSettings,
       updateCompanyProfile,
       updateInvoiceSettings,
     }}>

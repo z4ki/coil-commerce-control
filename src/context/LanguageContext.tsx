@@ -20,6 +20,13 @@ type NestedTranslations = {
 
 const translations: { [key in Language]: Translations } = {
   en: {
+    // Common
+    'common': {
+      'edit': 'Edit',
+      'delete': 'Delete',
+      'cancel': 'Cancel',
+      'actions': 'Actions'
+    },
     // Status
     'status': {
       'invoiced': 'Invoiced',
@@ -176,16 +183,18 @@ const translations: { [key in Language]: Translations } = {
         'nis': 'NIS ',
         'rc': 'RC ',
         'ai': 'AI ',
+        'rib': 'RIB (Bank Account)',
         'placeholders': {
           'name': 'John Doe',
           'company': 'ACME Corp',
           'email': 'john@example.com',
-          'phone': '+1 (555) 123-4567',
+          'phone': '0660 XX XX XX',
           'address': '123 Main St, City, Country',
           'nif': 'Tax Identification Number',
           'nis': 'Statistical Identification Number',
           'rc': 'Commercial Register Number',
-          'ai': 'Tax Article Number'
+          'ai': 'Tax Article Number',
+          'rib': 'Bank Account Number (RIB)',
         },
         'actions': {
           'cancel': 'Cancel',
@@ -206,7 +215,8 @@ const translations: { [key in Language]: Translations } = {
       'taxId': 'Tax ID',
       'nis': 'NIS Number',
       'rc': 'RC Number',
-      'ai': 'AI Number'
+      'ai': 'AI Number',
+      'rib': 'RIB (Bank Account)'
     },
 
     // Invoice
@@ -381,7 +391,7 @@ const translations: { [key in Language]: Translations } = {
           'name': 'John Doe',
           'company': 'ACME Corp',
           'email': 'john@example.com',
-          'phone': '+1 (555) 123-4567',
+          'phone': '0660 XX XX XX',
           'address': '123 Main St, City, Country',
           'nif': 'Tax Identification Number',
           'nis': 'Statistical Identification Number',
@@ -551,6 +561,13 @@ const translations: { [key in Language]: Translations } = {
     },
   },
   fr: {
+    // Common
+    'common': {
+      'edit': 'Modifier',
+      'delete': 'Supprimer',
+      'cancel': 'Annuler',
+      'actions': 'Actions'
+    },
     // Status
     'status': {
       'invoiced': 'Facturé',
@@ -707,16 +724,18 @@ const translations: { [key in Language]: Translations } = {
         'nis': 'NIS ',
         'rc': 'RC ',
         'ai': 'AI ',
+        'rib': 'RIB (Relevé d\'Identité Bancaire)',
         'placeholders': {
           'name': 'John Doe',
           'company': 'ACME Corp',
           'email': 'john@example.com',
-          'phone': '+1 (555) 123-4567',
+          'phone': '0660 XX XX XX',
           'address': '123 Main St, City, Country',
           'nif': 'Numéro d\'Identification Fiscale',
           'nis': 'Numéro d\'Identification Statistique',
           'rc': 'Numéro du Registre de Commerce',
-          'ai': 'Numéro d\'Article d\'Imposition'
+          'ai': 'Numéro d\'Article d\'Imposition',
+          'rib': 'Numéro de compte bancaire (RIB)',
         },
         'actions': {
           'cancel': 'Annuler',
@@ -728,16 +747,17 @@ const translations: { [key in Language]: Translations } = {
 
     // Company
     'company': {
-      'title': 'Société',
-      'description': 'Gérer les informations de votre société',
-      'name': 'Nom de la société',
+      'title': 'Entreprise',
+      'description': 'Gérer les informations de votre entreprise',
+      'name': 'Nom de l\'entreprise',
       'email': 'Adresse email',
       'phone': 'Numéro de téléphone',
       'address': 'Adresse',
-      'taxId': 'Numéro fiscal',
-      'nis': 'Numéro NIS',
-      'rc': 'Numéro RC',
-      'ai': 'Numéro AI'
+      'taxId': 'Numéro d\'identification fiscale',
+      'nis': 'Numéro d\'identification statistique',
+      'rc': 'Registre du commerce',
+      'ai': 'Article d\'imposition',
+      'rib': 'RIB (Relevé d\'Identité Bancaire)'
     },
 
     // Invoice
@@ -912,7 +932,7 @@ const translations: { [key in Language]: Translations } = {
           'name': 'John Doe',
           'company': 'ACME Corp',
           'email': 'john@example.com',
-          'phone': '+1 (555) 123-4567',
+          'phone': '0660 XX XX XX',
           'address': '123 Main St, City, Country',
           'nif': 'Numéro d\'Identification Fiscale',
           'nis': 'Numéro d\'Identification Statistique',

@@ -1,15 +1,23 @@
 /**
  * Format a monetary value to currency format
  */
-export const formatCurrency = (amount: number): string => {
+export const formatCurrency = (amount: number | undefined | null): string => {
+  // Handle undefined, null, or NaN values
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return '0,00';
+  }
+
+  // Ensure amount is a number and handle negative values
+  const numericAmount = Math.abs(Number(amount));
+  
   // Format number with French formatting (uses spaces for thousands)
-  const formattedNumber = amount.toLocaleString('fr-FR', {
+  const formattedNumber = numericAmount.toLocaleString('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).replace(/\s/g, '\u00A0');;
+  }).replace(/\s/g, '\u00A0');
   
-  // Keep spaces for PDF display
-  return formattedNumber;
+  // Add negative sign if needed
+  return amount < 0 ? `-${formattedNumber}` : formattedNumber;
 };
 
 

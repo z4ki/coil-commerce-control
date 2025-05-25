@@ -187,6 +187,14 @@ const Settings = () => {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="nif">{t('company.nif')}</Label>
+                    <Input
+                      id="nif"
+                      value={settings.company.nif}
+                      onChange={(e) => updateCompanyProfile({ nif: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="nis">{t('company.nis')}</Label>
                     <Input
                       id="nis"
@@ -208,6 +216,14 @@ const Settings = () => {
                       id="ai"
                       value={settings.company.ai}
                       onChange={(e) => updateCompanyProfile({ ai: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rib">{t('company.rib')}</Label>
+                    <Input
+                      id="rib"
+                      value={settings.company.rib}
+                      onChange={(e) => updateCompanyProfile({ rib: e.target.value })}
                     />
                   </div>
                 </div>

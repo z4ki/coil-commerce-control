@@ -6,6 +6,7 @@ interface CompanyInfoProps {
   ai: string;
   nif: string;
   nis: string;
+  rib: string;
   address: string;
 }
 
@@ -15,6 +16,7 @@ export const CompanyInfo: React.FC<CompanyInfoProps> = ({
   ai,
   nif,
   nis,
+  rib,
   address,
 }) => {
   return (
@@ -25,6 +27,7 @@ export const CompanyInfo: React.FC<CompanyInfoProps> = ({
         <p>AI: {ai}</p>
         <p>NIF: {nif}</p>
         <p>NIS: {nis}</p>
+        <p>RIB: {rib}</p>
         <p className="whitespace-pre-wrap">{address}</p>
       </div>
     </div>

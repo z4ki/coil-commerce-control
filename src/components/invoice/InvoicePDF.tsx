@@ -289,7 +289,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
 
         {/* Company Title Section (Centered Below Header) */}
         <View style={styles.companyTitleContainer}>
-          <Text style={styles.companyTitleHeader}>Eurl Groupe HA</Text>
+          <Text style={styles.companyTitleHeader}>Eurl Groupe Hamel Ali</Text>
           <Text style={styles.companyDescription}>
             Usine de revêtement et traitement des métaux
           </Text>
@@ -327,6 +327,10 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>NIS: </Text>
             <Text style={styles.normalText}>{companyInfo.nis}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.boldText}>RIB (Badr Teleghma) :</Text>
+            <Text style={styles.normalText}>00300841000264039071</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>Adresse: </Text>

@@ -28,6 +28,7 @@ const formSchema = z.object({
   nis: z.string().optional(),
   rc: z.string().optional(),
   ai: z.string().optional(),
+  rib: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -51,6 +52,7 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
     nis: client?.nis || '',
     rc: client?.rc || '',
     ai: client?.ai || '',
+    rib: client?.rib || '',
   };
 
   const form = useForm<FormValues>({
@@ -74,6 +76,7 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
         nis: data.nis,
         rc: data.rc,
         ai: data.ai,
+        rib: data.rib,
       };
       addClient(newClient);
       toast.success(`${data.name} has been added`);
@@ -219,6 +222,20 @@ const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="rib"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('clients.form.rib')}</FormLabel>
+              <FormControl>
+                <Input placeholder={t('clients.form.placeholders.rib')} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="outline" type="button" onClick={onSuccess}>

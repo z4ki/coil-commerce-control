@@ -74,8 +74,11 @@ const Dashboard = () => {
   
   // Calculate payment method totals
   const paymentMethodTotals = {
-    cash: payments.filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0),
-    bank_account: payments.filter(p => ['bank_transfer', 'check'].includes(p.method)).reduce((sum, p) => sum + p.amount, 0)
+    cash: payments.filter(p => p.method === 'cash').reduce((sum, p) => sum + (p.amount || 0), 0),
+    bank_transfer: payments.filter(p => p.method === 'bank_transfer').reduce((sum, p) => sum + (p.amount || 0), 0),
+    check: payments.filter(p => p.method === 'check').reduce((sum, p) => sum + (p.amount || 0), 0),
+    deferred: payments.filter(p => p.method === 'deferred').reduce((sum, p) => sum + (p.amount || 0), 0),
+    bank_account: payments.filter(p => ['bank_transfer', 'check'].includes(p.method)).reduce((sum, p) => sum + (p.amount || 0), 0)
   };
   
   // Count unpaid invoices

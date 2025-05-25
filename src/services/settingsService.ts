@@ -14,6 +14,7 @@ interface DbSettings {
   nis: string | null;
   rc: string | null;
   ai: string | null;
+  rib: string | null;
 }
 
 interface UpdateSettingsInput {
@@ -27,6 +28,7 @@ interface UpdateSettingsInput {
     nis?: string;
     rc?: string;
     ai?: string;
+    rib?: string;
   };
   currency?: string;
 }
@@ -40,7 +42,8 @@ const defaultCompanySettings: CompanySettings = {
   nif: '',
   nis: '',
   rc: '',
-  ai: ''
+  ai: '',
+  rib: ''
 };
 
 const defaultSettings: AppSettings = {
@@ -85,10 +88,6 @@ export const getSettings = async (): Promise<AppSettings> => {
 
 export const updateSettings = async (settings: UpdateSettingsInput): Promise<AppSettings> => {
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
     const { data, error } = await supabase
       .from('settings')
       .update({
@@ -102,9 +101,9 @@ export const updateSettings = async (settings: UpdateSettingsInput): Promise<App
         nis: settings.company?.nis,
         rc: settings.company?.rc,
         ai: settings.company?.ai,
+        rib: settings.company?.rib,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', user.id)
       .select()
       .single();
     
@@ -132,7 +131,8 @@ const mapSettingsFromDb = (data: DbSettings): AppSettings => {
       nif: data.nif || defaultCompanySettings.nif,
       nis: data.nis || defaultCompanySettings.nis,
       rc: data.rc || defaultCompanySettings.rc,
-      ai: data.ai || defaultCompanySettings.ai
+      ai: data.ai || defaultCompanySettings.ai,
+      rib: data.rib || defaultCompanySettings.rib
     },
     language: 'fr',
     theme: 'light',
@@ -148,8 +148,14 @@ const createDefaultSettings = async (): Promise<AppSettings> => {
       company_address: defaultCompanySettings.address,
       company_phone: defaultCompanySettings.phone,
       company_email: defaultCompanySettings.email,
+      company_logo: null,
       tax_rate: 0.19,
-      currency: defaultSettings.currency
+      currency: defaultSettings.currency,
+      nif: defaultCompanySettings.nif,
+      nis: defaultCompanySettings.nis,
+      rc: defaultCompanySettings.rc,
+      ai: defaultCompanySettings.ai,
+      rib: defaultCompanySettings.rib
     };
     
     const { data, error } = await supabase

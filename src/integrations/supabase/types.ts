@@ -328,6 +328,7 @@ export type Database = {
           nif: string | null
           nis: string | null
           rc: string | null
+          rib: string | null
           tax_rate: number
         }
         Insert: {
@@ -342,6 +343,7 @@ export type Database = {
           nif?: string | null
           nis?: string | null
           rc?: string | null
+          rib?: string | null
           tax_rate: number
         }
         Update: {
@@ -356,6 +358,7 @@ export type Database = {
           nif?: string | null
           nis?: string | null
           rc?: string | null
+          rib?: string | null
           tax_rate?: number
         }
         Relationships: []

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAppContext } from '../../context/AppContext';
@@ -33,6 +33,8 @@ import { useLanguage } from '../../context/LanguageContext';
 // Tax rate constant
 const TAX_RATE = 0.19; // 19%
 
+type PaymentMethod = 'cash' | 'bank_transfer' | 'check';
+
 type FormValues = {
   clientId: string;
   date: string;
@@ -49,11 +51,10 @@ type FormValues = {
     pricePerTon: number;
     totalAmountHT: number;
     totalAmountTTC: number;
-    sale_id?: string;
   }[];
   transportationFee: number;
   notes?: string;
-  paymentMethod?: string;
+  paymentMethod: PaymentMethod;
 };
 
 interface SaleFormProps {
@@ -80,6 +81,29 @@ interface SaleItemFormData {
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const { addSale, updateSale, clients, getClientById } = useAppContext();
   const { t } = useLanguage();
+
+  const formSchema = z.object({
+    clientId: z.string().min(1, { message: t('form.required') }),
+    date: z.string().min(1, { message: t('form.required') }),
+    items: z.array(z.object({
+      id: z.string(),
+      description: z.string().min(1, { message: t('form.required') }),
+      coilRef: z.string().optional(),
+      coilThickness: z.coerce.number().min(0).optional(),
+      coilWidth: z.coerce.number().min(0).optional(),
+      topCoatRAL: z.string().optional(),
+      backCoatRAL: z.string().optional(),
+      coilWeight: z.coerce.number().min(0).optional(),
+      quantity: z.coerce.number().positive({ message: t('form.sale.quantityPositive') }),
+      pricePerTon: z.coerce.number().positive({ message: t('form.sale.pricePositive') }),
+      totalAmountHT: z.number(),
+      totalAmountTTC: z.number(),
+    })).min(1, { message: t('form.sale.itemRequired') }),
+    transportationFee: z.coerce.number().min(0),
+    notes: z.string().optional(),
+    paymentMethod: z.enum(['cash', 'bank_transfer', 'check'])
+  }) as z.ZodType<FormValues>;
+
   const [items, setItems] = useState<SaleItemFormData[]>(
     sale?.items.map(item => ({
       id: item.id,
@@ -111,47 +135,35 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
-  const defaultValues: FormValues = {
-    clientId: sale?.clientId || '',
-    date: formatDateInput(sale?.date || new Date()),
-    items: items,
-    transportationFee: sale?.transportationFee || 0,
-    notes: sale?.notes || '',
-    paymentMethod: sale?.paymentMethod || '',
-  };
-
-  const formSchema = z.object({
-    clientId: z.string().min(1, { message: t('form.required') }),
-    date: z.string().min(1, { message: t('form.required') }),
-    items: z.array(z.object({
-      id: z.string(),
-      description: z.string().min(1, { message: t('form.required') }),
-      coilRef: z.string().optional(),
-      coilThickness: z.coerce.number().min(0).optional(),
-      coilWidth: z.coerce.number().min(0).optional(),
-      topCoatRAL: z.string().optional(),
-      backCoatRAL: z.string().optional(),
-      coilWeight: z.coerce.number().min(0).optional(),
-      quantity: z.coerce.number().positive({ message: t('form.sale.quantityPositive') }),
-      pricePerTon: z.coerce.number().positive({ message: t('form.sale.pricePositive') }),
-      totalAmountHT: z.number(),
-      totalAmountTTC: z.number(),
-      sale_id: z.string().optional()
-    })).min(1, { message: t('form.sale.itemRequired') }),
-    transportationFee: z.coerce.number().min(0).default(0),
-    notes: z.string().optional(),
-    paymentMethod: z.enum(['cash', 'bank_transfer', 'check']).optional(),
-  });
-
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: {
+      clientId: sale?.clientId || '',
+      date: formatDateInput(sale?.date || new Date()),
+      items: sale?.items.map(item => ({
+        id: item.id,
+        description: item.description,
+        coilRef: item.coilRef,
+        coilThickness: item.coilThickness,
+        coilWidth: item.coilWidth,
+        topCoatRAL: item.topCoatRAL,
+        backCoatRAL: item.backCoatRAL,
+        coilWeight: item.coilWeight,
+        quantity: item.quantity,
+        pricePerTon: item.pricePerTon,
+        totalAmountHT: item.totalAmountHT,
+        totalAmountTTC: item.totalAmountTTC
+      })) || [],
+      transportationFee: sale?.transportationFee || 0,
+      notes: sale?.notes || '',
+      paymentMethod: sale?.paymentMethod || 'cash'
+    }
   });
 
   // Debug logging for form state
   useEffect(() => {
     const subscription = form.watch((value) => {
-      console.log("Form values:", value);
+      // console.log("Form values:", value);
     });
     return () => subscription.unsubscribe();
   }, [form.watch]);
@@ -288,19 +300,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     };
   };
 
-  const onSubmit = async (data: FormValues) => {
-    console.log("Submitting form with data:", data);
-    
-    if (!data.clientId) {
-      toast.error(t('form.required'));
-      return;
-    }
-    
-    if (!data.items || data.items.length === 0) {
-      toast.error(t('form.sale.itemRequired'));
-      return;
-    }
-    
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       // Calculate final totals first
       const finalTotals = calculateFinalTotal();
@@ -336,11 +336,10 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         isInvoiced: sale?.isInvoiced || false,
         invoiceId: sale?.invoiceId,
         transportationFee: Number(data.transportationFee || 0),
-        transportationFeeTTC: Number(data.transportationFee || 0) * (1 + TAX_RATE),
         taxRate: TAX_RATE,
         totalAmountHT: finalTotals.totalHT,
         totalAmountTTC: finalTotals.totalTTC,
-        paymentMethod: data.paymentMethod || '',
+        paymentMethod: data.paymentMethod
       };
 
       if (sale) {
@@ -406,11 +405,10 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       isInvoiced: sale?.isInvoiced || false,
       notes: formData.notes,
       transportationFee: formData.transportationFee,
-      transportationFeeTTC: formData.transportationFee * (1 + TAX_RATE),
       taxRate: TAX_RATE,
       createdAt: sale?.createdAt || new Date(),
       updatedAt: new Date(),
-      paymentMethod: formData.paymentMethod || '',
+      paymentMethod: formData.paymentMethod,
     };
 
     try {
@@ -538,15 +536,18 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
           {/* Payment Method */}
           <FormField
-            control={form.control}
+            control={form.control as any}
             name="paymentMethod"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('saleForm.paymentMethod')}</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <FormLabel>{t('sales.paymentMethod')}</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value || undefined}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder={t('payments.selectMethod')} />
+                      <SelectValue placeholder={t('sales.selectPaymentMethod')} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>

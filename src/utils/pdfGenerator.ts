@@ -143,7 +143,8 @@ const formatPaymentMethod = (method: string): string => {
   const methods: { [key: string]: string } = {
     cash: 'Espèces',
     bank_transfer: 'Virement bancaire',
-    check: 'Chèque'
+    check: 'Chèque',
+    term: 'À terme'
   };
   return methods[method] || method;
 }; 

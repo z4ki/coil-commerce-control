@@ -11,48 +11,54 @@ export type Database = {
     Tables: {
       clients: {
         Row: {
-          address: string
-          ai: string | null
-          company: string
-          created_at: string
-          email: string
           id: string
           name: string
+          company: string
+          email: string
+          phone: string
+          address: string
           nif: string | null
           nis: string | null
-          notes: string | null
-          phone: string
           rc: string | null
+          ai: string | null
+          rib: string | null
+          notes: string | null
+          credit_balance: number
+          created_at: string
           updated_at: string | null
         }
         Insert: {
-          address: string
-          ai?: string | null
-          company: string
-          created_at?: string
-          email: string
           id?: string
           name: string
+          company: string
+          email: string
+          phone: string
+          address: string
           nif?: string | null
           nis?: string | null
-          notes?: string | null
-          phone: string
           rc?: string | null
+          ai?: string | null
+          rib?: string | null
+          notes?: string | null
+          credit_balance?: number
+          created_at?: string
           updated_at?: string | null
         }
         Update: {
-          address?: string
-          ai?: string | null
-          company?: string
-          created_at?: string
-          email?: string
           id?: string
           name?: string
+          company?: string
+          email?: string
+          phone?: string
+          address?: string
           nif?: string | null
           nis?: string | null
-          notes?: string | null
-          phone?: string
           rc?: string | null
+          ai?: string | null
+          rib?: string | null
+          notes?: string | null
+          credit_balance?: number
+          created_at?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -136,43 +142,69 @@ export type Database = {
       }
       payments: {
         Row: {
-          amount: number
-          created_at: string
-          date: string
           id: string
-          invoice_id: string
+          sale_id: string
+          client_id: string
+          bulk_payment_id: string | null
+          date: string
+          amount: number
           method: string
           notes: string | null
+          generates_credit: boolean
+          credit_amount: number
+          created_at: string
           updated_at: string | null
         }
         Insert: {
-          amount: number
-          created_at?: string
-          date: string
           id?: string
-          invoice_id: string
+          sale_id: string
+          client_id: string
+          bulk_payment_id?: string | null
+          date: string
+          amount: number
           method: string
           notes?: string | null
+          generates_credit?: boolean
+          credit_amount?: number
+          created_at?: string
           updated_at?: string | null
         }
         Update: {
-          amount?: number
-          created_at?: string
-          date?: string
           id?: string
-          invoice_id?: string
+          sale_id?: string
+          client_id?: string
+          bulk_payment_id?: string | null
+          date?: string
+          amount?: number
           method?: string
           notes?: string | null
+          generates_credit?: boolean
+          credit_amount?: number
+          created_at?: string
           updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "payments_invoice_id_fkey"
-            columns: ["invoice_id"]
+            foreignKeyName: "payments_sale_id_fkey"
+            columns: ["sale_id"]
             isOneToOne: false
-            referencedRelation: "invoices"
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_bulk_payment_id_fkey"
+            columns: ["bulk_payment_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_payments"
+            referencedColumns: ["id"]
+          }
         ]
       }
       profiles: {
@@ -363,12 +395,61 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_transactions: {
+        Row: {
+          id: string
+          client_id: string
+          amount: number
+          type: 'credit' | 'debit'
+          source_type: 'payment' | 'refund' | 'manual_adjustment' | 'credit_use'
+          source_id: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          amount: number
+          type: 'credit' | 'debit'
+          source_type: 'payment' | 'refund' | 'manual_adjustment' | 'credit_use'
+          source_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          amount?: number
+          type?: 'credit' | 'debit'
+          source_type?: 'payment' | 'refund' | 'manual_adjustment' | 'credit_use'
+          source_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_payment_with_credit: {
+        Args: {
+          payment_id: string
+        }
+        Returns: void
+      }
     }
     Enums: {
       [_ in never]: never

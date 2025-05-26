@@ -10,7 +10,7 @@ interface DbSaleBase {
   is_invoiced: boolean;
   invoice_id: string | null;
   notes: string | null;
-  payment_method: string | null;
+  payment_method: 'cash' | 'bank_transfer' | 'check' | null;
   tax_rate: number;
   transportation_fee: number | null;
   created_at: string;
@@ -38,6 +38,11 @@ interface SupabaseResponse extends DbSaleBase {
 }
 
 type DbSaleInsert = Omit<DbSaleBase, 'id' | 'created_at' | 'updated_at'>;
+
+// Type for raw sale data from Supabase
+interface RawSaleData extends DbSaleBase {
+  sale_items: DbSaleItem[];
+}
 
 // Helper to convert database sale item to our application SaleItem type
 const mapDbSaleItemToSaleItem = (dbItem: DbSaleItem): SaleItem => {
@@ -78,6 +83,9 @@ const mapDbSaleToSale = async (dbSale: SupabaseResponse): Promise<Sale> => {
   const totalAmountHT = itemsTotalHT + transportationFee;
   const totalAmountTTC = itemsTotalTTC + transportationFeeTTC;
 
+  // Validate payment method
+  const paymentMethod = dbSale.payment_method as 'cash' | 'bank_transfer' | 'check' | null;
+
   return {
     id: dbSale.id,
     clientId: dbSale.client_id,
@@ -88,30 +96,13 @@ const mapDbSaleToSale = async (dbSale: SupabaseResponse): Promise<Sale> => {
     isInvoiced: dbSale.is_invoiced,
     invoiceId: dbSale.invoice_id || undefined,
     notes: dbSale.notes || undefined,
-    paymentMethod: dbSale.payment_method as Sale['paymentMethod'] || undefined,
+    paymentMethod: paymentMethod || undefined,
     transportationFee: dbSale.transportation_fee || undefined,
     taxRate: dbSale.tax_rate,
     createdAt: new Date(dbSale.created_at),
     updatedAt: dbSale.updated_at ? new Date(dbSale.updated_at) : undefined
   };
 };
-
-// Type for raw sale data from Supabase
-interface RawSaleData {
-  id: string;
-  client_id: string;
-  date: string;
-  total_amount: number;
-  is_invoiced: boolean;
-  invoice_id: string | null;
-  notes: string | null;
-  payment_method: string | null;
-  tax_rate: number;
-  transportation_fee: number | null;
-  created_at: string;
-  updated_at: string | null;
-  sale_items: DbSaleItem[];
-}
 
 export const getSales = async (): Promise<Sale[]> => {
   const { data: salesData, error } = await supabase
@@ -128,30 +119,11 @@ export const getSales = async (): Promise<Sale[]> => {
   }
   
   // Map each sale and include its items
-  const salesWithItems = await Promise.all((salesData || []).map(async (rawSale: RawSaleData) => {
-    const sale: DbSaleBase = {
-      id: rawSale.id,
-      client_id: rawSale.client_id,
-      date: rawSale.date,
-      total_amount: rawSale.total_amount,
-      is_invoiced: rawSale.is_invoiced,
-      invoice_id: rawSale.invoice_id,
-      notes: rawSale.notes,
-      payment_method: rawSale.payment_method || null,
-      tax_rate: rawSale.tax_rate,
-      transportation_fee: rawSale.transportation_fee,
-      created_at: rawSale.created_at,
-      updated_at: rawSale.updated_at
-    };
-
-    const { data: items } = await supabase
-      .from('sale_items')
-      .select('*')
-      .eq('sale_id', sale.id);
-    
+  const salesWithItems = await Promise.all((salesData || []).map(async (rawSale: any) => {
     const saleWithItems: SupabaseResponse = {
-      ...sale,
-      sale_items: (items || []) as DbSaleItem[]
+      ...rawSale,
+      payment_method: rawSale.payment_method || null,
+      sale_items: rawSale.sale_items || []
     };
     
     return mapDbSaleToSale(saleWithItems);
@@ -163,7 +135,10 @@ export const getSales = async (): Promise<Sale[]> => {
 export const getSaleById = async (id: string): Promise<Sale | null> => {
   const { data: sale, error } = await supabase
     .from('sales')
-    .select()
+    .select(`
+      *,
+      sale_items (*)
+    `)
     .eq('id', id)
     .single();
   
@@ -177,15 +152,20 @@ export const getSaleById = async (id: string): Promise<Sale | null> => {
   
   if (!sale) return null;
 
-  // Get sale items
-  const { data: items } = await supabase
-    .from('sale_items')
-    .select('*')
-    .eq('sale_id', id);
-  
   const saleWithItems: SupabaseResponse = {
-    ...(sale as DbSaleBase),
-    sale_items: (items || []) as DbSaleItem[]
+    id: sale.id,
+    client_id: sale.client_id,
+    date: sale.date,
+    total_amount: sale.total_amount,
+    is_invoiced: sale.is_invoiced,
+    invoice_id: sale.invoice_id,
+    notes: sale.notes,
+    payment_method: sale.payment_method as 'cash' | 'bank_transfer' | 'check' | null,
+    tax_rate: sale.tax_rate,
+    transportation_fee: sale.transportation_fee,
+    created_at: sale.created_at,
+    updated_at: sale.updated_at,
+    sale_items: sale.sale_items || []
   };
   
   return mapDbSaleToSale(saleWithItems);
@@ -194,7 +174,10 @@ export const getSaleById = async (id: string): Promise<Sale | null> => {
 export const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
   const { data, error } = await supabase
     .from('sales')
-    .select('*')
+    .select(`
+      *,
+      sale_items (*)
+    `)
     .eq('client_id', clientId)
     .order('date', { ascending: false });
   
@@ -203,12 +186,23 @@ export const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
     throw error;
   }
   
-  const salesWithItems = await Promise.all((data || []).map(mapDbSaleToSale));
+  const salesWithItems = await Promise.all((data || []).map(async (rawSale: any) => {
+    const saleWithItems: SupabaseResponse = {
+      ...rawSale,
+      payment_method: rawSale.payment_method || null,
+      sale_items: rawSale.sale_items || []
+    };
+    
+    return mapDbSaleToSale(saleWithItems);
+  }));
   return salesWithItems;
 };
 
 export const getSalesByFilter = async (filter: SalesFilter): Promise<Sale[]> => {
-  let query = supabase.from('sales').select('*');
+  let query = supabase.from('sales').select(`
+    *,
+    sale_items (*)
+  `);
   
   if (filter.clientId) {
     query = query.eq('client_id', filter.clientId);
@@ -235,7 +229,15 @@ export const getSalesByFilter = async (filter: SalesFilter): Promise<Sale[]> => 
     throw error;
   }
   
-  const salesWithItems = await Promise.all((data || []).map(mapDbSaleToSale));
+  const salesWithItems = await Promise.all((data || []).map(async (rawSale: any) => {
+    const saleWithItems: SupabaseResponse = {
+      ...rawSale,
+      payment_method: rawSale.payment_method || null,
+      sale_items: rawSale.sale_items || []
+    };
+    
+    return mapDbSaleToSale(saleWithItems);
+  }));
   return salesWithItems;
 };
 
@@ -305,15 +307,29 @@ export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'cr
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
+  // First update the sale
+  const { data: updatedSale, error: saleError } = await supabase
     .from('sales')
     .update(updateData)
     .eq('id', id)
     .select()
     .single();
 
-  if (error) throw error;
-  return mapDbSaleToSale(data as SupabaseResponse);
+  if (saleError) throw saleError;
+  if (!updatedSale) throw new Error('Failed to update sale');
+
+  // Get sale items
+  const { data: items } = await supabase
+    .from('sale_items')
+    .select('*')
+    .eq('sale_id', id);
+  
+  const saleWithItems: SupabaseResponse = {
+    ...(updatedSale as DbSaleBase),
+    sale_items: (items || []) as DbSaleItem[]
+  };
+  
+  return mapDbSaleToSale(saleWithItems);
 };
 
 export const deleteSale = async (id: string): Promise<void> => {

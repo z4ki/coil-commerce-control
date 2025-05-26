@@ -1,38 +1,22 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Payment, BulkPayment } from '@/types';
+import { addOverpaymentCredit } from './creditService';
+import { getSaleById } from './saleService';
+import { Database } from '@/integrations/supabase/types';
 
-interface DbPaymentResponse {
-  id: string;
-  sale_id: string;
-  client_id: string;
-  bulk_payment_id?: string | null;
-  date: string;
-  amount: number;
-  method: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string | null;
-}
+type DbPayment = Database['public']['Tables']['payments']['Row'];
+type DbPaymentInsert = Database['public']['Tables']['payments']['Insert'];
 
-interface DbPaymentInsert {
-  sale_id: string;
-  client_id: string;
-  bulk_payment_id?: string | null;
-  date: string;
-  amount: number;
-  method: string;
-  notes: string | null;
-}
-
-const mapDbPaymentToPayment = (dbPayment: DbPaymentResponse): Payment => ({
+const mapDbPaymentToPayment = (dbPayment: DbPayment): Payment => ({
   id: dbPayment.id,
   saleId: dbPayment.sale_id,
   clientId: dbPayment.client_id,
-  bulkPaymentId: dbPayment.bulk_payment_id || undefined,
-  date: new Date(dbPayment.date),
   amount: dbPayment.amount,
-  method: dbPayment.method as Payment['method'],
+  date: new Date(dbPayment.date),
+  method: dbPayment.method as 'cash' | 'bank_transfer' | 'check',
   notes: dbPayment.notes || undefined,
+  generatesCredit: dbPayment.generates_credit,
+  creditAmount: dbPayment.credit_amount,
   createdAt: new Date(dbPayment.created_at),
   updatedAt: dbPayment.updated_at ? new Date(dbPayment.updated_at) : undefined,
 });
@@ -42,10 +26,14 @@ export const getPaymentsBySale = async (saleId: string): Promise<Payment[]> => {
     .from('payments')
     .select('*')
     .eq('sale_id', saleId)
-    .order('date', { ascending: false });
-    
-  if (error) throw error;
-  return (data as unknown as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching payments:', error);
+    throw error;
+  }
+
+  return (data || []).map(mapDbPaymentToPayment);
 };
 
 export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> => {
@@ -55,8 +43,12 @@ export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> 
     .eq('client_id', clientId)
     .order('date', { ascending: false });
 
-  if (error) throw error;
-  return (data as unknown as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+  if (error) {
+    console.error('Error fetching payments:', error);
+    throw error;
+  }
+
+  return (data || []).map(mapDbPaymentToPayment);
 };
 
 export const getPayments = async (): Promise<Payment[]> => {
@@ -66,35 +58,61 @@ export const getPayments = async (): Promise<Payment[]> => {
     .order('date', { ascending: false });
 
   if (error) throw error;
-  return (data as unknown as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+  return (data as unknown as DbPayment[]).map(mapDbPaymentToPayment);
 };
 
-export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
-  const insertData: DbPaymentInsert = {
+export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'generatesCredit' | 'creditAmount'>): Promise<Payment> => {
+  // Get the sale to check for overpayment
+  const sale = await getSaleById(payment.saleId);
+  if (!sale) {
+    throw new Error('Sale not found');
+  }
+
+  // Calculate total paid for this sale
+  const { data: existingPayments } = await supabase
+    .from('payments')
+    .select('amount')
+    .eq('sale_id', payment.saleId);
+
+  const totalPaid = (existingPayments || []).reduce((sum, p) => sum + p.amount, 0);
+  const newTotal = totalPaid + payment.amount;
+  const overpaymentAmount = Math.max(0, newTotal - sale.totalAmountTTC);
+
+  // Prepare payment data
+  const paymentData: DbPaymentInsert = {
     sale_id: payment.saleId,
     client_id: payment.clientId,
     date: payment.date.toISOString(),
     amount: payment.amount,
     method: payment.method,
-    notes: payment.notes || null
+    notes: payment.notes || null,
+    generates_credit: overpaymentAmount > 0,
+    credit_amount: overpaymentAmount,
   };
 
-  // Only add bulk_payment_id if it exists
-  if (payment.bulkPaymentId) {
-    insertData.bulk_payment_id = payment.bulkPaymentId;
-  }
-
+  // Insert the payment
   const { data, error } = await supabase
     .from('payments')
-    .insert([insertData])
+    .insert(paymentData)
     .select()
     .single();
-    
+
   if (error) {
     console.error('Error adding payment:', error);
     throw error;
   }
-  return mapDbPaymentToPayment(data as unknown as DbPaymentResponse);
+
+  // If there's an overpayment, create a credit transaction
+  if (overpaymentAmount > 0) {
+    await addOverpaymentCredit(
+      payment.clientId,
+      overpaymentAmount,
+      data.id,
+      'Overpayment from sale ' + payment.saleId
+    );
+  }
+
+  return mapDbPaymentToPayment(data);
 };
 
 export const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> => {
@@ -126,7 +144,7 @@ export const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> =
     .select();
 
   if (error) throw error;
-  return (data as DbPaymentResponse[]).map(mapDbPaymentToPayment);
+  return (data as DbPayment[]).map(mapDbPaymentToPayment);
 };
 
 export const updatePayment = async (id: string, payment: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Payment> => {
@@ -149,14 +167,41 @@ export const updatePayment = async (id: string, payment: Partial<Omit<Payment, '
     .single();
     
   if (error) throw error;
-  return mapDbPaymentToPayment(data as DbPaymentResponse);
+  return mapDbPaymentToPayment(data as DbPayment);
 };
 
-export const deletePayment = async (id: string): Promise<void> => {
-  const { error } = await supabase
+export const deletePayment = async (paymentId: string): Promise<void> => {
+  // Get the payment first to check if it generated credit
+  const { data: payment, error: fetchError } = await supabase
     .from('payments')
-    .delete()
-    .eq('id', id);
-    
-  if (error) throw error;
+    .select('*')
+    .eq('id', paymentId)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching payment:', fetchError);
+    throw fetchError;
+  }
+
+  // If the payment generated credit, we need to handle that in the transaction
+  if (payment.generates_credit) {
+    const { error } = await supabase.rpc('delete_payment_with_credit', {
+      payment_id: paymentId
+    });
+
+    if (error) {
+      console.error('Error deleting payment with credit:', error);
+      throw error;
+    }
+  } else {
+    const { error } = await supabase
+      .from('payments')
+      .delete()
+      .eq('id', paymentId);
+
+    if (error) {
+      console.error('Error deleting payment:', error);
+      throw error;
+    }
+  }
 };

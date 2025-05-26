@@ -182,6 +182,7 @@ const styles = StyleSheet.create({
   weightCol: {
     width: '16%',
     color: '#5E6470',
+    marginLeft: 10,
   },
   priceCol: {
     width: '16%',

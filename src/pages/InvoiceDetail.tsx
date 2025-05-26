@@ -170,7 +170,6 @@ const InvoiceDetail = () => {
       case 'cash': return 'Cash';
       case 'bank_transfer': return 'Bank Transfer';
       case 'check': return 'Check';
-      case 'credit_card': return 'Credit Card';
       default: return method;
     }
   };

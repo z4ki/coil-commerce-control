@@ -1,3 +1,4 @@
+import { time } from 'console';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type Language = 'en' | 'fr';
@@ -143,6 +144,10 @@ const translations: { [key in Language]: Translations } = {
       'unpaid': 'Unpaid',
       'clientNotFound': 'Client not found',
       'pdfGenerated': 'Quotation generated successfully',
+      'paymentMethod': 'Payment Method',
+      'totalAmount': 'Total Amount',
+      'amountPaid': 'Amount Paid',
+      'actions': 'Actions',
       'pdfError': 'Error generating quotation'
     },
 
@@ -200,7 +205,8 @@ const translations: { [key in Language]: Translations } = {
           'cancel': 'Cancel',
           'add': 'Add Client',
           'update': 'Update Client'
-        }
+        },
+        
       }
     },
 
@@ -360,6 +366,7 @@ const translations: { [key in Language]: Translations } = {
 
       // Payment Form
       'payment': {
+        'title': 'Payment',
         'method': 'Payment Method',
         'methods': {
           'cash': 'Cash',
@@ -433,7 +440,8 @@ const translations: { [key in Language]: Translations } = {
       'invoiceStatus': 'Invoice Status',
       'createInvoice': 'Créer une facture',
       'success': 'Vente enregistrée avec succès',
-      'error': 'Erreur lors de l\'enregistrement de la vente'
+      'error': 'Erreur lors de l\'enregistrement de la vente',
+      'paymentMethod': 'Payment method',
     },
 
     // Client Form
@@ -488,7 +496,8 @@ const translations: { [key in Language]: Translations } = {
       'createDesc': 'Fill in the details below to create a new invoice.',
       'clientNotFound': 'Client not found',
       'pdfGenerated': 'Invoice generated successfully',
-      'pdfError': 'Error generating invoice'
+      'pdfError': 'Error generating invoice',
+      'invoice': 'Invoice',
     },
 
     // Payments
@@ -514,6 +523,7 @@ const translations: { [key in Language]: Translations } = {
         'cash': 'Cash',
         'bank_transfer': 'Bank Transfer',
         'check': 'Check',
+        'term': 'Term Payment',
         'credit_card': 'Credit Card'
       }
     },
@@ -684,6 +694,10 @@ const translations: { [key in Language]: Translations } = {
       'unpaid': 'Non payé',
       'clientNotFound': 'Client introuvable',
       'pdfGenerated': 'Devis généré avec succès',
+      'paymentMethod': 'Méthode de paiement',
+      'totalAmount': 'Montant total',
+      'amountPaid': 'Montant payé',
+      'actions': 'Actions',
       'pdfError': 'Erreur lors de la génération du devis'
     },
 
@@ -741,7 +755,7 @@ const translations: { [key in Language]: Translations } = {
           'cancel': 'Annuler',
           'add': 'Ajouter le client',
           'update': 'Mettre à jour le client'
-        }
+        },
       }
     },
 
@@ -901,6 +915,7 @@ const translations: { [key in Language]: Translations } = {
 
       // Payment Form
       'payment': {
+        'title': 'Paiement',
         'method': 'Mode de paiement',
         'methods': {
           'cash': 'Espèces',
@@ -912,7 +927,8 @@ const translations: { [key in Language]: Translations } = {
         'status': 'Statut de paiement',
         'paid': 'Payé',
         'unpaid': 'Non payé',
-        'partial': 'Partiellement payé'
+        'partial': 'Partiellement payé',
+        
       },
 
       // Client Form
@@ -974,6 +990,7 @@ const translations: { [key in Language]: Translations } = {
       'invoiceStatus': 'Statut de facturation',
       'createInvoice': 'Créer une facture',
       'success': 'Vente enregistrée avec succès',
+      
       'error': 'Erreur lors de l\'enregistrement de la vente'
     },
 
@@ -1029,33 +1046,34 @@ const translations: { [key in Language]: Translations } = {
       'createDesc': 'Remplissez les détails ci-dessous pour créer une nouvelle facture.',
       'clientNotFound': 'Client introuvable',
       'pdfGenerated': 'Facture générée avec succès',
-      'pdfError': 'Erreur lors de la génération de la facture'
+      'pdfError': 'Erreur lors de la génération de la facture',
+      'invoice': 'Facture',
     },
 
     // Payments
     'payments': {
-      'title': 'Payments',
-      'add': 'Add Payment',
-      'edit': 'Edit Payment',
-      'delete': 'Delete Payment',
-      'date': 'Payment Date',
-      'amount': 'Amount',
-      'method': 'Payment Method',
+      'title': 'Paiements',
+      'add': 'Ajouter un paiement',
+      'edit': 'Modifier le paiement',
+      'delete': 'Supprimer le paiement',
+      'date': 'Date de paiement',
+      'amount': 'Montant',
+      'method': 'Méthode de paiement',
       'notes': 'Notes',
-      'status': 'Payment Status',
-      'recorded': 'Payment recorded successfully',
-      'error': 'Error recording payment',
-      'deleteConfirm': 'Are you sure you want to delete this payment?',
-      'deleted': 'Payment deleted successfully',
-      'selectMethod': 'Select payment method',
+      'status': 'Statut de paiement',
+      'recorded': 'Paiement enregistré avec succès',
+      'error': 'Erreur lors de l\'enregistrement du paiement',
+      'deleteConfirm': 'Êtes-vous sûr de vouloir supprimer ce paiement ?',
+      'deleted': 'Paiement supprimé avec succès',
+      'selectMethod': 'Sélectionner la méthode de paiement',
       'warning': {
-        'exceedsRemaining': 'Payment of {amount} exceeds the remaining amount of {remaining}. This will result in a credit balance.'
+        'exceedsRemaining': 'Le paiement de {amount} dépasse le montant restant de {remaining}. Cela entraînera un solde créditeur.'
       },
       'methods': {
-        'cash': 'Cash',
-        'bank_transfer': 'Bank Transfer',
-        'check': 'Check',
-        'credit_card': 'Credit Card'
+        'cash': 'Espèces',
+        'bank_transfer': 'Virement bancaire',
+        'check': 'Chèque',
+        'term': 'À terme',
       }
     },
 
@@ -1076,20 +1094,20 @@ const translations: { [key in Language]: Translations } = {
 
     // Invoice Details
     'invoiceDetails': {
-      'title': 'Invoice Details',
+      'title': 'Détails de la facture',
       'client': 'Client',
       'status': 'Status',
       'dates': 'Dates',
-      'issuedOn': 'Issued On',
-      'dueBy': 'Due By',
-      'amounts': 'Amounts',
-      'subtotal': 'Subtotal',
-      'tax': 'Tax',
+      'issuedOn': 'Date d\'émission',
+      'dueBy': 'Date d\'échéance',
+      'amounts': 'Montants',
+      'subtotal': 'Sous-total',
+      'tax': 'Taxe',
       'total': 'Total',
-      'amountPaid': 'Amount Paid',
-      'remainingAmount': 'Remaining Amount',
-      'sales': 'Related Sales',
-      'payments': 'Payments'
+      'amountPaid': 'Montant payé',
+      'remainingAmount': 'Montant restant',
+      'sales': 'Ventes liées',
+      'payments': 'Paiements'
     },
 
     // PDF Export

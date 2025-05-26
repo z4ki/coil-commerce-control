@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
@@ -26,14 +26,21 @@ import { Payment } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { useLanguage } from '@/context/LanguageContext';
 
+type PaymentMethod = 'cash' | 'bank_transfer' | 'check';
+
+type FormValues = {
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  notes?: string;
+};
+
 const formSchema = z.object({
   date: z.string(),
   amount: z.number().min(0),
   method: z.enum(['cash', 'bank_transfer', 'check']),
   notes: z.string().optional(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+}) satisfies z.ZodType<FormValues>;
 
 interface PaymentFormProps {
   saleId: string;
@@ -53,7 +60,7 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
     defaultValues: {
       date: payment?.date.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
       amount: payment?.amount || remainingAmount,
-      method: payment?.method || 'cash',
+      method: (payment?.method as PaymentMethod) || 'cash',
       notes: payment?.notes || '',
     },
   });
@@ -62,7 +69,7 @@ export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFor
     return <div>{t('sales.notFound')}</div>;
   }
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       const paymentData = {
         saleId,

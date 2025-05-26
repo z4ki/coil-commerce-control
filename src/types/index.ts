@@ -11,6 +11,8 @@ export interface Client {
   rc?: string;
   ai?: string;
   rib?: string;
+  notes?: string;
+  creditBalance: number;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -77,8 +79,10 @@ export interface Payment {
   saleId: string;
   amount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check' | 'deferred';
+  method: 'cash' | 'bank_transfer' | 'check';
   notes?: string;
+  generatesCredit: boolean;
+  creditAmount: number;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -89,7 +93,7 @@ export interface BulkPayment {
   clientId: string;
   totalAmount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check' | 'credit_card';
+  method: 'cash' | 'bank_transfer' | 'check';
   notes?: string;
   distribution?: {
     saleId: string;
@@ -173,4 +177,25 @@ export interface InvoiceFilter {
   isPaid?: boolean;
   startDate?: Date;
   endDate?: Date;
+}
+
+// Add credit transaction type
+export interface CreditTransaction {
+  id: string;
+  clientId: string;
+  amount: number;
+  type: 'credit' | 'debit';
+  sourceType: 'payment' | 'refund' | 'manual_adjustment' | 'credit_use';
+  sourceId?: string;
+  notes?: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+// Add credit status type
+export interface ClientCreditStatus {
+  availableCredit: number;
+  pendingCredits: number;
+  usedCredits: number;
+  transactions: CreditTransaction[];
 }

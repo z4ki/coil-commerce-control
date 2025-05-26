@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useFormContext } from 'react-hook-form';
+import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '@/components/ui/button';
 import {
   FormControl,
@@ -8,9 +10,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Trash2, RefreshCw } from 'lucide-react';
-import { useFormContext } from 'react-hook-form';
-import { useLanguage } from '../../context/LanguageContext';
+import { Trash2 } from 'lucide-react';
+import { calculateItemTotalHT, calculateItemTotalTTC, TAX_RATE } from '../../utils/calculations';
 
 interface SaleItemFormProps {
   index: number;
@@ -22,45 +23,42 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const { control, watch, setValue, trigger } = useFormContext();
   const { t } = useLanguage();
   
-  // Track all numeric inputs as strings
+  // Initialize all input states with empty strings
   const [thicknessInput, setThicknessInput] = useState('');
   const [widthInput, setWidthInput] = useState('');
-  const [quantityInput, setQuantityInput] = useState('');
-  const [priceInput, setPriceInput] = useState('');
+  const [weightInput, setWeightInput] = useState('');
+  const [quantityInput, setQuantityInput] = useState('1');
+  const [priceInput, setPriceInput] = useState('0');
   
   // Watch for changes in all relevant fields
   const quantity = watch(`items.${index}.quantity`);
   const pricePerTon = watch(`items.${index}.pricePerTon`);
   const thickness = watch(`items.${index}.coilThickness`);
   const width = watch(`items.${index}.coilWidth`);
+  const weight = watch(`items.${index}.coilWeight`);
   const topRal = watch(`items.${index}.topCoatRAL`);
   const backRal = watch(`items.${index}.backCoatRAL`);
   
-  // Calculate totals
-  const totalHT = (Number(quantity) || 0) * (Number(pricePerTon) || 0);
-  const tva = totalHT * 0.19; // 19% TVA
-  const totalTTC = totalHT + tva;
+  // Calculate totals using utility functions
+  const totalHT = calculateItemTotalHT(Number(quantity), Number(pricePerTon));
+  const totalTTC = calculateItemTotalTTC(Number(quantity), Number(pricePerTon));
 
   // Initialize input values
-  React.useEffect(() => {
-    if (thickness !== undefined && thicknessInput === '') {
-      setThicknessInput(thickness.toString());
-    }
-    if (width !== undefined && widthInput === '') {
-      setWidthInput(width.toString());
-    }
-    if (quantity !== undefined && quantityInput === '') {
-      setQuantityInput(quantity.toString());
-    }
-    if (pricePerTon !== undefined && priceInput === '') {
-      setPriceInput(pricePerTon.toString());
-    }
-  }, [thickness, width, quantity, pricePerTon]);
+  useEffect(() => {
+    if (thickness !== undefined) setThicknessInput(thickness.toString());
+    if (width !== undefined) setWidthInput(width.toString());
+    if (weight !== undefined) setWeightInput(weight.toString());
+    if (quantity !== undefined) setQuantityInput(quantity.toString());
+    if (pricePerTon !== undefined) setPriceInput(pricePerTon.toString());
+  }, [thickness, width, weight, quantity, pricePerTon]);
 
   // Automatically generate description when relevant fields change
-  React.useEffect(() => {
+  useEffect(() => {
     if (thickness && width) {
-      let description = t('form.sale.coilDescription').replace('{0}', thickness.toString()).replace('{1}', width.toString());
+      let description = t('form.sale.coilDescription')
+        .replace('{0}', thickness.toString())
+        .replace('{1}', width.toString());
+      
       if (topRal || backRal) {
         description = t('form.sale.coilDescriptionWithRAL')
           .replace('{0}', thickness.toString())
@@ -68,23 +66,26 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           .replace('{2}', topRal || 'X')
           .replace('{3}', backRal || 'Y');
       }
+      
+      if (weight) {
+        description += ` - ${weight}kg`;
+      }
+      
       setValue(`items.${index}.description`, description);
     }
-  }, [thickness, width, topRal, backRal, index, setValue, t]);
+  }, [thickness, width, weight, topRal, backRal, index, setValue, t]);
 
-  // Update the total amounts in the form whenever quantity or price changes
-  React.useEffect(() => {
+  // Update the total amounts in the form whenever quantity, price, or weight changes
+  useEffect(() => {
     setValue(`items.${index}.totalAmountHT`, totalHT);
     setValue(`items.${index}.totalAmountTTC`, totalTTC);
     trigger();
-  }, [quantity, pricePerTon, index, setValue, trigger]);
+  }, [quantity, pricePerTon, weight, index, setValue, trigger, totalHT, totalTTC]);
 
   // Handle numeric input changes
   const handleNumericInput = (value: string, setter: (value: string) => void, field: { onChange: (value: number) => void }) => {
-    // Allow empty input, numbers, one decimal point
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setter(value);
-      // Only update the form value if it's a valid number
       if (value === '') {
         field.onChange(0);
       } else {
@@ -117,7 +118,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
             <FormItem>
               <FormLabel>{t('form.sale.coilRef')}</FormLabel>
               <FormControl>
-                <Input placeholder="BOB-" {...field} />
+                <Input placeholder="BOB-" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -168,6 +169,58 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
 
         <FormField
           control={control}
+          name={`items.${index}.coilWeight`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('form.sale.coilWeight')}</FormLabel>
+              <FormControl>
+                <Input 
+                  type="text" 
+                  inputMode="decimal"
+                  placeholder="0.00" 
+                  value={weightInput}
+                  onChange={(e) => handleNumericInput(e.target.value, setWeightInput, field)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField
+          control={control}
+          name={`items.${index}.topCoatRAL`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
+              <FormControl>
+                <Input placeholder="9010" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${index}.backCoatRAL`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
+              <FormControl>
+                <Input placeholder="9002" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <FormField
+          control={control}
           name={`items.${index}.quantity`}
           render={({ field }) => (
             <FormItem>
@@ -185,39 +238,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
             </FormItem>
           )}
         />
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.topCoatRAL`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
-              <FormControl>
-                <Input placeholder="9010" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={control}
-          name={`items.${index}.backCoatRAL`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
-              <FormControl>
-                <Input placeholder="9002" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={control}
           name={`items.${index}.pricePerTon`}
@@ -237,6 +258,18 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
             </FormItem>
           )}
         />
+
+        <div className="space-y-2">
+          <div className="text-sm font-medium">{t('form.sale.totals')}</div>
+          <div className="space-y-1">
+            <div className="text-sm">
+              {t('form.sale.totalHT')}: {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalHT)}
+            </div>
+            <div className="text-sm">
+              {t('form.sale.totalTTC')}: {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalTTC)}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ const queryClient = new QueryClient();
 // Wrapper components for forms with navigation
 const InvoiceFormWrapper = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const { getInvoiceById } = useAppContext();
 
   const invoice = id ? getInvoiceById(id) ?? null : null;
@@ -39,7 +39,7 @@ const InvoiceFormWrapper = () => {
 
 const ClientFormWrapper = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const { getClientById } = useAppContext();
 
   const client = id ? getClientById(id) ?? null : null;
@@ -68,7 +68,8 @@ const App = () => {
                       <Route path="/invoices/:id" element={<InvoiceFormWrapper />} />
                       <Route path="/clients" element={<Clients />} />
                       <Route path="/clients/new" element={<ClientFormWrapper />} />
-                      <Route path="/clients/:id" element={<ClientFormWrapper />} />
+                      <Route path="/clients/:id" element={<ClientDetail />} />
+                      
                       <Route path="/reports" element={<Reports />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />

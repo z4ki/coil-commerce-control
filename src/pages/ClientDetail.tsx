@@ -30,11 +30,11 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ClientForm from '@/components/clients/ClientForm';
 import { toast } from 'sonner';
-import { Invoice, Sale } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
+import { Invoice, Sale } from '@/types';
 
 const ClientDetail = () => {
-  const { clientId } = useParams<{ clientId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [showEditDialog, setShowEditDialog] = React.useState(false);
   const { t } = useLanguage();
@@ -48,12 +48,39 @@ const ClientDetail = () => {
     getPaymentsBySale,
     getClientCreditBalance,
     getSaleById,
+    loading: { clients: loadingClients, sales: loadingSales, payments: loadingPayments }
   } = useAppContext();
 
-  const client = getClientById(clientId || '');
-  const clientSales = getSalesByClient(clientId || '').sort((a, b) => b.date.getTime() - a.date.getTime());
-  const clientInvoices = getInvoicesByClient(clientId || '').sort((a, b) => b.date.getTime() - a.date.getTime());
-  const creditBalance = getClientCreditBalance(clientId || '');
+  // Get client data
+  const client = id ? getClientById(id) : undefined;
+
+  // Debug logging
+  console.log('Debug state:', { 
+    loadingClients, 
+    loadingSales, 
+    loadingPayments, 
+    id,
+    hasClient: !!client,
+    clientIdType: typeof id,
+    clientObj: client
+  });
+
+  // Only fetch related data if we have a client
+  const clientSales = client ? getSalesByClient(client.id).sort((a, b) => b.date.getTime() - a.date.getTime()) : [];
+  const clientInvoices = client ? getInvoicesByClient(client.id).sort((a, b) => b.date.getTime() - a.date.getTime()) : [];
+  const creditBalance = client ? getClientCreditBalance(client.id) : 0;
+  
+  // Loading state for financial data
+  const isLoading = loadingClients || loadingSales || loadingPayments;
+
+  console.log('Debug state:', { 
+    loadingClients, 
+    loadingSales, 
+    loadingPayments, 
+    id,
+    hasClient: !!client,
+    salesCount: clientSales.length
+  });
 
   // Get all payments for all client sales
   const clientPayments = useMemo(() => {
@@ -104,13 +131,31 @@ const ClientDetail = () => {
 
   const handleDeleteClient = () => {
     if (window.confirm(t('clients.deleteConfirm').replace('{0}', client?.name || ''))) {
-      deleteClient(clientId || '');
+      deleteClient(id || '');
       toast.success(t('clients.deleted').replace('{0}', client?.name || ''));
       navigate('/clients');
     }
   };
 
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center p-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+    </div>
+  );
+
+  // Show loading state for the entire view if client data is loading
+  if (loadingClients) {
+    console.log('ClientDetail: stuck in loading state');
+    return (
+      <MainLayout title={t('general.loading')}>
+        <LoadingSpinner />
+      </MainLayout>
+    );
+  }
+
+  // Show not found state if client doesn't exist
   if (!client) {
+    console.log('ClientDetail: client not found');
     return (
       <MainLayout title={t('general.error')}>
         <div className="flex flex-col items-center justify-center h-full space-y-4">
@@ -126,6 +171,13 @@ const ClientDetail = () => {
       </MainLayout>
     );
   }
+
+  console.log('ClientDetail debug:', {
+    loadingClients,
+    client,
+    clientSales,
+    isLoading,
+  });
 
   return (
     <MainLayout
@@ -149,17 +201,20 @@ const ClientDetail = () => {
     >
       <div className="space-y-6">
         {/* Client Info */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1">
           <Card>
             <CardHeader>
               <CardTitle>{t('clientDetails.financialSummary')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('clientDetails.salesTotal')}:</span>
-                  <span className="font-medium">{formatCurrency(totalSalesAmount)}</span>
-                </div>
+              {isLoading ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">{t('clientDetails.salesTotal')}:</span>
+                    <span className="font-medium">{formatCurrency(totalSalesAmount)}</span>
+                  </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">{t('clientDetails.invoicedAmount')}:</span>
                   <span className="font-medium">{formatCurrency(totalInvoicedAmount)}</span>
@@ -185,6 +240,7 @@ const ClientDetail = () => {
                   </span>
                 </div>
               </div>
+              )}
             </CardContent>
           </Card>
         </div>

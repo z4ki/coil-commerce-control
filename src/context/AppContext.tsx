@@ -3,7 +3,7 @@
 
 // ... all existing imports ...
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, BulkPayment } from '@/types';
 import * as clientService from '@/services/clientService';
@@ -85,34 +85,21 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   useEffect(() => {
     let isMounted = true;
-    const abortController = new AbortController();
 
     const fetchData = async () => {
       try {
-        setLoading({ clients: true, sales: true, invoices: true, payments: true });
-
-        const [clientsData, salesData, invoicesData, paymentsData] = await Promise.all([
-          clientService.getClients(),
-          saleService.getSales(),
-          invoiceService.getInvoices(),
-          paymentService.getPayments() // Get all payments directly
-        ]);
-
-        if (!isMounted) return;
-
-        setClients(clientsData);
-        // Sort sales by date in descending order
-        setSales(salesData.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        // Sort invoices by date in descending order
-        setInvoices(invoicesData.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        // Sort payments by date in descending order
-        setPayments(paymentsData.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        
-        setLoading({ clients: false, sales: false, invoices: false, payments: false });
+        setLoading(prev => ({ ...prev, clients: true }));
+        const clientsData = await clientService.getClients();
+        if (isMounted) {
+          setClients(clientsData || []);
+          console.log('Fetched clients:', clientsData);
+        }
       } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load data. Please refresh.');
-        setLoading({ clients: false, sales: false, invoices: false, payments: false });
+        console.error('Error fetching clients:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(prev => ({ ...prev, clients: false }));
+        }
       }
     };
 
@@ -120,9 +107,19 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
     return () => {
       isMounted = false;
-      abortController.abort();
     };
-  }, []); // No dependencies since we removed auth
+  }, []);
+  const getClientById = useCallback((id: string): Client | undefined => {
+    if (!id) {
+      console.warn('getClientById called with empty id');
+      return undefined;
+    }
+    const client = clients.find(client => client.id === id);
+    if (!client) {
+      console.warn(`No client found with id: ${id}`);
+    }
+    return client;
+  }, [clients]);
 
   const addClient = async (client: Omit<Client, 'id' | 'createdAt'>) => {
     return await clientService.createClient(client);
@@ -134,10 +131,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   const deleteClient = async (id: string) => {
     await clientService.deleteClient(id);
-  };
-
-  const getClientById = (id: string) => {
-    return clients.find(client => client.id === id);
   };
 
   const getSalesByClient = (clientId: string) => {
@@ -464,6 +457,87 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       balance: totalSalesAmount - totalPayments
     };
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSales = async () => {
+      try {
+        setLoading(prev => ({ ...prev, sales: true }));
+        const salesData = await saleService.getSales();
+        if (isMounted) {
+          setSales(salesData || []);
+          console.log('Fetched sales:', salesData);
+        }
+      } catch (error) {
+        console.error('Error fetching sales:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(prev => ({ ...prev, sales: false }));
+        }
+      }
+    };
+
+    fetchSales();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchInvoices = async () => {
+      try {
+        setLoading(prev => ({ ...prev, invoices: true }));
+        const invoicesData = await invoiceService.getInvoices();
+        if (isMounted) {
+          setInvoices(invoicesData || []);
+          console.log('Fetched invoices:', invoicesData);
+        }
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(prev => ({ ...prev, invoices: false }));
+        }
+      }
+    };
+
+    fetchInvoices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPayments = async () => {
+      try {
+        setLoading(prev => ({ ...prev, payments: true }));
+        const paymentsData = await paymentService.getPayments();
+        if (isMounted) {
+          setPayments(paymentsData || []);
+          console.log('Fetched payments:', paymentsData);
+        }
+      } catch (error) {
+        console.error('Error fetching payments:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(prev => ({ ...prev, payments: false }));
+        }
+      }
+    };
+
+    fetchPayments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <AppContext.Provider value={{

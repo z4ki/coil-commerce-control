@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAppContext } from '../../context/AppContext';
@@ -31,9 +31,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Invoice, Sale } from '../../types';
+import { Invoice, Sale, PaymentMethodType } from '../../types'; // Import PaymentMethodType
 import { formatCurrency, formatDate, formatDateInput, generateInvoiceNumber, parseDateInput } from '../../utils/format';
 import { toast } from 'sonner';
+import { useLanguage } from '@/context/LanguageContext';
+
+// Use the imported PaymentMethodType for consistency
+const paymentMethods = ['cash', 'bank_transfer', 'check', 'term'] as const;
+
 
 const formSchema = z.object({
   prefix: z.string().min(1, { message: 'Le préfixe est requis' }),
@@ -42,6 +47,7 @@ const formSchema = z.object({
   date: z.string().min(1, { message: 'La date est requise' }),
   dueDate: z.string().min(1, { message: 'La date d\'échéance est requise' }),
   salesIds: z.array(z.string()).optional(),
+  paymentMethod: z.enum(paymentMethods).optional().nullable(), // Use the paymentMethods constant
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -58,17 +64,28 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     clients, 
     getSalesByClient, 
     sales, 
-    getClientById, 
-    addPayment,
     getSalePaymentStatus 
   } = useAppContext();
   const { settings: appSettings, updateInvoiceSettings } = useAppSettings();
   const { settings: invoiceSettings } = useInvoiceSettings();
+  const { t } = useLanguage();
+
   const [clientSales, setClientSales] = useState<Sale[]>([]);
   const [selectedSales, setSelectedSales] = useState<string[]>(invoice?.salesIds || []);
   const [selectedClientId, setSelectedClientId] = useState<string>(invoice?.clientId || '');
   const [totalAmount, setTotalAmount] = useState<number>(invoice?.totalAmountTTC || 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const getInitialPaymentMethod = useCallback(() => {
+    if (invoice?.paymentMethod) {
+      return invoice.paymentMethod;
+    }
+    if (selectedSales.length === 1) {
+      const saleDetail = sales.find(s => s.id === selectedSales[0]);
+      return saleDetail?.paymentMethod;
+    }
+    return undefined;
+  }, [invoice, selectedSales, sales]);
 
   const defaultValues: FormValues = {
     prefix: invoice?.invoiceNumber?.split('-')[0] || invoiceSettings.defaultPrefix,
@@ -77,60 +94,91 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     date: formatDateInput(invoice?.date || new Date()),
     dueDate: formatDateInput(invoice?.dueDate || new Date(new Date().setDate(new Date().getDate() + appSettings.invoice.paymentTerms))),
     salesIds: invoice?.salesIds || [],
+    paymentMethod: getInitialPaymentMethod() || undefined,
   };
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues,
+    mode: "onChange",
   });
 
-  // Track if invoice number was manually edited
-  const [isInvoiceNumberManuallyEdited, setIsInvoiceNumberManuallyEdited] = useState(false);
+  const [isInvoiceNumberManuallyEdited, setIsInvoiceNumberManuallyEdited] = useState(!!invoice);
 
-  // Update invoice number when prefix changes
   useEffect(() => {
     const prefix = form.watch('prefix');
     if (!invoice && !isInvoiceNumberManuallyEdited) {
       const newInvoiceNumber = generateInvoiceNumber(prefix, appSettings.invoice.nextNumber);
       form.setValue('invoiceNumber', newInvoiceNumber);
     }
-  }, [form.watch('prefix'), isInvoiceNumberManuallyEdited, appSettings.invoice.nextNumber]);
+  }, [form, invoice, isInvoiceNumberManuallyEdited, appSettings.invoice.nextNumber, form.watch('prefix')]);
 
-  // When client is changed, update available sales
+  const calculateTotals = useCallback(() => {
+    const selectedSalesData = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean);
+    let totalHT = 0;
+    if (selectedSalesData.length > 0) {
+        totalHT = selectedSalesData.reduce((sum, sale) => {
+            const ht = sale?.totalAmountHT;
+            return sum + (Number.isFinite(ht) ? ht : 0); 
+        }, 0);
+    }
+    const taxRate = 0.19; 
+    const taxAmount = totalHT * taxRate;
+    const totalTTC = totalHT + taxAmount;
+    return { 
+        totalHT: Number.isFinite(totalHT) ? totalHT : 0,
+        totalTTC: Number.isFinite(totalTTC) ? totalTTC : 0,
+        taxAmount: Number.isFinite(taxAmount) ? taxAmount : 0
+    };
+  }, [selectedSales, sales]);
+
   useEffect(() => {
-    const clientId = form.getValues('clientId');
+    const clientId = form.watch('clientId');
     if (clientId) {
       const uninvoicedSales = getSalesByClient(clientId).filter(
         (sale) => !sale.isInvoiced || (invoice && invoice.salesIds.includes(sale.id))
       );
       setClientSales(uninvoicedSales);
+      if (clientId !== selectedClientId) {
+        setSelectedSales([]); 
+        form.setValue('paymentMethod', undefined, {shouldValidate: true}); 
+      }
       setSelectedClientId(clientId);
-      
-      // Update selected sales based on client change
-      const validSaleIds = uninvoicedSales.map((sale) => sale.id);
-      const updatedSelectedSales = selectedSales.filter((saleId) =>
-        validSaleIds.includes(saleId)
-      );
-      setSelectedSales(updatedSelectedSales);
-      
-      // Update total amount
-      calculateTotals();
+    } else {
+      setClientSales([]);
+      setSelectedSales([]);
+      form.setValue('paymentMethod', undefined, {shouldValidate: true});
     }
-  }, [form.watch('clientId')]);
-
-  // Calculate totals
-  const calculateTotals = () => {
-    const selectedSalesData = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean);
-    const totalHT = selectedSalesData.reduce((sum, sale) => sum + (sale?.totalAmountHT || 0), 0);
-    const taxAmount = totalHT * 0.19; // 19% tax rate
-    const totalTTC = totalHT + taxAmount;
-    return { totalHT, totalTTC, taxAmount };
-  };
+  }, [form.watch('clientId'), invoice, getSalesByClient, selectedClientId, form]);
 
   useEffect(() => {
-    const { totalHT, totalTTC } = calculateTotals();
-    setTotalAmount(totalTTC); // Use TTC as the main amount
-  }, [selectedSales, sales]);
+    const { totalTTC } = calculateTotals();
+    setTotalAmount(totalTTC);
+
+    let newPaymentMethod: PaymentMethodType | undefined = undefined;
+    if (selectedSales.length === 1) {
+      const saleDetail = sales.find(s => s.id === selectedSales[0]);
+      newPaymentMethod = saleDetail?.paymentMethod;
+    } else if (selectedSales.length > 1) {
+      const firstSaleMethod = sales.find(s => s.id === selectedSales[0])?.paymentMethod;
+      const allSameMethod = selectedSales.every(id => sales.find(s => s.id === id)?.paymentMethod === firstSaleMethod);
+      if (allSameMethod) {
+        newPaymentMethod = firstSaleMethod;
+      } else {
+        newPaymentMethod = undefined; // Different methods, let user choose or set a default/placeholder
+      }
+    } else {
+        newPaymentMethod = invoice?.paymentMethod || undefined; // Revert to original invoice method or undefined
+    }
+    
+    // Only update if the derived payment method is different from the current form value
+    // to avoid unnecessary re-renders or overריting user's explicit selection.
+    if (form.getValues('paymentMethod') !== newPaymentMethod) {
+        form.setValue('paymentMethod', newPaymentMethod, { shouldValidate: true });
+    }
+
+  }, [selectedSales, sales, calculateTotals, form, invoice?.paymentMethod]);
+
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -138,19 +186,11 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         toast.error('Please select at least one sale to include in the invoice');
         return;
       }
-
       setIsSubmitting(true);
-
       const { totalHT, totalTTC } = calculateTotals();
+      const allSalesPaid = selectedSales.every(saleId => getSalePaymentStatus(saleId)?.isFullyPaid === true);
 
-      // Check if all selected sales are fully paid
-      const allSalesPaid = selectedSales.every(saleId => {
-        const status = getSalePaymentStatus(saleId);
-        return status?.isFullyPaid === true;
-      });
-
-      // Ensure all required fields are provided
-      const invoiceData = {
+      const invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> = {
         invoiceNumber: data.invoiceNumber,
         clientId: data.clientId,
         date: parseDateInput(data.date),
@@ -159,8 +199,9 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         totalAmountHT: totalHT,
         totalAmountTTC: totalTTC,
         taxRate: 0.19,
-        isPaid: allSalesPaid, // Automatically set isPaid based on sales payment status
-        paidAt: allSalesPaid ? new Date() : undefined
+        isPaid: allSalesPaid,
+        paidAt: allSalesPaid ? new Date() : undefined,
+        paymentMethod: data.paymentMethod || undefined, 
       };
 
       if (invoice) {
@@ -168,16 +209,12 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         toast.success('Invoice has been updated');
       } else {
         await addInvoice(invoiceData);
-        // Increment the next invoice number
         updateInvoiceSettings({ nextNumber: appSettings.invoice.nextNumber + 1 });
         toast.success('Invoice has been created');
       }
-
-      if (onSuccess) {
-        onSuccess();
-      }
+      if (onSuccess) onSuccess();
     } catch (error) {
-      console.error('Error submitting invoice:', error);
+      console.error('Error submitting invoice from InvoiceForm:', error);
       toast.error('An error occurred while saving the invoice');
     } finally {
       setIsSubmitting(false);
@@ -185,181 +222,222 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField
-            control={form.control}
-            name="prefix"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Préfixe</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un préfixe" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="FAC">FAC</SelectItem>
-                    <SelectItem value="PRO">PRO</SelectItem>
-                    <SelectItem value="DEV">DEV</SelectItem>
-                    <SelectItem value="BL">BL</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="invoiceNumber"
-            render={({ field }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Numéro de Facture</FormLabel>
-                <FormControl>
-                  <Input 
-                    {...field} 
-                    onChange={(e) => {
-                      field.onChange(e.target.value);
-                      setIsInvoiceNumberManuallyEdited(true);
+    <FormProvider {...form}>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FormField
+                control={form.control}
+                name="prefix"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Préfixe</FormLabel>
+                    <Select
+                    onValueChange={(value) => {
+                        field.onChange(value);
+                        if (!invoice) setIsInvoiceNumberManuallyEdited(false);
                     }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="clientId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Client</FormLabel>
-                <Select
-                  onValueChange={(value) => {
-                    field.onChange(value);
-                    setSelectedClientId(value);
-                  }}
-                  defaultValue={field.value}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un client" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name} - {client.company}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="date"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Date d'émission</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="dueDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Date d'échéance</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {selectedClientId && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Ventes à facturer</h3>
-              <p className="text-sm text-muted-foreground">
-                Total: {formatCurrency(totalAmount)}
-              </p>
+                    value={field.value}
+                    defaultValue={field.value}
+                    >
+                    <FormControl>
+                        <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un préfixe" />
+                        </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        {invoiceSettings.prefixes.map(p => (
+                            <SelectItem key={p.value} value={p.value}>{p.value}</SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="invoiceNumber"
+                render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                    <FormLabel>Numéro de Facture</FormLabel>
+                    <FormControl>
+                    <Input 
+                        {...field} 
+                        onChange={(e) => {
+                        field.onChange(e.target.value);
+                        setIsInvoiceNumberManuallyEdited(true);
+                        }}
+                    />
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
             </div>
 
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[100px]">Select</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead className="text-right">Total TTC</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientSales.map((sale) => (
-                    <TableRow key={sale.id}>
-                      <TableCell>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                    control={form.control}
+                    name="clientId"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Client</FormLabel>
+                        <Select
+                        onValueChange={(value) => {
+                            field.onChange(value);
+                        }}
+                        value={field.value}
+                        defaultValue={field.value}
+                        >
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un client" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {clients.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                                {client.name} - {client.company}
+                            </SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="paymentMethod"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Mode de paiement</FormLabel>
+                        <Select
+                        onValueChange={field.onChange}
+                        value={field.value || ""} 
+                        defaultValue={field.value || ""}
+                        >
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un mode" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="cash">Espèces</SelectItem>
+                            <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
+                            <SelectItem value="check">Chèque</SelectItem>
+                            <SelectItem value="term">À Terme</SelectItem>
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Date d'émission</FormLabel>
+                        <FormControl>
+                        <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="dueDate"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Date d'échéance</FormLabel>
+                        <FormControl>
+                        <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </div>
+
+          {selectedClientId && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Ventes à facturer</h3>
+                <p className="text-sm text-muted-foreground">
+                  Total: {formatCurrency(totalAmount)}
+                </p>
+              </div>
+              <div className="rounded-md border max-h-60 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px] sticky top-0 bg-background z-10">
                         <Checkbox
-                          checked={selectedSales.includes(sale.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedSales([...selectedSales, sale.id]);
-                            } else {
-                              setSelectedSales(selectedSales.filter(id => id !== sale.id));
-                            }
-                          }}
-                          disabled={sale.isInvoiced && sale.invoiceId !== invoice?.id}
+                            checked={clientSales.length > 0 && selectedSales.length === clientSales.filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id)).length}
+                            disabled={clientSales.filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id)).length === 0}
+                            onCheckedChange={(checked) => {
+                                const availableSalesIds = clientSales
+                                    .filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id))
+                                    .map(s => s.id);
+                                setSelectedSales(checked ? availableSalesIds : []);
+                            }}
+                            aria-label="Select all available sales"
                         />
-                      </TableCell>
-                      <TableCell>{formatDate(sale.date)}</TableCell>
-                      <TableCell>Sale #{sale.id.slice(0, 8)}</TableCell>
-                      <TableCell>{sale.items.length} items</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(sale.totalAmountTTC)}
-                      </TableCell>
+                      </TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10">Date</TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10">Description</TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10">Articles</TableHead>
+                      <TableHead className="text-right sticky top-0 bg-background z-10">Total TTC</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {clientSales.length > 0 ? clientSales.map((sale) => (
+                      <TableRow key={sale.id} data-state={selectedSales.includes(sale.id) && "selected"}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedSales.includes(sale.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedSales(
+                                checked
+                                  ? [...selectedSales, sale.id]
+                                  : selectedSales.filter(id => id !== sale.id)
+                              );
+                            }}
+                            disabled={sale.isInvoiced && sale.invoiceId !== invoice?.id}
+                            aria-labelledby={`sale-label-${sale.id}`}
+                          />
+                        </TableCell>
+                        <TableCell id={`sale-label-${sale.id}`}>{formatDate(sale.date)}</TableCell>
+                        <TableCell>Vente #{sale.id.slice(0, 8)} (Mode: {sale.paymentMethod || 'N/P'})</TableCell> {/* Display sale's payment method */}
+                        <TableCell>{sale.items.length} articles</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(sale.totalAmountTTC)}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                        <TableRow><TableCell colSpan={5} className="h-24 text-center">Aucune vente disponible pour ce client.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex justify-end space-x-2">
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {invoice ? 'Mettre à jour' : 'Créer la facture'}
-          </Button>
-        </div>
-      </form>
-    </Form>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button type="button" variant="outline" onClick={onSuccess}>Annuler</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Enregistrement..." : (invoice ? 'Mettre à jour la facture' : 'Créer la facture')}
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </FormProvider>
   );
 };
 

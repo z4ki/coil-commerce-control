@@ -145,12 +145,23 @@ export const generateSalePDF = async (
 
   const totalInWords = numberToWords(sale.totalAmountTTC);
 
+  // Format payment method for display
+  const formatPaymentMethod = (method: string) => {
+    const methodMap: { [key: string]: string } = {
+      'cash': 'Espèces',
+      'bank_transfer': 'Virement bancaire',
+      'check': 'Chèque',
+      'term': 'À terme'
+    };
+    return methodMap[method] || method;
+  };
+
   const saleData = {
     documentType: 'sale' as const,
     invoiceNumber: `Devis-${sale.id}`, // Use sale ID as the document number
     date: formatDate(sale.date),
-    paymentMethod: 'N/A', // Not applicable for sales
-    paymentTerms: 'N/A', // Not applicable for sales
+    paymentMethod: sale.paymentMethod ? formatPaymentMethod(sale.paymentMethod) : 'Non spécifié',
+    paymentTerms: sale.paymentMethod === 'term' ? 'À terme' : '-',
     companyInfo: {
       name: companySettings.name,
       rc: companySettings.rc,

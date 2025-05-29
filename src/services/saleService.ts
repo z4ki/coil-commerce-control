@@ -1,57 +1,18 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Sale, SaleItem, SalesFilter } from '@/types';
+import type { Sale, SaleItem, DbSale, DbSaleItem } from './salesTypes';
 
-// Type for what Supabase returns in the database
-interface DbSaleBase {
-  id: string;
-  client_id: string;
-  date: string;
-  total_amount: number;
-  is_invoiced: boolean;
-  invoice_id: string | null;
-  notes: string | null;
-  payment_method: 'cash' | 'bank_transfer' | 'check' | null;
-  tax_rate: number;
-  transportation_fee: number | null;
-  created_at: string;
-  updated_at: string | null;
+// Type for sale filters
+export interface SalesFilter {
+  clientId?: string;
+  isInvoiced?: boolean;
+  startDate?: Date;
+  endDate?: Date;
 }
 
-interface DbSaleItem {
-  id: string;
-  sale_id: string;
-  description: string;
-  coil_ref: string | null;
-  coil_thickness: number | null;
-  coil_width: number | null;
-  top_coat_ral: string | null;
-  back_coat_ral: string | null;
-  coil_weight: number | null;
-  quantity: number;
-  price_per_ton: number;
-  total_amount: number;
-}
-
-// Type for what Supabase returns in the response
-interface SupabaseResponse extends DbSaleBase {
-  sale_items: DbSaleItem[];
-}
-
-type DbSaleInsert = Omit<DbSaleBase, 'id' | 'created_at' | 'updated_at'>;
-
-// Type for raw sale data from Supabase
-interface RawSaleData extends DbSaleBase {
-  sale_items: DbSaleItem[];
-}
-
-// Helper to convert database sale item to our application SaleItem type
-const mapDbSaleItemToSaleItem = (dbItem: DbSaleItem): SaleItem => {
-  // Calculate total amounts for the item
-  const totalAmountHT = dbItem.quantity * dbItem.price_per_ton;
-  const totalAmountTTC = totalAmountHT * 1.19; // Using standard 19% tax rate
-
+// Mapping functions
+function mapDbSaleItemToSaleItem(dbItem: DbSaleItem): SaleItem {
   return {
-    id: dbItem.id,
+    id: dbItem.id || '',
     description: dbItem.description,
     coilRef: dbItem.coil_ref || undefined,
     coilThickness: dbItem.coil_thickness || undefined,
@@ -61,33 +22,34 @@ const mapDbSaleItemToSaleItem = (dbItem: DbSaleItem): SaleItem => {
     coilWeight: dbItem.coil_weight || undefined,
     quantity: dbItem.quantity,
     pricePerTon: dbItem.price_per_ton,
-    totalAmountHT,
-    totalAmountTTC
+    totalAmountHT: dbItem.total_amount,
+    totalAmountTTC: dbItem.total_amount * 1.19
   };
-};
+}
 
-// Helper to convert database sale data to our application Sale type
-const mapDbSaleToSale = async (dbSale: SupabaseResponse): Promise<Sale> => {
-  // Map sale items first
-  const items = dbSale.sale_items.map(mapDbSaleItemToSaleItem);
-  
-  // Calculate base amounts from mapped items
-  const itemsTotalHT = items.reduce((sum, item) => sum + item.totalAmountHT, 0);
-  const itemsTotalTTC = items.reduce((sum, item) => sum + item.totalAmountTTC, 0);
+function mapSaleItemToDbSaleItem(item: SaleItem, saleId: string): DbSaleItem {
+  return {
+    sale_id: saleId,
+    description: item.description,
+    coil_ref: item.coilRef || null,
+    coil_thickness: item.coilThickness || null,
+    coil_width: item.coilWidth || null,
+    top_coat_ral: item.topCoatRAL || null,
+    back_coat_ral: item.backCoatRAL || null,
+    coil_weight: item.coilWeight || null,
+    quantity: item.quantity,
+    price_per_ton: item.pricePerTon,
+    total_amount: item.totalAmountHT
+  };
+}
 
-  // Add transportation fee if exists
-  const transportationFee = dbSale.transportation_fee || 0;
-  const transportationFeeTTC = transportationFee * (1 + dbSale.tax_rate);
-
-  // Calculate final totals
-  const totalAmountHT = itemsTotalHT + transportationFee;
-  const totalAmountTTC = itemsTotalTTC + transportationFeeTTC;
-
-  // Validate payment method
-  const paymentMethod = dbSale.payment_method as 'cash' | 'bank_transfer' | 'check' | null;
+function mapDbSaleToSale(dbSale: DbSale): Sale {
+  const items = dbSale.sale_items?.map(mapDbSaleItemToSaleItem) || [];
+  const totalAmountHT = items.reduce((sum, item) => sum + item.totalAmountHT, 0) + (dbSale.transportation_fee || 0);
+  const totalAmountTTC = totalAmountHT * (1 + dbSale.tax_rate);
 
   return {
-    id: dbSale.id,
+    id: dbSale.id || '',
     clientId: dbSale.client_id,
     date: new Date(dbSale.date),
     items,
@@ -96,12 +58,53 @@ const mapDbSaleToSale = async (dbSale: SupabaseResponse): Promise<Sale> => {
     isInvoiced: dbSale.is_invoiced,
     invoiceId: dbSale.invoice_id || undefined,
     notes: dbSale.notes || undefined,
-    paymentMethod: paymentMethod || undefined,
+    paymentMethod: dbSale.payment_method || undefined,
     transportationFee: dbSale.transportation_fee || undefined,
     taxRate: dbSale.tax_rate,
     createdAt: new Date(dbSale.created_at),
     updatedAt: dbSale.updated_at ? new Date(dbSale.updated_at) : undefined
   };
+}
+
+// Database operations
+export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): Promise<Sale> => {
+  const saleData = {
+    client_id: sale.clientId,
+    date: sale.date.toISOString(),
+    total_amount: sale.totalAmountHT,
+    is_invoiced: sale.isInvoiced,
+    invoice_id: sale.invoiceId || null,
+    notes: sale.notes || null,
+    payment_method: sale.paymentMethod || null,
+    tax_rate: sale.taxRate,
+    transportation_fee: sale.transportationFee || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  const { data: newSale, error: saleError } = await supabase
+    .from('sales')
+    .insert(saleData)
+    .select()
+    .single();
+
+  if (saleError) throw saleError;
+  if (!newSale) throw new Error('Failed to create sale');
+
+  const saleItems = sale.items.map((item: SaleItem) => mapSaleItemToDbSaleItem(item, newSale.id));
+
+  const { error: itemsError } = await supabase
+    .from('sale_items')
+    .insert(saleItems);
+
+  if (itemsError) {
+    await supabase.from('sales').delete().eq('id', newSale.id);
+    throw itemsError;
+  }
+
+  const createdSale = await getSaleById(newSale.id);
+  if (!createdSale) throw new Error('Failed to retrieve created sale');
+  return createdSale;
 };
 
 export const getSales = async (): Promise<Sale[]> => {
@@ -113,23 +116,9 @@ export const getSales = async (): Promise<Sale[]> => {
     `)
     .order('date', { ascending: false });
   
-  if (error) {
-    console.error('Error fetching sales:', error);
-    throw error;
-  }
+  if (error) throw error;
   
-  // Map each sale and include its items
-  const salesWithItems = await Promise.all((salesData || []).map(async (rawSale: any) => {
-    const saleWithItems: SupabaseResponse = {
-      ...rawSale,
-      payment_method: rawSale.payment_method || null,
-      sale_items: rawSale.sale_items || []
-    };
-    
-    return mapDbSaleToSale(saleWithItems);
-  }));
-  
-  return salesWithItems;
+  return (salesData || []).map(sale => mapDbSaleToSale(sale as DbSale));
 };
 
 export const getSaleById = async (id: string): Promise<Sale | null> => {
@@ -143,154 +132,11 @@ export const getSaleById = async (id: string): Promise<Sale | null> => {
     .single();
   
   if (error) {
-    if (error.code === 'PGRST116') {
-      return null;
-    }
-    console.error('Error fetching sale:', error);
+    if (error.code === 'PGRST116') return null;
     throw error;
   }
   
-  if (!sale) return null;
-
-  const saleWithItems: SupabaseResponse = {
-    id: sale.id,
-    client_id: sale.client_id,
-    date: sale.date,
-    total_amount: sale.total_amount,
-    is_invoiced: sale.is_invoiced,
-    invoice_id: sale.invoice_id,
-    notes: sale.notes,
-    payment_method: sale.payment_method as 'cash' | 'bank_transfer' | 'check' | null,
-    tax_rate: sale.tax_rate,
-    transportation_fee: sale.transportation_fee,
-    created_at: sale.created_at,
-    updated_at: sale.updated_at,
-    sale_items: sale.sale_items || []
-  };
-  
-  return mapDbSaleToSale(saleWithItems);
-};
-
-export const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
-  const { data, error } = await supabase
-    .from('sales')
-    .select(`
-      *,
-      sale_items (*)
-    `)
-    .eq('client_id', clientId)
-    .order('date', { ascending: false });
-  
-  if (error) {
-    console.error('Error fetching sales by client:', error);
-    throw error;
-  }
-  
-  const salesWithItems = await Promise.all((data || []).map(async (rawSale: any) => {
-    const saleWithItems: SupabaseResponse = {
-      ...rawSale,
-      payment_method: rawSale.payment_method || null,
-      sale_items: rawSale.sale_items || []
-    };
-    
-    return mapDbSaleToSale(saleWithItems);
-  }));
-  return salesWithItems;
-};
-
-export const getSalesByFilter = async (filter: SalesFilter): Promise<Sale[]> => {
-  let query = supabase.from('sales').select(`
-    *,
-    sale_items (*)
-  `);
-  
-  if (filter.clientId) {
-    query = query.eq('client_id', filter.clientId);
-  }
-  
-  if (filter.isInvoiced !== undefined) {
-    query = query.eq('is_invoiced', filter.isInvoiced);
-  }
-  
-  if (filter.startDate) {
-    query = query.gte('date', filter.startDate.toISOString());
-  }
-  
-  if (filter.endDate) {
-    query = query.lte('date', filter.endDate.toISOString());
-  }
-  
-  query = query.order('date', { ascending: false });
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error('Error fetching sales by filter:', error);
-    throw error;
-  }
-  
-  const salesWithItems = await Promise.all((data || []).map(async (rawSale: any) => {
-    const saleWithItems: SupabaseResponse = {
-      ...rawSale,
-      payment_method: rawSale.payment_method || null,
-      sale_items: rawSale.sale_items || []
-    };
-    
-    return mapDbSaleToSale(saleWithItems);
-  }));
-  return salesWithItems;
-};
-
-const mapSaleToDbSale = (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): DbSaleInsert => ({
-  client_id: sale.clientId,
-  date: sale.date.toISOString(),
-  total_amount: sale.totalAmountHT,
-  is_invoiced: sale.isInvoiced,
-  invoice_id: sale.invoiceId || null,
-  notes: sale.notes || null,
-  payment_method: sale.paymentMethod || null,
-  tax_rate: sale.taxRate,
-  transportation_fee: sale.transportationFee || null,
-});
-
-export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): Promise<Sale> => {
-  // First create the sale
-  const saleData = mapSaleToDbSale(sale);
-  const { data: newSale, error: saleError } = await supabase
-    .from('sales')
-    .insert({
-      ...saleData,
-      total_amount: sale.totalAmountHT // Store HT amount in database
-    })
-    .select()
-    .single();
-
-  if (saleError) throw saleError;
-  if (!newSale) throw new Error('Failed to create sale');
-
-  // Then create all sale items
-  const saleItems = sale.items.map(item => ({
-    sale_id: newSale.id,
-    description: item.description,
-    coil_ref: item.coilRef || null,
-    coil_thickness: item.coilThickness || null,
-    coil_width: item.coilWidth || null,
-    top_coat_ral: item.topCoatRAL || null,
-    back_coat_ral: item.backCoatRAL || null,
-    coil_weight: item.coilWeight || null,
-    quantity: item.quantity,
-    price_per_ton: item.pricePerTon,
-    total_amount: item.totalAmountHT // Store HT amount in database
-  }));
-
-  const { error: itemsError } = await supabase
-    .from('sale_items')
-    .insert(saleItems);
-
-  if (itemsError) throw itemsError;
-
-  // Return the complete sale with items
-  return getSaleById(newSale.id) as Promise<Sale>;
+  return sale ? mapDbSaleToSale(sale as DbSale) : null;
 };
 
 export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Sale> => {
@@ -304,44 +150,46 @@ export const updateSale = async (id: string, sale: Partial<Omit<Sale, 'id' | 'cr
     ...(sale.paymentMethod !== undefined && { payment_method: sale.paymentMethod || null }),
     ...(sale.taxRate !== undefined && { tax_rate: sale.taxRate }),
     ...(sale.transportationFee !== undefined && { transportation_fee: sale.transportationFee || null }),
-    updated_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   };
 
-  // First update the sale
-  const { data: updatedSale, error: saleError } = await supabase
+  const { data: updatedSale, error: updateError } = await supabase
     .from('sales')
     .update(updateData)
     .eq('id', id)
     .select()
     .single();
 
-  if (saleError) throw saleError;
+  if (updateError) throw updateError;
   if (!updatedSale) throw new Error('Failed to update sale');
 
-  // Get sale items
-  const { data: items } = await supabase
-    .from('sale_items')
-    .select('*')
-    .eq('sale_id', id);
-  
-  const saleWithItems: SupabaseResponse = {
-    ...(updatedSale as DbSaleBase),
-    sale_items: (items || []) as DbSaleItem[]
-  };
-  
-  return mapDbSaleToSale(saleWithItems);
+  if (sale.items) {
+    const { error: deleteError } = await supabase
+      .from('sale_items')
+      .delete()
+      .eq('sale_id', id);
+    
+    if (deleteError) throw deleteError;
+
+    const saleItems = sale.items.map((item: SaleItem) => mapSaleItemToDbSaleItem(item, id));
+    
+    const { error: insertError } = await supabase
+      .from('sale_items')
+      .insert(saleItems);
+    
+    if (insertError) throw insertError;
+  }
+
+  const updatedSaleWithItems = await getSaleById(id);
+  if (!updatedSaleWithItems) throw new Error('Failed to retrieve updated sale');
+  return updatedSaleWithItems;
 };
 
 export const deleteSale = async (id: string): Promise<void> => {
-  // Delete the sale (cascade will delete the items)
   const { error } = await supabase
     .from('sales')
     .delete()
     .eq('id', id);
   
-  if (error) {
-    console.error('Error deleting sale:', error);
-    throw error;
-  }
+  if (error) throw error;
 };
-

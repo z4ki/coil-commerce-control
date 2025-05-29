@@ -1,3 +1,6 @@
+// Define shared types
+export type PaymentMethodType = 'cash' | 'bank_transfer' | 'check' | 'term';
+
 // Define the type for a business client
 export interface Client {
   id: string;
@@ -44,14 +47,14 @@ export interface Sale {
   isInvoiced: boolean;
   invoiceId?: string;
   notes?: string;
-  paymentMethod?: 'cash' | 'bank_transfer' | 'check';
+  paymentMethod?: PaymentMethodType;
   transportationFee?: number;
   taxRate: number;
   createdAt: Date;
   updatedAt?: Date;
 }
 
-// Define the type for an invoice
+// Update Invoice interface
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -64,25 +67,25 @@ export interface Invoice {
   taxRate: number;
   isPaid: boolean;
   paidAt?: Date;
-  paymentMethod?: string;
+  paymentMethod?: PaymentMethodType; // USE THE SHARED TYPE
   transportationFee?: number;
   transportationFeeTTC?: number;
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
 }
-
-// Define the type for a payment
+/// Also, consider if the Payment interface needs 'term'
+// For now, we are focusing on Sale and Invoice context for this specific issue.
+// If 'term' is also a method for individual recorded payments, update this too:
 export interface Payment {
   id: string;
   clientId: string;
   saleId: string;
+  bulkPaymentId?: string;
   amount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check';
+  method: 'cash' | 'bank_transfer' | 'check' | 'deferred' | 'term'; // Added 'term'
   notes?: string;
-  generatesCredit: boolean;
-  creditAmount: number;
   createdAt: Date;
   updatedAt?: Date;
 }

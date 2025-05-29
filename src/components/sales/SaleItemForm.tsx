@@ -40,8 +40,16 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const backRal = watch(`items.${index}.backCoatRAL`);
   
   // Calculate totals using utility functions
-  const totalHT = calculateItemTotalHT(Number(quantity), Number(pricePerTon));
-  const totalTTC = calculateItemTotalTTC(Number(quantity), Number(pricePerTon));
+  const totalHT = calculateItemTotalHT(Number(quantity), Number(weight) / 1000, Number(pricePerTon));
+  const totalTTC = calculateItemTotalTTC(Number(totalHT), TAX_RATE);
+
+  // Update form values when totals change
+  useEffect(() => {
+    setValue(`items.${index}.totalAmountHT`, totalHT);
+    setValue(`items.${index}.totalAmountTTC`, totalTTC);
+    // Trigger full form validation to update summary
+    trigger();
+  }, [totalHT, totalTTC, index, setValue, trigger]);
 
   // Initialize input values
   useEffect(() => {
@@ -75,14 +83,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
     }
   }, [thickness, width, weight, topRal, backRal, index, setValue, t]);
 
-  // Update the total amounts in the form whenever quantity, price, or weight changes
-  useEffect(() => {
-    setValue(`items.${index}.totalAmountHT`, totalHT);
-    setValue(`items.${index}.totalAmountTTC`, totalTTC);
-    trigger();
-  }, [quantity, pricePerTon, weight, index, setValue, trigger, totalHT, totalTTC]);
-
-  // Handle numeric input changes
+  // Handle numeric input changes with immediate total updates
   const handleNumericInput = (value: string, setter: (value: string) => void, field: { onChange: (value: number) => void }) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setter(value);
@@ -92,6 +93,12 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
           field.onChange(numValue);
+          // Trigger immediate recalculation
+          trigger([
+            `items.${index}.totalAmountHT`,
+            `items.${index}.totalAmountTTC`,
+            'items'
+          ]);
         }
       }
     }
@@ -167,7 +174,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           )}
         />
 
-        <FormField
+        {/* <FormField
           control={control}
           name={`items.${index}.coilWeight`}
           render={({ field }) => (
@@ -185,7 +192,7 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
               <FormMessage />
             </FormItem>
           )}
-        />
+        /> */}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -259,17 +266,6 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
           )}
         />
 
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{t('form.sale.totals')}</div>
-          <div className="space-y-1">
-            <div className="text-sm">
-              {t('form.sale.totalHT')}: {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalHT)}
-            </div>
-            <div className="text-sm">
-              {t('form.sale.totalTTC')}: {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalTTC)}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

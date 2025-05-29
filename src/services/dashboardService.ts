@@ -36,7 +36,7 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     invoice => !invoice.is_paid && new Date(invoice.due_date) < today
   ).length;
   
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
+  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount_ht, 0);
   
   const paidInvoiceIds = invoices.filter(invoice => invoice.is_paid).map(invoice => invoice.id);
   

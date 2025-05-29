@@ -20,16 +20,20 @@ export const calculateTotalTTC = (items: SaleItem[], taxRate: number = TAX_RATE)
 
 /**
  * Calculate item total before tax
+ * @param quantity - The quantity of items
+ * @param weightInTons - The weight in tons
+ * @param pricePerTon - The price per ton
  */
-export const calculateItemTotalHT = (quantity: number, pricePerTon: number): number => {
-  return (quantity || 0) * (pricePerTon || 0);
+export const calculateItemTotalHT = (quantity: number, weightInTons: number, pricePerTon: number): number => {
+  return (quantity || 0) * ((weightInTons || 0) * (pricePerTon || 0));
 };
 
 /**
  * Calculate item total including tax
+ * @param totalHT - The total before tax
+ * @param taxRate - The tax rate (default 19%)
  */
-export const calculateItemTotalTTC = (quantity: number, pricePerTon: number, taxRate: number = TAX_RATE): number => {
-  const totalHT = calculateItemTotalHT(quantity, pricePerTon);
+export const calculateItemTotalTTC = (totalHT: number, taxRate: number = TAX_RATE): number => {
   return totalHT * (1 + taxRate);
 };
 

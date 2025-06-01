@@ -33,7 +33,11 @@ interface ReportOptions {
   includeColumns: string[];
 }
 
-const ExcelReportGenerator = () => {
+interface ExcelReportGeneratorProps {
+  onClose?: () => void;
+}
+
+const ExcelReportGenerator: React.FC<ExcelReportGeneratorProps> = ({ onClose }) => {
   const { sales, clients } = useAppContext();
   const { t } = useLanguage();
 
@@ -127,11 +131,15 @@ const ExcelReportGenerator = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${reportType}-report-${formatDateInput(new Date())}.xlsx`;
-      document.body.appendChild(link);
+      link.download = `${reportType}-report-${formatDateInput(new Date())}.xlsx`;      document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      
+      // Close the dialog after successful generation
+      if (onClose) {
+        onClose();
+      }
     } catch (error) {
       console.error('Error generating report:', error);
     } finally {

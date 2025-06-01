@@ -8,6 +8,10 @@ interface InvoicePrefix {
 interface InvoiceSettings {
   prefixes: InvoicePrefix[];
   defaultPrefix: string;
+  nextNumber: number;
+  paymentTerms: number;
+  defaultNotes: string;
+  autoPdfGeneration: boolean;
 }
 
 interface InvoiceSettingsContextType {
@@ -16,11 +20,16 @@ interface InvoiceSettingsContextType {
   removePrefix: (prefix: string) => void;
   setDefaultPrefix: (prefix: string) => void;
   getDefaultPrefix: () => string;
+  updateSettings: (updates: Partial<InvoiceSettings>) => void;
 }
 
 const defaultSettings: InvoiceSettings = {
   prefixes: [{ value: 'FAC', isDefault: true }],
   defaultPrefix: 'FAC',
+  nextNumber: 1,
+  paymentTerms: 0,
+  defaultNotes: '',
+  autoPdfGeneration: true,
 };
 
 const InvoiceSettingsContext = createContext<InvoiceSettingsContextType | undefined>(undefined);
@@ -71,6 +80,13 @@ export const InvoiceSettingsProvider: React.FC<{ children: React.ReactNode }> = 
 
   const getDefaultPrefix = () => settings.defaultPrefix;
 
+  const updateSettings = (updates: Partial<InvoiceSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      ...updates,
+    }));
+  };
+
   return (
     <InvoiceSettingsContext.Provider value={{
       settings,
@@ -78,6 +94,7 @@ export const InvoiceSettingsProvider: React.FC<{ children: React.ReactNode }> = 
       removePrefix,
       setDefaultPrefix,
       getDefaultPrefix,
+      updateSettings,
     }}>
       {children}
     </InvoiceSettingsContext.Provider>
@@ -90,4 +107,4 @@ export const useInvoiceSettings = () => {
     throw new Error('useInvoiceSettings must be used within an InvoiceSettingsProvider');
   }
   return context;
-}; 
+};

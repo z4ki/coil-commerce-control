@@ -98,26 +98,36 @@ const ClientDetail = () => {
   );
 
   const totalInvoicedAmount = useMemo(() => 
-    clientSales.filter(sale => sale.isInvoiced)
-      .reduce((total, sale) => total + sale.totalAmountTTC, 0),
-    [clientSales]
+    clientInvoices.reduce((total, invoice) => total + invoice.totalAmountTTC, 0),
+    [clientInvoices]
   );
 
   const totalUninvoicedAmount = useMemo(() => 
-    clientSales.filter(sale => !sale.isInvoiced)
-      .reduce((total, sale) => total + sale.totalAmountTTC, 0),
-    [clientSales]
+    totalSalesAmount - totalInvoicedAmount,
+    [totalSalesAmount, totalInvoicedAmount]
   );
 
-  const totalPaidAmount = useMemo(() => 
-    clientPayments.reduce((total, payment) => total + payment.amount, 0),
-    [clientPayments]
-  );
+  const totalPaidAmount = useMemo(() => {
+    // Sum up all payments
+    const paymentsSum = clientPayments.reduce((total, payment) => total + payment.amount, 0);
+    // Apply credit balance if any (don't include it in total paid amount)
+    return paymentsSum;
+  }, [clientPayments]);
 
-  const clientDebt = useMemo(() => 
-    Math.max(0, totalSalesAmount - totalPaidAmount),
-    [totalSalesAmount, totalPaidAmount]
-  );
+  const clientDebt = useMemo(() => {
+    // Calculate total debt from unpaid invoices
+    const unpaidTotal = clientInvoices
+      .filter(invoice => !invoice.isPaid)
+      .reduce((total, invoice) => total + invoice.totalAmountTTC, 0);
+    
+    // Add uninvoiced amount to debt
+    const totalDebt = unpaidTotal + totalUninvoicedAmount;
+    
+    // Subtract credit balance if any
+    const finalDebt = Math.max(0, totalDebt - creditBalance);
+    
+    return finalDebt;
+  }, [clientInvoices, totalUninvoicedAmount, creditBalance]);
 
   const getInvoiceStatus = (invoice: Invoice): 'paid' | 'unpaid' | 'overdue' | 'invoiced' | 'notInvoiced' => {
     if (invoice.isPaid) return 'paid';

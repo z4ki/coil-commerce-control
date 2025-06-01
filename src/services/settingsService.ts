@@ -15,6 +15,7 @@ interface DbSettings {
   rc: string | null;
   ai: string | null;
   rib: string | null;
+  updated_at: string | null;
 }
 
 interface UpdateSettingsInput {
@@ -88,31 +89,59 @@ export const getSettings = async (): Promise<AppSettings> => {
 
 export const updateSettings = async (settings: UpdateSettingsInput): Promise<AppSettings> => {
   try {
-    const { data, error } = await supabase
+    // First get the current settings to get the ID
+    const { data: existingSettings, error: getError } = await supabase
       .from('settings')
-      .update({
-        company_name: settings.company?.name,
-        company_address: settings.company?.address,
-        company_phone: settings.company?.phone,
-        company_email: settings.company?.email,
-        company_logo: settings.company?.logo,
-        currency: settings.currency,
-        nif: settings.company?.nif,
-        nis: settings.company?.nis,
-        rc: settings.company?.rc,
-        ai: settings.company?.ai,
-        rib: settings.company?.rib,
-        updated_at: new Date().toISOString()
-      })
-      .select()
+      .select('id')
       .single();
-    
-    if (error) {
-      console.error('Error updating settings:', error);
-      throw error;
+
+    if (getError) {
+      console.error('Error fetching settings ID:', getError);
+      throw getError;
     }
-    
-    return mapSettingsFromDb(data);
+
+    if (!existingSettings?.id) {
+      throw new Error('No settings record found to update');
+    }
+
+    const updateData = {
+      company_name: settings.company?.name,
+      company_address: settings.company?.address,
+      company_phone: settings.company?.phone,
+      company_email: settings.company?.email,
+      company_logo: settings.company?.logo,
+      currency: settings.currency,
+      nif: settings.company?.nif,
+      nis: settings.company?.nis,
+      rc: settings.company?.rc,
+      ai: settings.company?.ai,
+      rib: settings.company?.rib,
+      updated_at: new Date().toISOString()
+    };
+
+    // Try update with the existing settings ID
+    const { error: updateError } = await supabase
+      .from('settings')
+      .update(updateData)
+      .eq('id', existingSettings.id);
+
+    if (updateError) {
+      console.error('Error updating settings:', updateError);
+      throw updateError;
+    }
+
+    // If update succeeded, fetch the latest data
+    const { data: freshData, error: fetchLatestError } = await supabase
+      .from('settings')
+      .select('*')
+      .single();
+
+    if (fetchLatestError) {
+      console.error('Error fetching updated settings:', fetchLatestError);
+      throw fetchLatestError;
+    }
+
+    return mapSettingsFromDb(freshData);
   } catch (error) {
     console.error('Error in updateSettings:', error);
     throw error;

@@ -137,11 +137,29 @@ export interface CompanySettings {
 }
 
 // Define the type for app settings
+export interface CompanyProfile {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  nif?: string;
+  nis?: string;
+  rc?: string;
+  ai?: string;
+  rib?: string;
+  taxId?: string;
+  logo?: string;
+}
+
 export interface AppSettings {
-  company: CompanySettings;
+  id?: string;
+  company: CompanyProfile;
   language: 'en' | 'fr';
   theme: 'light' | 'dark';
   currency: string;
+  notifications?: boolean;
+  darkMode?: boolean;
+  user_id?: string;
 }
 
 // Added missing types that were referenced in the code

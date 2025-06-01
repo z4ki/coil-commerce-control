@@ -3,6 +3,14 @@ import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -36,6 +44,7 @@ import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { useLanguage } from '../context/LanguageContext';
 import { Link } from 'react-router-dom';
+import ExcelReportGenerator from '../components/reports/ExcelReportGenerator';
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -101,6 +110,7 @@ const Reports = () => {
   } = useAppContext();
   const { t } = useLanguage();
   
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [timeRange, setTimeRange] = useState('all');
   
   // Get summaries
@@ -187,10 +197,27 @@ const Reports = () => {
                 <SelectItem value="year">{t('general.thisYear')}</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              {t('general.export')}
-            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('reports.exportReports')}</DialogTitle>
+                  <DialogDescription>
+                    {t('reports.exportReportsDesc')}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <ExcelReportGenerator 
+                    onClose={() => setIsDialogOpen(false)}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
         

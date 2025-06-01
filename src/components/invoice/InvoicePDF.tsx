@@ -331,7 +331,8 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>RIB (Badr Teleghma) :</Text>
-            <Text style={styles.normalText}>00300841000264039071</Text>
+            <Text style={styles.normalText}>{companyInfo.rib}</Text>
+            {/* <Text style={styles.normalText}>00300841000264039071</Text> */}
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>Adresse: </Text>

@@ -7,7 +7,12 @@ interface ThemeProviderProps {
 
 const ThemeProvider = ({ children }: ThemeProviderProps) => {
   return (
-    <NextThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <NextThemeProvider 
+      attribute="class" 
+      defaultTheme="light" 
+      enableSystem 
+      disableTransitionOnChange
+    >
       {children}
     </NextThemeProvider>
   );

@@ -11,7 +11,7 @@ import * as saleService from '@/services/saleService';
 import * as invoiceService from '@/services/invoiceService';
 import * as paymentService from '@/services/paymentService';
 
-interface AppContextType {
+export interface AppContextType {
   clients: Client[];
   sales: Sale[];
   invoices: Invoice[];
@@ -467,7 +467,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         const salesData = await saleService.getSales();
         if (isMounted) {
           setSales(salesData || []);
-          console.log('Fetched sales:', salesData);
+          // console.log('Fetched sales:', salesData);
         }
       } catch (error) {
         console.error('Error fetching sales:', error);
@@ -494,7 +494,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         const invoicesData = await invoiceService.getInvoices();
         if (isMounted) {
           setInvoices(invoicesData || []);
-          console.log('Fetched invoices:', invoicesData);
+          // console.log('Fetched invoices:', invoicesData);
         }
       } catch (error) {
         console.error('Error fetching invoices:', error);
@@ -521,7 +521,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         const paymentsData = await paymentService.getPayments();
         if (isMounted) {
           setPayments(paymentsData || []);
-          console.log('Fetched payments:', paymentsData);
+          // console.log('Fetched payments:', paymentsData);
         }
       } catch (error) {
         console.error('Error fetching payments:', error);

@@ -54,12 +54,20 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   const revenueCollected = (payments || []).reduce((sum, payment) => sum + payment.amount, 0);
   
   const outstandingAmount = totalRevenue - revenueCollected;
-  
-  // Calculate payment method totals
+    // Calculate payment method totals from all payments, not just those linked to invoices
+  const { data: allPayments, error: allPaymentsError } = await supabase
+    .from('payments')
+    .select('*');
+
+  if (allPaymentsError) {
+    console.error('Error fetching all payments for dashboard:', allPaymentsError);
+    throw allPaymentsError;
+  }
+
   const paymentMethodTotals = {
-    cash: (payments || []).filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0),
-    bank_transfer: (payments || []).filter(p => p.method === 'bank_transfer').reduce((sum, p) => sum + p.amount, 0),
-    check: (payments || []).filter(p => p.method === 'check').reduce((sum, p) => sum + p.amount, 0),
+    cash: (allPayments || []).filter(p => p.method === 'cash').reduce((sum, p) => sum + Number(p.amount), 0),
+    bank_transfer: (allPayments || []).filter(p => p.method === 'bank_transfer').reduce((sum, p) => sum + Number(p.amount), 0),
+    check: (allPayments || []).filter(p => p.method === 'check').reduce((sum, p) => sum + Number(p.amount), 0),
   };
   
   return {

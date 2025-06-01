@@ -1,73 +1,63 @@
-# Welcome to your Lovable project
+# HA SALES MANAGER
 
-## Project info
+**HA SALES MANAGER** is a web-based management system designed for businesses that handle coil sales, invoicing, and client relationships. The application provides a comprehensive dashboard to manage clients, sales, invoices, payments, and analytics—all in one place.
 
-**URL**: https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3
+## Features
 
-## How can I edit this code?
+- **Client Management**: Add, update, and view business clients and their details.
+- **Sales Tracking**: Record sales of coil materials, including attributes like thickness, width, color, and weight.
+- **Invoice Management**: Create and manage invoices, track payment status, and associate invoices with sales.
+- **Payments**: Log payments by different methods (cash, bank transfer, check, credit card) and track outstanding debts.
+- **Dashboard & Analytics**: Visualize key business metrics, sales trends, outstanding debts, and top clients.
+- **Reports**: Generate and export detailed reports and analytics on sales and invoices.
+- **Authentication**: Secure login and user management.
 
-There are several ways of editing your application.
+## Technologies Used
 
-**Use Lovable**
+- [Vite](https://vitejs.dev/)
+- [React](https://react.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Supabase](https://supabase.com/) (for backend/database)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- [Node.js](https://nodejs.org/) (v18+ recommended)
+- [npm](https://www.npmjs.com/)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repository
+git clone https://github.com/z4ki/coil-commerce-control.git
+cd coil-commerce-control
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+By default, the app runs on [http://localhost:5173](http://localhost:5173).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Configuration
 
-**Use GitHub Codespaces**
+You may need to configure environment variables to connect to your Supabase backend. See `.env.example` or project documentation for details.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Usage
 
-## What technologies are used for this project?
+- Open your browser and visit `http://localhost:5173`.
+- Log in or sign up to start managing clients, sales, invoices, and payments.
+- Use the sidebar to navigate between Dashboard, Clients, Sales, Invoices, Reports, and Settings.
 
-This project is built with:
+## License
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+MIT
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+> _Project maintained by [z4ki](https://github.com/z4ki)._

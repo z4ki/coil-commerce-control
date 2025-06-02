@@ -7,6 +7,8 @@ import { AppProvider, useAppContext } from "./context/AppContext";
 import { LanguageProvider } from './context/LanguageContext';
 import { InvoiceSettingsProvider } from './context/InvoiceSettingsContext';
 import { AppSettingsProvider } from './context/AppSettingsContext';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import ThemeProvider from './components/theme/ThemeProvider';
 
 // Pages
@@ -22,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import SaleForm from "./components/sales/SaleForm";
 import ClientForm from "./components/clients/ClientForm";
 import InvoiceForm from "./components/invoices/InvoiceForm";
+import Login from './pages/Login';
 
 const queryClient = new QueryClient();
 
@@ -51,38 +54,42 @@ const ClientFormWrapper = () => {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <LanguageProvider>
-          <ThemeProvider>
-            <AppSettingsProvider>
-              <InvoiceSettingsProvider>
-                <AppProvider>
-                  <BrowserRouter>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/sales" element={<Sales />} />
-                      <Route path="/sales/new" element={<SaleForm />} />
-                      <Route path="/sales/:id" element={<SaleForm />} />
-                      <Route path="/invoices" element={<Invoices />} />
-                      <Route path="/invoices/new" element={<InvoiceFormWrapper />} />
-                      <Route path="/invoices/:id" element={<InvoiceFormWrapper />} />
-                      <Route path="/clients" element={<Clients />} />
-                      <Route path="/clients/new" element={<ClientFormWrapper />} />
-                      <Route path="/clients/:id" element={<ClientDetail />} />
-                      
-                      <Route path="/reports" element={<Reports />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </BrowserRouter>
-                  <Toaster />
-                  <Sonner />
-                </AppProvider>
-              </InvoiceSettingsProvider>
-            </AppSettingsProvider>
-          </ThemeProvider>
-        </LanguageProvider>
-      </TooltipProvider>
+      <ThemeProvider>
+        <TooltipProvider>
+          <AppSettingsProvider>
+            <AppProvider>
+              <AuthProvider>
+                <LanguageProvider>
+                  <InvoiceSettingsProvider>
+                    <BrowserRouter>
+                      <Routes>
+                        <Route path="/login" element={<Login />} />
+                        
+                        {/* Protected Routes */}
+                        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                        <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+                        <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+                        <Route path="/clients/new" element={<ProtectedRoute><ClientFormWrapper /></ProtectedRoute>} />
+                        <Route path="/clients/edit/:id" element={<ProtectedRoute><ClientFormWrapper /></ProtectedRoute>} />
+                        <Route path="/sales" element={<ProtectedRoute><Sales /></ProtectedRoute>} />
+                        <Route path="/sales/new" element={<ProtectedRoute><SaleForm /></ProtectedRoute>} />
+                        <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+                        <Route path="/invoices/:id" element={<ProtectedRoute><InvoiceDetail /></ProtectedRoute>} />
+                        <Route path="/invoices/new" element={<ProtectedRoute><InvoiceFormWrapper /></ProtectedRoute>} />
+                        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+                        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                      <Toaster />
+                      <Sonner />
+                    </BrowserRouter>
+                  </InvoiceSettingsProvider>
+                </LanguageProvider>
+              </AuthProvider>
+            </AppProvider>
+          </AppSettingsProvider>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };

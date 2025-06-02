@@ -1,7 +1,12 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import { Helmet } from 'react-helmet';
+import { Button } from '../ui/button';
+import { LogOut } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -10,6 +15,15 @@ interface MainLayoutProps {
 }
 
 const MainLayout = ({ children, title, headerAction }: MainLayoutProps) => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    toast.success('Déconnexion réussie');
+    navigate('/login');
+  };
+
   return (
     <>
       <Helmet>
@@ -26,7 +40,17 @@ const MainLayout = ({ children, title, headerAction }: MainLayoutProps) => {
           <header className="bg-white border-b border-border px-6 py-4">
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-semibold text-gray-800">{title}</h1>
-              {headerAction}
+              <div className="flex items-center gap-4">
+                {headerAction}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
           </header>
           

@@ -1,14 +1,13 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "HA SALES MANAGER",
-  "version": "0.1.0",
-  "identifier": "com.hagroup.sales-manager",
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devUrl": "http://localhost:8080"
-    
+    "devUrl": "http://localhost:5173"
   },
+  "identifier": "com.hagroup.sales-manager",
+  "productName": "HA SALES MANAGER",
+  "version": "0.1.0",
   "app": {
     "security": {
       "csp": null
@@ -34,12 +33,15 @@
     ],
     "targets": "all"
   },
-  "plugins": {
-    "fs": {
-      "scope": ["$APP/*"]
-    },
-    "shell": {
-      "open": true
+  "tauri": {
+    "allowlist": {
+      "fs": {
+        "all": true,
+        "scope": ["$APP/*", "$APP", "$DOCUMENT/*"]
+      },
+      "shell": {
+        "open": true
+      }
     }
   }
 }

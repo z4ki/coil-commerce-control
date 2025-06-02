@@ -12,6 +12,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Trash2 } from 'lucide-react';
 import { calculateItemTotalHT, calculateItemTotalTTC, TAX_RATE } from '../../utils/calculations';
+import { ProductType } from '@/services/productTypes';
+import { ProductTypeSelector } from './ProductTypeSelector';
+import { TN40Fields } from './TN40Fields';
+import { SteelSlittingFields } from './SteelSlittingFields';
 
 interface SaleItemFormProps {
   index: number;
@@ -23,23 +27,14 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const { control, watch, setValue, trigger } = useFormContext();
   const { t } = useLanguage();
   
-  // Initialize all input states with empty strings
-  const [thicknessInput, setThicknessInput] = useState('');
-  const [widthInput, setWidthInput] = useState('');
-  const [weightInput, setWeightInput] = useState('');
-  const [quantityInput, setQuantityInput] = useState('1');
-  const [priceInput, setPriceInput] = useState('0');
-  
+  const [productType, setProductType] = useState<ProductType>(ProductType.STANDARD);
+
   // Watch for changes in all relevant fields
-  const quantity = watch(`items.${index}.quantity`);
-  const pricePerTon = watch(`items.${index}.pricePerTon`);
-  const thickness = watch(`items.${index}.coilThickness`);
-  const width = watch(`items.${index}.coilWidth`);
-  const weight = watch(`items.${index}.coilWeight`);
-  const topRal = watch(`items.${index}.topCoatRAL`);
-  const backRal = watch(`items.${index}.backCoatRAL`);
+  const values = watch(`items.${index}`);
+  const { quantity, pricePerTon } = values || { quantity: 0, pricePerTon: 0 };
   
   // Calculate totals using utility functions
+  const weight = productType === ProductType.STEEL_SLITTING ? values?.weight : values?.coilWeight;
   const totalHT = calculateItemTotalHT(Number(quantity), Number(weight) / 1000, Number(pricePerTon));
   const totalTTC = calculateItemTotalTTC(Number(totalHT), TAX_RATE);
 
@@ -47,225 +42,147 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   useEffect(() => {
     setValue(`items.${index}.totalAmountHT`, totalHT);
     setValue(`items.${index}.totalAmountTTC`, totalTTC);
-    // Trigger full form validation to update summary
     trigger();
   }, [totalHT, totalTTC, index, setValue, trigger]);
 
-  // Initialize input values
-  useEffect(() => {
-    if (thickness !== undefined) setThicknessInput(thickness.toString());
-    if (width !== undefined) setWidthInput(width.toString());
-    if (weight !== undefined) setWeightInput(weight.toString());
-    if (quantity !== undefined) setQuantityInput(quantity.toString());
-    if (pricePerTon !== undefined) setPriceInput(pricePerTon.toString());
-  }, [thickness, width, weight, quantity, pricePerTon]);
+  const handleProductTypeChange = (type: ProductType) => {
+    setProductType(type);
+    setValue(`items.${index}.productType`, type);
+    
+    // Clear type-specific fields
+    const fieldsToReset = {
+      coilRef: '',
+      coilThickness: null,
+      coilWidth: null,
+      topCoatRAL: '',
+      backCoatRAL: '',
+      coilWeight: null,
+      inputWidth: null,
+      outputWidth: null,
+      thickness: null,
+      weight: null,
+      stripsCount: null,
+    };
 
-  // Automatically generate description when relevant fields change
-  useEffect(() => {
-    if (thickness && width) {
-      let description = t('form.sale.coilDescription')
-        .replace('{0}', thickness.toString())
-        .replace('{1}', width.toString());
-      
-      if (topRal || backRal) {
-        description = t('form.sale.coilDescriptionWithRAL')
-          .replace('{0}', thickness.toString())
-          .replace('{1}', width.toString())
-          .replace('{2}', topRal || 'X')
-          .replace('{3}', backRal || 'Y');
-      }
-      
-      if (weight) {
-        description += ` - ${weight}kg`;
-      }
-      
-      setValue(`items.${index}.description`, description);
-    }
-  }, [thickness, width, weight, topRal, backRal, index, setValue, t]);
+    Object.entries(fieldsToReset).forEach(([field, value]) => {
+      setValue(`items.${index}.${field}`, value);
+    });
+    trigger();
+  };
 
-  // Handle numeric input changes with immediate total updates
-  const handleNumericInput = (value: string, setter: (value: string) => void, field: { onChange: (value: number) => void }) => {
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-      setter(value);
-      if (value === '') {
-        field.onChange(0);
-      } else {
-        const numValue = parseFloat(value);
-        if (!isNaN(numValue)) {
-          field.onChange(numValue);
-          // Trigger immediate recalculation
-          trigger([
-            `items.${index}.totalAmountHT`,
-            `items.${index}.totalAmountTTC`,
-            'items'
-          ]);
-        }
-      }
-    }
+  const handleFieldChange = (field: string, value: any) => {
+    setValue(`items.${index}.${field}`, value);
+    trigger();
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-md relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute right-2 top-2"
-        onClick={onRemove}
-        disabled={isRemoveDisabled}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+    <div className="space-y-4 p-4 border rounded-lg">
+      <div className="flex justify-between items-start">
+        <div className="flex-1 space-y-4">
+          <FormField
+            control={control}
+            name={`items.${index}.description`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.coilRef`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.coilRef')}</FormLabel>
-              <FormControl>
-                <Input placeholder="BOB-" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <ProductTypeSelector
+            value={productType}
+            onChange={handleProductTypeChange}
+          />
 
-        <FormField
-          control={control}
-          name={`items.${index}.coilThickness`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.coilThickness')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={thicknessInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setThicknessInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          {productType === ProductType.TN40 && (
+            <TN40Fields
+              values={values}
+              onChange={handleFieldChange}
+            />
           )}
-        />
+
+          {productType === ProductType.STEEL_SLITTING && (
+            <SteelSlittingFields
+              values={values}
+              onChange={handleFieldChange}
+            />
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.quantity`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantité</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      {...field} 
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        field.onChange(e);
+                        handleFieldChange('quantity', value);
+                      }} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name={`items.${index}.pricePerTon`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Prix par tonne</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      {...field} 
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        field.onChange(e);
+                        handleFieldChange('pricePerTon', value);
+                      }} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRemove}
+          disabled={isRemoveDisabled}
+          className="text-destructive hover:text-destructive/90"
+        >
+          <Trash2 className="h-5 w-5" />
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.coilWidth`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.coilWidth')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={widthInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* <FormField
-          control={control}
-          name={`items.${index}.coilWeight`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.coilWeight')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={weightInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setWeightInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        /> */}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.topCoatRAL`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
-              <FormControl>
-                <Input placeholder="9010" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={control}
-          name={`items.${index}.backCoatRAL`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
-              <FormControl>
-                <Input placeholder="9002" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <FormField
-          control={control}
-          name={`items.${index}.quantity`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.quantity')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={quantityInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setQuantityInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={control}
-          name={`items.${index}.pricePerTon`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.pricePerTon')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={priceInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setPriceInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <FormLabel>Total HT</FormLabel>
+          <div className="text-lg font-semibold">
+            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'DZD' }).format(totalHT)}
+          </div>
+        </div>
+        <div>
+          <FormLabel>Total TTC</FormLabel>
+          <div className="text-lg font-semibold">
+            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'DZD' }).format(totalTTC)}
+          </div>
+        </div>
       </div>
     </div>
   );

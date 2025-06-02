@@ -39,11 +39,21 @@ const Navigation = () => {
       label: t('nav.settings')
     }
   ];
-
-  // ... rest of the code ...
-
   return (
-    // ... rest of the component code ...
+    <nav className="flex flex-col space-y-2">
+      {menuItems.map((item) => (
+        <a
+          key={item.to}
+          href={item.to}
+          className={`flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-muted ${
+            location.pathname === item.to ? 'bg-muted' : ''
+          }`}
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </a>
+      ))}
+    </nav>
   );
 };
 

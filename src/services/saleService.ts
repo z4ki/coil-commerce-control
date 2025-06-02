@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Sale, SaleItem, DbSale, DbSaleItem } from './salesTypes';
+import { ProductType } from './productTypes';
 
 // Type for sale filters
 export interface SalesFilter {
@@ -14,12 +15,21 @@ function mapDbSaleItemToSaleItem(dbItem: DbSaleItem): SaleItem {
   return {
     id: dbItem.id || '',
     description: dbItem.description,
+    productType: dbItem.product_type,
+    // TN40 properties
     coilRef: dbItem.coil_ref || undefined,
     coilThickness: dbItem.coil_thickness || undefined,
     coilWidth: dbItem.coil_width || undefined,
     topCoatRAL: dbItem.top_coat_ral || undefined,
     backCoatRAL: dbItem.back_coat_ral || undefined,
     coilWeight: dbItem.coil_weight || undefined,
+    // Steel Slitting properties
+    inputWidth: dbItem.input_width || undefined,
+    outputWidth: dbItem.output_width || undefined,
+    thickness: dbItem.thickness || undefined,
+    weight: dbItem.weight || undefined,
+    stripsCount: dbItem.strips_count || undefined,
+    // Common properties
     quantity: dbItem.quantity,
     pricePerTon: dbItem.price_per_ton,
     totalAmountHT: dbItem.total_amount,
@@ -31,12 +41,21 @@ function mapSaleItemToDbSaleItem(item: SaleItem, saleId: string): DbSaleItem {
   return {
     sale_id: saleId,
     description: item.description,
+    product_type: item.productType,
+    // TN40 properties
     coil_ref: item.coilRef || null,
     coil_thickness: item.coilThickness || null,
     coil_width: item.coilWidth || null,
     top_coat_ral: item.topCoatRAL || null,
     back_coat_ral: item.backCoatRAL || null,
     coil_weight: item.coilWeight || null,
+    // Steel Slitting properties
+    input_width: item.inputWidth || null,
+    output_width: item.outputWidth || null,
+    thickness: item.thickness || null,
+    weight: item.weight || null,
+    strips_count: item.stripsCount || null,
+    // Common properties
     quantity: item.quantity,
     price_per_ton: item.pricePerTon,
     total_amount: item.totalAmountHT

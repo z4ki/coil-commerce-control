@@ -67,6 +67,14 @@ const Dashboard = () => {
     getSalesByClient,
     payments
   } = useAppContext();
+
+  // ADD THESE CONSOLE LOGS:
+  console.log("[Dashboard.tsx] Payments data from context:", JSON.stringify(payments, null, 2));
+  console.log(`[Dashboard.tsx] Number of payments loaded: ${payments.length}`);
+  payments.forEach((p, index) => {
+    console.log(`[Dashboard.tsx] Payment ${index + 1}: method='${p.method}', amount=${p.amount}`);
+  });
+  // END OF ADDED CONSOLE LOGS
   const { t } = useLanguage();
   
   const salesSummary = getSalesSummary();

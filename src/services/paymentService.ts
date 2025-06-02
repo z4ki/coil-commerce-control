@@ -1,22 +1,42 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Payment, BulkPayment } from '@/types';
-import { addOverpaymentCredit } from './creditService';
-import { getSaleById } from './saleService';
-import { Database } from '@/integrations/supabase/types';
+import { Payment, PaymentMethodType } from '@/types'; // Ensure PaymentMethodType is imported or use the full union
 
-type DbPayment = Database['public']['Tables']['payments']['Row'];
-type DbPaymentInsert = Database['public']['Tables']['payments']['Insert'];
+// Interface for what Supabase returns in the database for payments
+interface DbPaymentResponse {
+  id: string;
+  sale_id: string;
+  client_id: string;
+  bulk_payment_id?: string | null;
+  date: string;
+  amount: number;
+  method: string; // This will be 'cash', 'bank_transfer', 'check', 'term', 'deferred'
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  // Ensure no 'credit_amount' or 'generates_credit' here unless they are truly in your DB table
+}
 
-const mapDbPaymentToPayment = (dbPayment: DbPayment): Payment => ({
+// Interface for data being inserted into Supabase for payments
+interface DbPaymentInsert {
+  sale_id: string;
+  client_id: string;
+  bulk_payment_id?: string | null;
+  date: string;
+  amount: number;
+  method: PaymentMethodType | 'deferred'; // Use the correct type for method
+  notes: string | null;
+  // DO NOT include 'credit_amount' or 'generates_credit' if columns don't exist
+}
+
+const mapDbPaymentToPayment = (dbPayment: DbPaymentResponse): Payment => ({
   id: dbPayment.id,
   saleId: dbPayment.sale_id,
   clientId: dbPayment.client_id,
-  amount: dbPayment.amount,
+  bulkPaymentId: dbPayment.bulk_payment_id || undefined,
   date: new Date(dbPayment.date),
-  method: dbPayment.method as 'cash' | 'bank_transfer' | 'check',
+  amount: Number(dbPayment.amount), // Ensure amount is a number
+  method: dbPayment.method as Payment['method'], // Cast to the App's Payment method type
   notes: dbPayment.notes || undefined,
-  generatesCredit: dbPayment.generates_credit,
-  creditAmount: dbPayment.credit_amount,
   createdAt: new Date(dbPayment.created_at),
   updatedAt: dbPayment.updated_at ? new Date(dbPayment.updated_at) : undefined,
 });
@@ -26,14 +46,13 @@ export const getPaymentsBySale = async (saleId: string): Promise<Payment[]> => {
     .from('payments')
     .select('*')
     .eq('sale_id', saleId)
-    .order('date', { ascending: true });
-
+    .order('date', { ascending: false });
+    
   if (error) {
-    console.error('Error fetching payments:', error);
+    console.error('Error fetching payments by sale:', error);
     throw error;
   }
-
-  return (data || []).map(mapDbPaymentToPayment);
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
 };
 
 export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> => {
@@ -44,11 +63,10 @@ export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> 
     .order('date', { ascending: false });
 
   if (error) {
-    console.error('Error fetching payments:', error);
+    console.error('Error fetching payments by client:', error);
     throw error;
   }
-
-  return (data || []).map(mapDbPaymentToPayment);
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
 };
 
 export const getPayments = async (): Promise<Payment[]> => {
@@ -57,107 +75,107 @@ export const getPayments = async (): Promise<Payment[]> => {
     .select('*')
     .order('date', { ascending: false });
 
-  if (error) throw error;
-  return (data as unknown as DbPayment[]).map(mapDbPaymentToPayment);
+  if (error) {
+    console.error('Error fetching all payments:', error);
+    throw error;
+  }
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
 };
 
-export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'generatesCredit' | 'creditAmount'>): Promise<Payment> => {
-  // Get the sale to check for overpayment
-  const sale = await getSaleById(payment.saleId);
-  if (!sale) {
-    throw new Error('Sale not found');
-  }
+export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'bulkPaymentId'> & { bulkPaymentId?: string }): Promise<Payment> => {
+  // The 'payment' object coming from PaymentForm will have:
+  // saleId, clientId, date (Date object), amount (number), method (PaymentMethodType), notes (string | undefined)
 
-  // Calculate total paid for this sale
-  const { data: existingPayments } = await supabase
-    .from('payments')
-    .select('amount')
-    .eq('sale_id', payment.saleId);
-
-  const totalPaid = (existingPayments || []).reduce((sum, p) => sum + p.amount, 0);
-  const newTotal = totalPaid + payment.amount;
-  const overpaymentAmount = Math.max(0, newTotal - sale.totalAmountTTC);
-
-  // Prepare payment data
-  const paymentData: DbPaymentInsert = {
+  const insertData: DbPaymentInsert = {
     sale_id: payment.saleId,
     client_id: payment.clientId,
     date: payment.date.toISOString(),
     amount: payment.amount,
-    method: payment.method,
+    method: payment.method, // This should be 'cash', 'bank_transfer', 'check', 'term', or 'deferred'
     notes: payment.notes || null,
-    generates_credit: overpaymentAmount > 0,
-    credit_amount: overpaymentAmount,
+    // Removed generates_credit and credit_amount as they are not in the DB schema
   };
 
-  // Insert the payment
+  // Only add bulk_payment_id if it exists on the input 'payment' object
+  if (payment.bulkPaymentId) {
+    insertData.bulk_payment_id = payment.bulkPaymentId;
+  }
+  
+  console.log("[paymentService] Attempting to insert payment with data:", insertData);
+
+
   const { data, error } = await supabase
     .from('payments')
-    .insert(paymentData)
+    .insert([insertData]) 
     .select()
     .single();
-
+    
   if (error) {
-    console.error('Error adding payment:', error);
+    console.error('Error adding payment to Supabase in service:', error); 
     throw error;
   }
-
-  // If there's an overpayment, create a credit transaction
-  if (overpaymentAmount > 0) {
-    await addOverpaymentCredit(
-      payment.clientId,
-      overpaymentAmount,
-      data.id,
-      'Overpayment from sale ' + payment.saleId
-    );
+  if (!data) {
+      console.error("[paymentService] No data returned from Supabase after payment insert.");
+      throw new Error("No data returned from Supabase after payment insert.");
   }
-
-  return mapDbPaymentToPayment(data);
+  return mapDbPaymentToPayment(data as DbPaymentResponse);
 };
 
-export const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> => {
-  const bulkPaymentId = crypto.randomUUID();
-  const payments: DbPaymentInsert[] = [];
-  let remainingAmount = payment.totalAmount;
+export const addBulkPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'saleId' | 'amount'> & { totalAmount: number; distribution?: { saleId: string; amount: number }[] }): Promise<Payment[]> => {
+  const bulkPaymentIdToUse = uuidv4(); // Generate a UUID for bulk_payment_id
+  const paymentsToInsert: DbPaymentInsert[] = [];
+  
+  if (!payment.distribution || payment.distribution.length === 0) {
+    // If no distribution, this function might need to behave differently or throw an error
+    // For now, let's assume if distribution is missing, it's an error or not applicable here
+    // Or, it could be a single payment not linked to a sale (e.g. general credit) - but our schema requires sale_id
+    console.warn("addBulkPayment called without distribution. This scenario might not be fully handled.");
+    // Depending on requirements, you might create a "placeholder" payment or throw.
+    // For now, returning empty array if no distribution.
+    return []; 
+  }
 
-  // If distribution is specified, create payments according to it
-  if (payment.distribution && payment.distribution.length > 0) {
-    for (const dist of payment.distribution) {
-      if (remainingAmount <= 0) break;
-      const amount = Math.min(dist.amount, remainingAmount);
-      payments.push({
-        sale_id: dist.saleId,
-        client_id: payment.clientId,
-        bulk_payment_id: bulkPaymentId,
-        date: payment.date.toISOString(),
-        amount,
-        method: payment.method,
-        notes: payment.notes || null
-      });
-      remainingAmount -= amount;
-    }
+  for (const dist of payment.distribution) {
+    paymentsToInsert.push({
+      sale_id: dist.saleId, // This is required by your schema
+      client_id: payment.clientId,
+      bulk_payment_id: bulkPaymentIdToUse,
+      date: payment.date.toISOString(),
+      amount: dist.amount,
+      method: payment.method,
+      notes: payment.notes || null
+    });
+  }
+
+  if (paymentsToInsert.length === 0) {
+    return [];
   }
 
   const { data, error } = await supabase
     .from('payments')
-    .insert(payments)
+    .insert(paymentsToInsert)
     .select();
 
-  if (error) throw error;
-  return (data as DbPayment[]).map(mapDbPaymentToPayment);
+  if (error) {
+    console.error('Error adding bulk payments to Supabase:', error);
+    throw error;
+  }
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
 };
 
-export const updatePayment = async (id: string, payment: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Payment> => {
-  const updateData: Partial<DbPaymentInsert> & { updated_at: string } = {
+
+export const updatePayment = async (id: string, paymentUpdate: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Payment> => {
+  const updateData: Partial<DbPaymentInsert> & { updated_at?: string } = { // updated_at should be optional
     updated_at: new Date().toISOString()
   };
 
-  if (payment.saleId !== undefined) updateData.sale_id = payment.saleId;
-  if (payment.clientId !== undefined) updateData.client_id = payment.clientId;
-  if (payment.date !== undefined) updateData.date = payment.date.toISOString();
-  if (payment.amount !== undefined) updateData.amount = payment.amount;
-  if (payment.method !== undefined) updateData.method = payment.method;
-  if (payment.notes !== undefined) updateData.notes = payment.notes;
+  if (paymentUpdate.saleId !== undefined) updateData.sale_id = paymentUpdate.saleId;
+  if (paymentUpdate.clientId !== undefined) updateData.client_id = paymentUpdate.clientId;
+  if (paymentUpdate.date !== undefined) updateData.date = paymentUpdate.date.toISOString();
+  if (paymentUpdate.amount !== undefined) updateData.amount = paymentUpdate.amount;
+  if (paymentUpdate.method !== undefined) updateData.method = paymentUpdate.method;
+  if (paymentUpdate.notes !== undefined) updateData.notes = paymentUpdate.notes;
+  if (paymentUpdate.bulkPaymentId !== undefined) updateData.bulk_payment_id = paymentUpdate.bulkPaymentId;
     
   const { data, error } = await supabase
     .from('payments')
@@ -166,42 +184,24 @@ export const updatePayment = async (id: string, payment: Partial<Omit<Payment, '
     .select()
     .single();
     
-  if (error) throw error;
-  return mapDbPaymentToPayment(data as DbPayment);
+  if (error) {
+    console.error('Error updating payment in Supabase:', error);
+    throw error;
+  }
+  if (!data) {
+    throw new Error("No data returned from Supabase after payment update.");
+  }
+  return mapDbPaymentToPayment(data as DbPaymentResponse);
 };
 
-export const deletePayment = async (paymentId: string): Promise<void> => {
-  // Get the payment first to check if it generated credit
-  const { data: payment, error: fetchError } = await supabase
+export const deletePayment = async (id: string): Promise<void> => {
+  const { error } = await supabase
     .from('payments')
-    .select('*')
-    .eq('id', paymentId)
-    .single();
-
-  if (fetchError) {
-    console.error('Error fetching payment:', fetchError);
-    throw fetchError;
-  }
-
-  // If the payment generated credit, we need to handle that in the transaction
-  if (payment.generates_credit) {
-    const { error } = await supabase.rpc('delete_payment_with_credit', {
-      payment_id: paymentId
-    });
-
-    if (error) {
-      console.error('Error deleting payment with credit:', error);
-      throw error;
-    }
-  } else {
-    const { error } = await supabase
-      .from('payments')
-      .delete()
-      .eq('id', paymentId);
-
-    if (error) {
-      console.error('Error deleting payment:', error);
-      throw error;
-    }
+    .delete()
+    .eq('id', id);
+    
+  if (error) {
+    console.error('Error deleting payment from Supabase:', error);
+    throw error;
   }
 };

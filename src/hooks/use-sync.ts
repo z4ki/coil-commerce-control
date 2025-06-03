@@ -1,8 +1,23 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
-import { invoke } from '@tauri-apps/api/tauri';
 import { toast } from 'sonner';
-import { listen } from '@tauri-apps/api/event';
+
+// Initialize Tauri APIs
+let tauriInvoke: ((cmd: string, args?: any) => Promise<any>) | undefined;
+
+const invokeSafe = async <T>(cmd: string, args?: any): Promise<T> => {
+  if (!window.__TAURI__) {
+    console.warn('Not running in Tauri environment');
+    return [] as any;
+  }
+  
+  if (!tauriInvoke) {
+    const tauri = await import('@tauri-apps/api/tauri');
+    tauriInvoke = tauri.invoke;
+  }
+  
+  return tauriInvoke(cmd, args);
+};
 
 interface SyncQueueItem {
   id: string;
@@ -30,21 +45,17 @@ export function useSync() {
     isOnline: true,
     isSyncing: false,
     pendingChanges: 0,
-  });
-
-  // Query for getting sync queue items
+  });  // Query for getting sync queue items
   const { data: syncQueue = [] } = useQuery<SyncQueueItem[]>({
     queryKey: ['syncQueue'],
-    queryFn: () => invoke('fetch_pending_sync_items'),
+    queryFn: () => invokeSafe('fetch_pending_sync_items'),
     refetchInterval: 30000, // Refetch every 30 seconds
-  });
-
-  // Mutation for syncing changes
+  });  // Mutation for syncing changes
   const { mutate: syncChanges, isPending } = useMutation({
     mutationFn: async () => {
       setStatus(prev => ({ ...prev, isSyncing: true }));
       try {
-        await invoke('sync_changes');
+        await invokeSafe('sync_changes');
         setStatus(prev => ({ 
           ...prev, 
           isSyncing: false,
@@ -65,27 +76,56 @@ export function useSync() {
       }
     }
   });
-
   // Effect to check online status and auto-sync
   useEffect(() => {
-    let unlisten: () => void;
+    let unlisten: (() => void) | undefined;
 
     const setupNetworkListener = async () => {
-      unlisten = await listen('network-status', (event: any) => {
-        const isOnline = event.payload.isOnline;
-        setStatus(prev => ({ ...prev, isOnline }));
-        
-        if (isOnline && syncQueue.length > 0) {
-          syncChanges();
+      try {
+        // Check if we're running in Tauri
+        if (window.__TAURI__) {
+          const { listen } = await import('@tauri-apps/api/event');
+          unlisten = await listen('network-status', (event: any) => {
+            const isOnline = event.payload.isOnline;
+            setStatus(prev => ({ ...prev, isOnline }));
+            
+            if (isOnline && syncQueue.length > 0) {
+              syncChanges();
+            }
+          });
+        } else {
+          // Fallback to browser events when not in Tauri
+          const handleOnline = () => {
+            setStatus(prev => ({ ...prev, isOnline: true }));
+            if (syncQueue.length > 0) {
+              syncChanges();
+            }
+          };
+          const handleOffline = () => {
+            setStatus(prev => ({ ...prev, isOnline: false }));
+          };
+
+          window.addEventListener('online', handleOnline);
+          window.addEventListener('offline', handleOffline);
+          
+          unlisten = () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+          };
         }
-      });
+      } catch (error) {
+        console.error('Failed to setup network listener:', error);
+      }
     };
 
     setupNetworkListener();
+    
     return () => {
-      if (unlisten) unlisten();
+      if (unlisten) {
+        unlisten();
+      }
     };
-  }, [syncQueue.length]);
+  }, [syncQueue.length, syncChanges]);
 
   // Effect to update pending changes count
   useEffect(() => {

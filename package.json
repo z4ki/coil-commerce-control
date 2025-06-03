@@ -7,9 +7,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "desktop": "tauri dev",
+    "desktop": "bun run desktop:dev",
     "desktop:build": "tauri build",
-    "desktop:dev": "concurrently \"npm run dev\" \"tauri dev\""
+    "desktop:dev": "concurrently \"bun run dev\" \"bun tauri dev\"",
+    "start": "bun run desktop"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

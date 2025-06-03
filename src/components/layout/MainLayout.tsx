@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
+import { SyncIndicator } from './SyncIndicator';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -42,6 +43,7 @@ const MainLayout = ({ children, title, headerAction }: MainLayoutProps) => {
               <h1 className="text-2xl font-semibold text-gray-800">{title}</h1>
               <div className="flex items-center gap-4">
                 {headerAction}
+                <SyncIndicator />
                 <Button
                   variant="ghost"
                   size="icon"

@@ -27,22 +27,35 @@ export class DatabaseManager extends EventEmitter {
     }
     return DatabaseManager.instance;
   }
-
   private async setupConnectionMonitoring() {
     // Initial check
-    this.checkConnection();
+    await this.checkConnection();
 
     // Listen for online/offline events from Tauri
-    appWindow.listen('online', () => {
-      this.handleConnectionChange(true);
+    appWindow.listen('online', async () => {
+      await this.checkConnection(); // Verify actual connection state
     });
 
     appWindow.listen('offline', () => {
       this.handleConnectionChange(false);
     });
 
+    // Listen for network connectivity changes
+    window.addEventListener('online', async () => {
+      await this.checkConnection(); // Verify actual connection state
+    });
+
+    window.addEventListener('offline', () => {
+      this.handleConnectionChange(false);
+    });
+
     // Regular connection checks
-    setInterval(() => this.checkConnection(), 30000);
+    setInterval(() => {
+      // Only check if we think we're online to avoid unnecessary requests when offline
+      if (this.isOnline) {
+        this.checkConnection();
+      }
+    }, 30000);
   }
 
   private setupSyncInterval() {

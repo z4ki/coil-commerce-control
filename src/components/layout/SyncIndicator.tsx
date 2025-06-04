@@ -8,9 +8,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../ui/tooltip';
+import { formatDistanceToNow } from 'date-fns';
 
 export function SyncIndicator() {
-  const { status, syncChanges, isPending, pendingItems } = useSync();
+  const { status, syncNow, isPending, pendingItems } = useSync();
 
   const getStatusIcon = () => {
     if (isPending) {
@@ -31,41 +32,69 @@ export function SyncIndicator() {
     if (status.pendingChanges > 0) {
       return `${status.pendingChanges} changes pending sync`;
     }
-    return 'All changes synced';
+    if (status.error) {
+      return 'Sync error - click for details';
+    }
+    return status.lastSynced
+      ? `Last synced ${formatDistanceToNow(status.lastSynced, { addSuffix: true })}`
+      : 'All synced';
   };
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => status.pendingChanges > 0 && syncChanges()}
-            disabled={isPending || (!status.isOnline && status.pendingChanges === 0)}
-            className={
-              status.error 
-                ? 'text-destructive' 
-                : status.pendingChanges > 0 
-                  ? 'text-yellow-500' 
-                  : ''
-            }
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-2"
+            onClick={() => status.isOnline && syncNow()}
+            disabled={!status.isOnline || isPending}
           >
             {getStatusIcon()}
+            <span className="hidden md:inline-block text-sm">
+              {getStatusText()}
+            </span>
+            {status.pendingChanges > 0 && (
+              <span className="inline-flex items-center justify-center h-5 w-5 text-xs rounded-full bg-yellow-500 text-white">
+                {status.pendingChanges}
+              </span>
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{getStatusText()}</p>
-          {status.lastSyncedAt && (
-            <p className="text-xs text-muted-foreground">
-              Last synced: {status.lastSyncedAt.toLocaleTimeString()}
-            </p>
-          )}
-          {status.error && (
-            <p className="text-xs text-destructive">
-              Error: {status.error}
-            </p>
-          )}
+          <div className="text-sm space-y-1">
+            <p>{status.isOnline ? 'Online mode' : 'Offline mode'}</p>
+            {status.lastSynced && (
+              <p>
+                Last synced:{' '}
+                {formatDistanceToNow(status.lastSynced, { addSuffix: true })}
+              </p>
+            )}
+            {status.pendingChanges > 0 && (
+              <p>{status.pendingChanges} changes waiting to sync</p>
+            )}
+            {status.error && (
+              <p className="text-red-500">Error: {status.error}</p>
+            )}
+            {pendingItems.length > 0 && (
+              <div className="mt-2 border-t pt-2">
+                <p className="font-semibold">Pending changes:</p>
+                <ul className="list-disc list-inside">
+                  {pendingItems.slice(0, 3).map((item) => (
+                    <li key={item.id} className="text-xs truncate">
+                      {item.operation} {item.table_name}: {item.id}
+                    </li>
+                  ))}
+                  {pendingItems.length > 3 && (
+                    <li className="text-xs">
+                      ... and {pendingItems.length - 3} more
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

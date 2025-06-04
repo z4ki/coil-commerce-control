@@ -1,10 +1,4 @@
-declare module '@tauri-apps/api/tauri' {
-  export function invoke<T>(cmd: string, args?: any): Promise<T>;
-}
-
-declare module '@tauri-apps/api/event' {
-  export function listen<T>(event: string, callback: (event: { payload: T }) => void): Promise<() => void>;
-}
+// Removed old Tauri v1 module declarations. Use direct imports from '@tauri-apps/api' in v2.
 
 interface Window {
   __TAURI__?: {

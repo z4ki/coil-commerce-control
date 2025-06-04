@@ -1,80 +1,40 @@
-use rusqlite::Result;
-use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+// src/sync.rs
+use tauri::State;
 use crate::database::DatabaseConnection;
-use sqlx::types::chrono::Local;
-use serde_json::json;
+use rusqlite::OptionalExtension;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SyncStatus {
-    pub last_sync: Option<String>,
-    pub is_syncing: bool,
-    pub error: Option<String>,
-    pub pending_changes: i32,
-}
+#[tauri::command]
+pub async fn initial_sync(db: State<'_, DatabaseConnection>) -> Result<(), String> {
+    let mut conn = db.0.lock().unwrap();
 
-pub struct SyncManager {
-    db: DatabaseConnection,
-    status: Mutex<SyncStatus>,
-}
+    // Check if an initial sync entry exists in sync_log
+    let needs_sync: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sync_log WHERE sync_type = 'download'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|e| e.to_string())?
+        == 0;
 
-impl SyncManager {
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self {
-            db,
-            status: Mutex::new(SyncStatus {
-                last_sync: None,
-                is_syncing: false,
-                error: None,
-                pending_changes: 0,
-            }),
-        }
+    if !needs_sync {
+        return Ok(());
     }
 
-    pub async fn sync_data(&self) -> Result<()> {
-        let mut status = self.status.lock().unwrap();
-        if status.is_syncing {
-            return Ok(());
-        }
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-        status.is_syncing = true;
-        drop(status);
+    // (Placeholder for actual data-loading logic)
+    tx.execute("INSERT INTO synced_data (data) VALUES (?)", [&"initial data"])
+        .map_err(|e| e.to_string())?;
 
-        let result = self.perform_sync().await;
-        
-        let mut status = self.status.lock().unwrap();
-        status.is_syncing = false;
+    tx.execute(
+        "INSERT OR REPLACE INTO sync_log (id, entity_type, entity_id, sync_type, sync_status) 
+         VALUES ('initial_sync', 'all', '0', 'download', 'success')",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
 
-        match result {
-            Ok(_) => {
-                status.last_sync = Some(Local::now().to_rfc3339());
-                status.error = None;
-                Ok(())
-            }
-            Err(e) => {
-                status.error = Some(e.to_string());
-                Err(e)
-            }
-        }
-    }
+    tx.commit().map_err(|e| e.to_string())?;
 
-    async fn perform_sync(&self) -> Result<()> {
-        let items = self.db.fetch_pending_sync_items()?;
-
-        for (table_name, id, operation) in items {
-            let data = self.db.get_entity_data(&table_name, &id)?;
-            
-            // Simulate sync with Supabase
-            // TODO: Implement actual sync
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            
-            self.db.mark_sync_complete(&id)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn get_status(&self) -> SyncStatus {
-        self.status.lock().unwrap().clone()
-    }
+    Ok(())
 }

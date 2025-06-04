@@ -84,10 +84,22 @@ export interface Payment {
   bulkPaymentId?: string;
   amount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check' | 'deferred' | 'term'; // Added 'term'
+  method: 'cash' | 'bank_transfer' | 'check' | 'deferred' | 'term';
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
+}
+
+// Define the type for credit transactions
+export interface CreditTransaction {
+  id: string;
+  client_id: string;
+  amount: number;
+  description: string | null;
+  date: Date;
+  createdAt: Date;
+  updatedAt?: Date;
+  user_id?: string;
 }
 
 // Define the type for bulk payments

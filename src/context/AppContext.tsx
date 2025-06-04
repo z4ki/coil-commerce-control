@@ -3,13 +3,19 @@
 
 // ... all existing imports ...
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { toast } from 'sonner';
-import { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, BulkPayment } from '@/types';
-import * as clientService from '@/services/clientService';
-import * as saleService from '@/services/saleService';
-import * as invoiceService from '@/services/invoiceService';
-import * as paymentService from '@/services/paymentService';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import type { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, CreditTransaction } from '../types';
+import { 
+  createCreditTransaction, 
+  updateCreditTransaction, 
+  deleteCreditTransaction,
+  type CreditTransactionInput,
+  type CreditTransactionUpdate
+} from '../services/creditTransactionService';
+import * as clientService from '../services/clientService';
+import * as saleService from '../services/saleService';
+import * as invoiceService from '../services/invoiceService';
+import * as paymentService from '../services/paymentService';
 
 export interface AppContextType {
   clients: Client[];
@@ -63,15 +69,15 @@ export interface AppContextType {
     totalPayments: number;
     balance: number;
   };
+  // Credit Transaction Management
+  createCreditTransaction: (transaction: CreditTransactionInput) => Promise<CreditTransaction>;
+  updateCreditTransaction: (id: string, transaction: CreditTransactionUpdate) => Promise<CreditTransaction>;
+  deleteCreditTransaction: (id: string) => Promise<void>;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
-interface AppProviderProps {
-  children: React.ReactNode;
-}
-
-export const AppProvider = ({ children }: AppProviderProps) => {
+export function AppProvider({ children }: { children: React.ReactNode }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -539,43 +545,66 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
   }, []);
 
+  // Credit Transaction Management
+  const handleCreateCreditTransaction = async (transaction: CreditTransactionInput) => {
+    const newTransaction = await createCreditTransaction(transaction);
+    return newTransaction;
+  };
+
+  const handleUpdateCreditTransaction = async (
+    id: string,
+    transaction: CreditTransactionUpdate
+  ) => {
+    const updatedTransaction = await updateCreditTransaction(id, transaction);
+    return updatedTransaction;
+  };
+
+  const handleDeleteCreditTransaction = async (id: string) => {
+    await deleteCreditTransaction(id);
+  };
+
+  const value = {
+    clients,
+    sales,
+    invoices,
+    payments,
+    loading,
+    addClient,
+    updateClient,
+    deleteClient,
+    getClientById,
+    getSalesByClient,
+    getInvoicesByClient,
+    getSalesSummary,
+    getDebtSummary,
+    getClientDebt,
+    getClientCreditBalance,
+    addSale,
+    updateSale,
+    deleteSale,
+    getSaleById,
+    addInvoice,
+    updateInvoice,
+    deleteInvoice,
+    getInvoiceById,
+    deletePayment,
+    addPayment,
+    addBulkPayment,
+    getPaymentsBySale,
+    getSalePaymentStatus,
+    getInvoicePaymentStatus,
+    getClientBalance,
+    createCreditTransaction: handleCreateCreditTransaction,
+    updateCreditTransaction: handleUpdateCreditTransaction,
+    deleteCreditTransaction: handleDeleteCreditTransaction,
+  };
+
   return (
-    <AppContext.Provider value={{
-      clients,
-      sales,
-      invoices,
-      payments,
-      loading,
-      addClient,
-      updateClient,
-      deleteClient,
-      getClientById,
-      getSalesByClient,
-      getInvoicesByClient,
-      getSalesSummary,
-      getDebtSummary,
-      getClientDebt,
-      getClientCreditBalance,
-      addSale,
-      updateSale,
-      deleteSale,
-      getSaleById,
-      addInvoice,
-      updateInvoice,
-      deleteInvoice,
-      getInvoiceById,
-      deletePayment,
-      addPayment,
-      addBulkPayment,
-      getPaymentsBySale,
-      getSalePaymentStatus,
-      getInvoicePaymentStatus,
-      getClientBalance
-    }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   );
-};
+}
 
 export const useAppContext = () => {
   const context = useContext(AppContext);

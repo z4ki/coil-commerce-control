@@ -1,7 +1,7 @@
 import { DatabaseAdapter, SyncQueueItem } from './types';
 import { SupabaseAdapter } from './supabaseAdapter';
 import { LocalAdapter } from './localAdapter';
-import { appWindow } from '@tauri-apps/api/window';
+import { appWindow } from '@tauri-apps/api';
 import { EventEmitter } from 'events';
 
 export class DatabaseManager extends EventEmitter {

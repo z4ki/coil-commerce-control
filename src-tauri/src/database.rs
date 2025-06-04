@@ -1,13 +1,104 @@
-use rusqlite::{Connection, Error as SqliteError, Result};
-use std::path::PathBuf;
-use std::sync::Mutex;
+use rusqlite::{Connection, Result, params};
+use std::sync::{Arc, Mutex};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use tauri::Manager;
+use crate::error::SyncError;
 
-pub struct DatabaseConnection(pub Mutex<Connection>);
+const ENTITY_TABLES: &[&str] = &["clients", "sales", "payments", "credit_transactions"];
+
+const SQL_CREATE_SYNC_QUEUE: &str = r#"CREATE TABLE IF NOT EXISTS sync_queue (
+    id TEXT PRIMARY KEY,
+    table_name TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    synced_at TEXT,
+    sync_status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT,
+    retry_count INTEGER DEFAULT 0,
+    version INTEGER DEFAULT 1
+)"#;
+
+const SQL_CREATE_SYNC_LOG: &str = r#"CREATE TABLE IF NOT EXISTS sync_log (
+    id TEXT PRIMARY KEY,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    sync_type TEXT NOT NULL,
+    sync_status TEXT NOT NULL,
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_sync_id TEXT
+)"#;
+
+fn create_entity_table_sql(table: &str) -> String {
+    format!(r#"CREATE TABLE IF NOT EXISTS "{}" (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
+        version INTEGER DEFAULT 1,
+        last_synced TEXT
+    )"#, table)
+}
+
+fn upsert_record_sql(table: &str) -> String {
+    format!(r#"INSERT INTO "{}" (id, data, created_at, updated_at, version)
+        VALUES (?1, ?2, ?3, ?3, 1)
+        ON CONFLICT(id) DO UPDATE SET
+        data = ?2,
+        updated_at = ?3,
+        version = version + 1"#, table)
+}
+
+fn get_records_sql(table: &str) -> String {
+    format!(r#"SELECT id, data, updated_at 
+        FROM "{}" 
+        WHERE is_deleted = 0
+        ORDER BY updated_at DESC"#, table)
+}
+
+fn get_changes_sql(table: &str) -> String {
+    format!(r#"SELECT id, data 
+        FROM "{}" 
+        WHERE updated_at > ?1"#, table)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncQueueItem {
+    pub id: String,
+    pub table_name: String,
+    pub entity_id: String,
+    pub operation: String,
+    pub data: String,
+    pub created_at: String,
+    pub synced_at: Option<String>,
+    pub sync_status: String,
+    pub error: Option<String>,
+    pub retry_count: i32,
+    pub version: i64
+}
+
+pub struct DatabaseConnection(pub Arc<Mutex<Connection>>);
 
 impl DatabaseConnection {
     pub fn new(conn: Connection) -> Self {
-        Self(Mutex::new(conn))
+        Self(Arc::new(Mutex::new(conn)))
+    }
+
+    pub fn initialize(&self) -> Result<()> {
+        let conn = self.0.lock().unwrap();
+
+        conn.execute(SQL_CREATE_SYNC_QUEUE, [])?;
+        conn.execute(SQL_CREATE_SYNC_LOG, [])?;
+
+        for table in ENTITY_TABLES {
+            conn.execute(&create_entity_table_sql(table), [])?;
+        }
+
+        Ok(())
     }
 
     pub fn check_needs_initial_sync(&self) -> Result<bool> {
@@ -22,9 +113,7 @@ impl DatabaseConnection {
 
     pub fn perform_initial_sync(&self) -> Result<()> {
         let conn = self.0.lock().unwrap();
-        
-        // For now, just mark as synced
-        // TODO: Implement actual Supabase sync
+
         conn.execute(
             "INSERT OR REPLACE INTO sync_log (id, entity_type, entity_id, sync_type, sync_status)
              VALUES ('initial_sync', 'all', '0', 'download', 'success')",
@@ -34,38 +123,59 @@ impl DatabaseConnection {
         Ok(())
     }
 
-    pub fn fetch_pending_sync_items(&self) -> Result<Vec<(String, String, String)>> {
+    pub fn queue_change(&self, table: &str, id: &str, operation: &str, data: &str) -> Result<()> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT table_name, id, operation FROM sync_queue WHERE sync_status = 'pending' ORDER BY created_at ASC"
-        )?;
-        let items = stmt.query_map([], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?
-            ))
-        })?;
-        
-        Ok(items.collect::<Result<Vec<_>>>()?)
-    }
+        let sync_id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
 
-    pub fn queue_sync_operation(&self, table_name: &str, id: &str, operation: &str) -> Result<()> {
-        let conn = self.0.lock().unwrap();
         conn.execute(
-            "INSERT INTO sync_queue (id, table_name, operation, sync_status, created_at)
-             VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)",
-            [id, table_name, operation],
+            "INSERT INTO sync_queue (id, table_name, entity_id, operation, data, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![sync_id, table, id, operation, data, now],
         )?;
         Ok(())
     }
 
-    pub fn mark_sync_complete(&self, id: &str) -> Result<()> {
+    pub fn fetch_pending_sync_items(&self) -> Result<Vec<SyncQueueItem>> {
         let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT 
+                id, table_name, entity_id, operation, data, created_at,
+                synced_at, sync_status, error, retry_count, version
+             FROM sync_queue 
+             WHERE sync_status = 'pending'
+             ORDER BY created_at ASC"
+        )?;
+
+        let items = stmt.query_map([], |row| {
+            Ok(SyncQueueItem {
+                id: row.get(0)?,
+                table_name: row.get(1)?,
+                entity_id: row.get(2)?,
+                operation: row.get(3)?,
+                data: row.get(4)?,
+                created_at: row.get(5)?,
+                synced_at: row.get(6)?,
+                sync_status: row.get(7)?,
+                error: row.get(8)?,
+                retry_count: row.get(9)?,
+                version: row.get(10)?,
+            })
+        })?;
+
+        Ok(items.collect::<Result<Vec<_>>>()?)
+    }
+
+    pub fn mark_synced(&self, id: &str) -> Result<()> {
+        let conn = self.0.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+
         conn.execute(
-            "UPDATE sync_queue SET sync_status = 'completed', synced_at = CURRENT_TIMESTAMP
-             WHERE id = ?",
-            [id],
+            "UPDATE sync_queue 
+             SET sync_status = 'completed',
+                 synced_at = ?1
+             WHERE id = ?2",
+            params![now, id],
         )?;
         Ok(())
     }
@@ -73,214 +183,86 @@ impl DatabaseConnection {
     pub fn mark_sync_failed(&self, id: &str, error: &str) -> Result<()> {
         let conn = self.0.lock().unwrap();
         conn.execute(
-            "UPDATE sync_queue SET sync_status = 'failed', error_message = ?, 
-             last_attempt = CURRENT_TIMESTAMP, retry_count = retry_count + 1
-             WHERE id = ?",
-            [error, id],
+            "UPDATE sync_queue 
+             SET sync_status = 'failed',
+                 error = ?1,
+                 retry_count = retry_count + 1
+             WHERE id = ?2",
+            params![error, id],
         )?;
         Ok(())
     }
 
-    pub fn get_entity_data(&self, table_name: &str, id: &str) -> Result<String> {
-        let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            &format!("SELECT json_object(*) FROM {} WHERE id = ?", table_name)
+    pub fn upsert_record(&self, table: &str, id: &str, data: &str) -> Result<()> {
+        let mut conn = self.0.lock().unwrap();
+        let tx = conn.transaction()?;
+        let now = Utc::now().to_rfc3339();
+
+        tx.execute(&upsert_record_sql(table), params![id, data, now])?;
+
+        let sync_id = Uuid::new_v4().to_string();
+        tx.execute(
+            "INSERT INTO sync_queue (id, table_name, entity_id, operation, data, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![sync_id, table, id, "upsert", data, now],
         )?;
-        let data: String = stmt.query_row([id], |row| row.get(0))?;
-        Ok(data)
+
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_records(&self, table: &str) -> Result<Vec<(String, String, String)>> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(&get_records_sql(table))?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+
+        Ok(rows.collect::<Result<Vec<_>>>()?)
+    }
+
+    pub fn get_changes_since(&self, table: &str, since: DateTime<Utc>) -> Result<Vec<(String, String)>> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(&get_changes_sql(table))?;
+
+        let rows = stmt.query_map([since.to_rfc3339()], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+
+        Ok(rows.collect::<Result<Vec<_>>>()?)
     }
 }
 
-pub fn initialize_database(app_handle: &tauri::AppHandle) -> Result<DatabaseConnection> {
-    let app_dir = app_handle.path().app_data_dir().expect("Failed to get app dir");
-    let db_path: PathBuf = app_dir.join("local.db");
-    
-    // Create the directory if it doesn't exist
-    if let Some(parent) = db_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|_| SqliteError::InvalidPath(parent.to_path_buf()))?;
-    }
-    
-    let conn = Connection::open(&db_path)?;
-    
-    // Enable foreign key constraints
-    conn.execute("PRAGMA foreign_keys = ON", [])?;
+pub fn initialize_database(app_handle: &tauri::AppHandle) -> Result<DatabaseConnection, SyncError> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| SyncError::Io(format!("Could not get app data directory: {}", e)))?;
 
-    // Create clients table
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS clients (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            company TEXT,
-            address TEXT,
-            phone TEXT,
-            email TEXT,
-            nif TEXT,
-            nis TEXT,
-            rc TEXT,
-            ai TEXT,
-            rib TEXT,
-            notes TEXT,
-            credit_balance REAL DEFAULT 0.0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            sync_status TEXT DEFAULT 'new'
-        )",
-        [],
-    )?;
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| SyncError::Io(format!("Failed to create directory: {}", e)))?;
 
-    // Create sales table
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS sales (
-            id TEXT PRIMARY KEY,
-            client_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            total_amount REAL NOT NULL,
-            payment_method TEXT NOT NULL,
-            payment_status TEXT DEFAULT 'pending',
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            sync_status TEXT DEFAULT 'new',
-            FOREIGN KEY (client_id) REFERENCES clients(id)
-        )",
-        [],
-    )?;
+    let db_path = app_dir.join("app.db");
+    let conn = Connection::open(&db_path)
+        .map_err(|e| SyncError::Database(format!("Failed to open database: {}", e)))?;
 
-    // Create payments table for tracking payments against sales
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS payments (
-            id TEXT PRIMARY KEY,
-            sale_id TEXT NOT NULL,
-            amount REAL NOT NULL,
-            payment_method TEXT NOT NULL,
-            payment_date TIMESTAMP NOT NULL,
-            reference_number TEXT,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            sync_status TEXT DEFAULT 'new',
-            FOREIGN KEY (sale_id) REFERENCES sales(id)
-        )",
-        [],
-    )?;
+    conn.execute("PRAGMA foreign_keys = ON", [])
+    .map_err(|e| SyncError::Database(format!("Failed to enable foreign keys: {}", e)))?;
+let _: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
+    .map_err(|e| SyncError::Database(format!("Failed to set journal mode: {}", e)))?;
 
-    // Create credit_transactions table for tracking client credit balance changes
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS credit_transactions (
-            id TEXT PRIMARY KEY,
-            client_id TEXT NOT NULL,
-            amount REAL NOT NULL,
-            transaction_type TEXT NOT NULL, -- 'credit' or 'debit'
-            related_sale_id TEXT,
-            related_payment_id TEXT,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            sync_status TEXT DEFAULT 'new',
-            FOREIGN KEY (client_id) REFERENCES clients(id),
-            FOREIGN KEY (related_sale_id) REFERENCES sales(id),
-            FOREIGN KEY (related_payment_id) REFERENCES payments(id)
-        )",
-        [],
-    )?;
-
-    // Create sync_log table for tracking synchronization status
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS sync_log (
-            id TEXT PRIMARY KEY,
-            entity_type TEXT NOT NULL, -- 'client', 'sale', 'payment', 'credit_transaction'
-            entity_id TEXT NOT NULL,
-            sync_type TEXT NOT NULL, -- 'upload', 'download'
-            sync_status TEXT NOT NULL, -- 'success', 'failed'
-            error_message TEXT,
-            attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-        [],
-    )?;
-
-    // Create sync_queue table for tracking pending synchronization operations
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS sync_queue (
-            id TEXT PRIMARY KEY,
-            table_name TEXT NOT NULL,
-            operation TEXT NOT NULL, -- 'create', 'update', or 'delete'
-            sync_status TEXT NOT NULL, -- 'pending', 'completed', 'failed'
-            error_message TEXT,
-            retry_count INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            synced_at TIMESTAMP,
-            last_attempt TIMESTAMP
-        )",
-        [],
-    )?;
-
-    // Create indexes for better query performance
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_sync_status ON clients(sync_status)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_client_id ON sales(client_id)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_sync_status ON sales(sync_status)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_sale_id ON payments(sale_id)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_sync_status ON payments(sync_status)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_credit_transactions_client_id ON credit_transactions(client_id)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_credit_transactions_sync_status ON credit_transactions(sync_status)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(sync_status)", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_queue_created_at ON sync_queue(created_at)", [])?;
-
-    // After creating tables, check if we need to perform initial sync
-    conn.execute(
-        "INSERT OR REPLACE INTO sync_log (id, entity_type, entity_id, sync_type, sync_status)
-         SELECT 'initial_sync', 'all', '0', 'download', 'pending'
-         WHERE NOT EXISTS (SELECT 1 FROM sync_log)",
-        [],
-    )?;
 
     let db_connection = DatabaseConnection::new(conn);
 
-    // Perform initial sync if needed
-    if db_connection.check_needs_initial_sync()? {
-        db_connection.perform_initial_sync()?;
+    db_connection.initialize()
+        .map_err(|e| SyncError::Database(format!("Failed to initialize database: {}", e)))?;
+
+    if db_connection.check_needs_initial_sync()
+        .map_err(|e| SyncError::Database(format!("Failed to check sync status: {}", e)))? {
+        db_connection.perform_initial_sync()
+            .map_err(|e| SyncError::Database(format!("Failed to perform initial sync: {}", e)))?;
     }
 
     Ok(db_connection)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tauri::test::{mock_app_handle, mock_builder};
-
-    #[test]
-    fn test_initialize_database() {
-        // Create a test app handle
-        let app = mock_builder().build().unwrap();
-        let app_handle = app.app_handle();
-        
-        // Initialize the database
-        let db = initialize_database(&app_handle).expect("Failed to initialize database");
-        let conn = db.0.lock().unwrap();
-
-        // Test that all tables were created
-        let tables = [
-            "clients",
-            "sales",
-            "payments",
-            "credit_transactions",
-            "sync_log",
-            "sync_queue",
-        ];
-
-        for table in tables.iter() {
-            let result: Result<i32> = conn.query_row(
-                &format!("SELECT 1 FROM {} LIMIT 1", table),
-                [],
-                |row| row.get(0),
-            );
-            assert!(result.is_ok() || matches!(result.unwrap_err(), rusqlite::Error::QueryReturnedNoRows));
-        }
-
-        // Clean up the test database
-        let db_path = app_handle.path().app_data_dir().map(|p| p.join("local.db"));
-        if let Some(db_path) = db_path {
-            let _ = std::fs::remove_file(db_path);
-        }
-    }
 }

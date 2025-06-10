@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from "react-router-dom";
-import { AppProvider, useAppContext } from "./context/AppContext";
+import { AppProvider, useApp } from "./context/AppContext";
 import { LanguageProvider } from './context/LanguageContext';
 import { InvoiceSettingsProvider } from './context/InvoiceSettingsContext';
 import { AppSettingsProvider } from './context/AppSettingsContext';
@@ -26,13 +26,21 @@ import ClientForm from "./components/clients/ClientForm";
 import InvoiceForm from "./components/invoices/InvoiceForm";
 import Login from './pages/Login';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      cacheTime: 1000 * 60 * 30, // 30 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Wrapper components for forms with navigation
 const InvoiceFormWrapper = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { getInvoiceById } = useAppContext();
+  const { getInvoiceById } = useApp();
 
   const invoice = id ? getInvoiceById(id) ?? null : null;
   const onSuccess = () => navigate('/invoices');
@@ -43,7 +51,7 @@ const InvoiceFormWrapper = () => {
 const ClientFormWrapper = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { getClientById } = useAppContext();
+  const { getClientById } = useApp();
 
   const client = id ? getClientById(id) ?? null : null;
   const onSuccess = () => navigate('/clients');
@@ -51,16 +59,16 @@ const ClientFormWrapper = () => {
   return <ClientForm client={client} onSuccess={onSuccess} />;
 };
 
-const App = () => {
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>
-          <AppSettingsProvider>
-            <AppProvider>
-              <AuthProvider>
-                <LanguageProvider>
-                  <InvoiceSettingsProvider>
+        <AppProvider>
+          <AuthProvider>
+            <LanguageProvider>
+              <AppSettingsProvider>
+                <InvoiceSettingsProvider>
+                  <TooltipProvider>
                     <BrowserRouter>
                       <Routes>
                         <Route path="/login" element={<Login />} />
@@ -83,15 +91,15 @@ const App = () => {
                       <Toaster />
                       <Sonner />
                     </BrowserRouter>
-                  </InvoiceSettingsProvider>
-                </LanguageProvider>
-              </AuthProvider>
-            </AppProvider>
-          </AppSettingsProvider>
-        </TooltipProvider>
+                  </TooltipProvider>
+                </InvoiceSettingsProvider>
+              </AppSettingsProvider>
+            </LanguageProvider>
+          </AuthProvider>
+        </AppProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
-};
+}
 
 export default App;

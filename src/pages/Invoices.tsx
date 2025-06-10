@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppContext } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import MainLayout from '@/components/layout/MainLayout';
@@ -43,7 +43,7 @@ import { Link } from 'react-router-dom';
 import { saveInvoicePDF } from '@/utils/pdfService.tsx';
 
 const Invoices = () => {
-  const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useAppContext();
+  const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useApp();
   const { settings } = useAppSettings();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');

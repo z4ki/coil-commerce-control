@@ -253,7 +253,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useAppContext } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import { Payment, PaymentMethodType } from '@/types'; // Import PaymentMethodType
 import { formatCurrency, formatDateInput } from '@/utils/format'; // Ensure formatDateInput is imported if used
 import { useLanguage } from '@/context/LanguageContext';
@@ -278,7 +278,7 @@ interface PaymentFormProps {
 }
 
 export const PaymentForm = ({ saleId, payment, onSuccess, onCancel }: PaymentFormProps) => {
-  const { addPayment, updatePayment, getSaleById, getSalePaymentStatus, updateInvoice, getInvoiceById } = useAppContext();
+  const { addPayment, updatePayment, getSaleById, getSalePaymentStatus, updateInvoice, getInvoiceById } = useApp();
   const { t } = useLanguage();
   const sale = getSaleById(saleId);
   

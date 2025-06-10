@@ -1,65 +1,62 @@
-use rusqlite::Error as SqliteError;
-use serde::Serialize;
-use std::fmt;
-use tauri::Manager;
+use serde::{Serialize, Serializer};
+use thiserror::Error;
 
-#[derive(Debug, Serialize)]
-pub enum SyncError {
-    Database(String),
-    Network(String),
-    Conflict(String),
-    Io(String),
-    Json(String),
-    Parse(String), // ← Add this line
+// No changes were needed here, but it's the key to understanding the main error.
+// Each variant like `Io`, `Sql`, `Network`, and `Custom` is defined to hold
+// ONLY ONE value (e.g., `Sql` holds a `sqlx::Error`).
+// The problem was that in other files, you were trying to pass two arguments,
+// like `Error::Sql(the_error, some_context)`. The compiler correctly flagged this.
+// The fix is to only pass the one argument that the enum variant expects.
 
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("IO error: {0}")]
+    Io(#[source] std::io::Error),
+
+    #[error("SQL error: {0}")]
+    Sql(#[source] sqlx::Error),
+
+    #[error("Network error: {0}")]
+    Network(#[source] reqwest::Error),
+
+    #[error("Tauri error: {0}")]
+    Tauri(#[source] tauri::Error),
+
+    #[error("{0}")]
+    Custom(String),
 }
 
-impl fmt::Display for SyncError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SyncError::Database(msg) => write!(f, "Database error: {}", msg),
-            SyncError::Network(msg) => write!(f, "Network error: {}", msg),
-            SyncError::Conflict(msg) => write!(f, "Sync conflict: {}", msg),
-            SyncError::Io(msg) => write!(f, "IO error: {}", msg),
-            SyncError::Json(msg) => write!(f, "JSON error: {}", msg),
-            SyncError::Parse(msg) => write!(f, "Parse error: {}", msg), // ← Add this line
-        }
+impl Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
 
-impl From<SqliteError> for SyncError {
-    fn from(err: SqliteError) -> Self {
-        SyncError::Database(err.to_string())
-    }
-}
-
-impl From<std::io::Error> for SyncError {
+// The From traits are very helpful. They allow us to use `?` to automatically
+// convert standard errors into our custom `Error` type.
+impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        SyncError::Io(err.to_string())
+        Error::Io(err)
     }
 }
 
-impl From<serde_json::Error> for SyncError {
-    fn from(err: serde_json::Error) -> Self {
-        SyncError::Json(err.to_string())
+impl From<sqlx::Error> for Error {
+    fn from(err: sqlx::Error) -> Self {
+        Error::Sql(err)
     }
 }
 
-impl From<tauri::Error> for SyncError {
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::Network(err)
+    }
+}
+
+impl From<tauri::Error> for Error {
     fn from(err: tauri::Error) -> Self {
-        SyncError::Io(err.to_string())
+        Error::Tauri(err)
     }
-}
-
-impl From<Box<dyn std::error::Error>> for SyncError {
-    fn from(err: Box<dyn std::error::Error>) -> Self {
-        SyncError::Io(err.to_string())
-    }
-}
-
-impl std::error::Error for SyncError {}
-
-pub fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<String, SyncError> {
-    let app_dir = app_handle.path().app_data_dir()?;
-    Ok(app_dir.to_string_lossy().into_owned())
 }

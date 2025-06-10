@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist",
+    "frontendDist": "./dist",
     "devUrl": "http://localhost:5173"
   },
   "app": {
@@ -41,7 +41,20 @@
       "open": true
     },
     "dialog": null,
-    "fs": null
-    
+    "fs": {
+      "scope": {
+        "allow": [
+          "$APPDATA/**/*",
+          "$APPCONFIG/**/*",
+          "$APPLOCALDATA/**/*"
+        ],
+        "requireLiteralLeadingDot": false
+      }
+    },
+    "sql": {
+      "enable": true,
+      "allow": ["$APPDATA/database.db", "$APPDATA/*", "$APPCONFIG/*", "$APPLOCALDATA/*"],
+      "default": "$APPDATA/database.db"
+    }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useAppContext } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { useLanguage } from '@/context/LanguageContext';
 import MainLayout from '@/components/layout/MainLayout';
@@ -55,7 +55,7 @@ const InvoiceDetail = () => {
     addPayment,
     getInvoicePaymentStatus,
     getSalePaymentStatus,
-  } = useAppContext();
+  } = useApp();
 
   const { settings } = useAppSettings();
   const { t } = useLanguage();

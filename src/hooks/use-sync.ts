@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { syncService } from '../services/syncService';
+import { syncService, isLocalDbInitialized, initialDownloadAndInsert } from '../services/syncService';
 import type { SyncData } from '../services/syncService';
 
 interface SyncStatus {
@@ -109,6 +109,19 @@ export function useSync() {
       pendingChanges: pendingItems.length
     }));
   }, [pendingItems]);
+
+  useEffect(() => {
+    async function ensureLocalDb() {
+      const initialized = await isLocalDbInitialized();
+      if (!initialized) {
+        // You may want to get these from env or config
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        await initialDownloadAndInsert(supabaseUrl, supabaseKey);
+      }
+    }
+    ensureLocalDb();
+  }, []);
 
   return {
     status,

@@ -1,615 +1,246 @@
 // Place this file in src/contexts/AppContext.tsx
-// This is a partial update that replaces the relevant useEffect in your AppContext
 
-// ... all existing imports ...
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { LocalAdapter } from '@/services/database/localAdapter';
+import { BackupService } from '@/services/backupService';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import type { Database } from '@/types/supabase';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, CreditTransaction } from '../types';
-import { 
-  createCreditTransaction, 
-  updateCreditTransaction, 
-  deleteCreditTransaction,
-  type CreditTransactionInput,
-  type CreditTransactionUpdate
-} from '../services/creditTransactionService';
-import * as clientService from '../services/clientService';
-import * as saleService from '../services/saleService';
-import * as invoiceService from '../services/invoiceService';
-import * as paymentService from '../services/paymentService';
+type Client = Database['public']['Tables']['clients']['Row'];
+type Sale = Database['public']['Tables']['sales']['Row'];
+type Invoice = Database['public']['Tables']['invoices']['Row'];
+type Payment = Database['public']['Tables']['payments']['Row'];
 
-export interface AppContextType {
+interface AppContextType {
+  localAdapter: LocalAdapter;
+  isOnline: boolean;
+  lastBackup: string | null;
+  performBackup: () => Promise<void>;
+  backupInProgress: boolean;
+  // Data
   clients: Client[];
   sales: Sale[];
   invoices: Invoice[];
   payments: Payment[];
-  loading: {
-    clients: boolean;
-    sales: boolean;
-    invoices: boolean;
-    payments: boolean;
-  };
-  addClient: (client: Omit<Client, 'id' | 'createdAt'>) => Promise<Client>;
-  updateClient: (id: string, client: Partial<Client>) => Promise<void>;
-  deleteClient: (id: string) => Promise<void>;
-  getClientById: (id: string) => Client | undefined;
+  // Functions
+  getSalesSummary: () => { totalAmount: number; count: number };
+  getDebtSummary: () => { totalAmount: number; count: number };
   getSalesByClient: (clientId: string) => Sale[];
-  getInvoicesByClient: (clientId: string) => Invoice[];
-  getSalesSummary: () => SalesSummary;
-  getDebtSummary: () => DebtSummary;
-  getClientDebt: (clientId: string) => number;
-  getClientCreditBalance: (clientId: string) => number;
-  addSale: (sale: Omit<Sale, 'id' | 'createdAt'>) => Promise<Sale>;
-  updateSale: (id: string, sale: Partial<Sale>) => Promise<void>;
-  deleteSale: (id: string) => Promise<void>;
-  getSaleById: (id: string) => Sale | undefined;
-  addInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>) => Promise<Invoice>;
-  updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
-  deleteInvoice: (id: string) => Promise<void>;
-  getInvoiceById: (id: string) => Invoice | undefined;
-  deletePayment: (id: string) => Promise<void>;
-  addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Payment>;
-  addBulkPayment: (payment: BulkPayment) => Promise<Payment[]>;
-  getPaymentsBySale: (saleId: string) => Payment[];
-  getSalePaymentStatus: (saleId: string) => {
-    totalAmount: number;
-    totalPaid: number;
-    remainingAmount: number;
-    isFullyPaid: boolean;
-    payments: Payment[];
-  } | null;
-  getInvoicePaymentStatus: (invoiceId: string) => {
-    totalAmount: number;
-    totalPaid: number;
-    remainingAmount: number;
-    isFullyPaid: boolean;
-    payments: Payment[];
-  } | null;
-  getClientBalance: (clientId: string) => {
-    totalSalesAmount: number;
-    totalPayments: number;
-    balance: number;
-  };
-  // Credit Transaction Management
-  createCreditTransaction: (transaction: CreditTransactionInput) => Promise<CreditTransaction>;
-  updateCreditTransaction: (id: string, transaction: CreditTransactionUpdate) => Promise<CreditTransaction>;
-  deleteCreditTransaction: (id: string) => Promise<void>;
 }
 
-export const AppContext = createContext<AppContextType | undefined>(undefined);
+const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [lastBackup, setLastBackup] = useLocalStorage<string | null>('lastBackupTimestamp', null);
+  const [initialized, setInitialized] = useState(false);
+  // State for initialization error
+  const [initError, setInitError] = useState<string | null>(null);
+  
+  // State for data
   const [clients, setClients] = useState<Client[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState({
-    clients: false,
-    sales: false,
-    invoices: false,
-    payments: false
-  });
-
+  
+  const localAdapter = React.useMemo(() => new LocalAdapter(), []);
+  const backupService = React.useMemo(() => new BackupService(localAdapter), [localAdapter]);
+  // Initialize database and load data
   useEffect(() => {
-    let isMounted = true;
+    let retryTimeout: NodeJS.Timeout;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000; // 1 second
 
-    const fetchData = async () => {
+    async function initializeData() {
       try {
-        setLoading(prev => ({ ...prev, clients: true }));
-        const clientsData = await clientService.getClients();
-        if (isMounted) {
-          setClients(clientsData || []);
-          console.log('Fetched clients:', clientsData);
-        }
+        // Load initial data
+        const [clientData, salesData, invoiceData, paymentData] = await Promise.all([
+          localAdapter.read<'clients'>('clients'),
+          localAdapter.read<'sales'>('sales'),
+          localAdapter.read<'invoices'>('invoices'),
+          localAdapter.read<'payments'>('payments')
+        ]);
+
+        setClients(clientData);
+        setSales(salesData);
+        setInvoices(invoiceData);
+        setPayments(paymentData);
+        setInitialized(true);
+        setInitError(null);
       } catch (error) {
-        console.error('Error fetching clients:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(prev => ({ ...prev, clients: false }));
-        }
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-  const getClientById = useCallback((id: string): Client | undefined => {
-    if (!id) {
-      console.warn('getClientById called with empty id');
-      return undefined;
-    }
-    const client = clients.find(client => client.id === id);
-    if (!client) {
-      console.warn(`No client found with id: ${id}`);
-    }
-    return client;
-  }, [clients]);
-
-  const addClient = async (client: Omit<Client, 'id' | 'createdAt'>) => {
-    return await clientService.createClient(client);
-  };
-
-  const updateClient = async (id: string, client: Partial<Client>) => {
-    await clientService.updateClient(id, client);
-  };
-
-  const deleteClient = async (id: string) => {
-    await clientService.deleteClient(id);
-  };
-
-  const getSalesByClient = (clientId: string) => {
-    return sales.filter(sale => sale.clientId === clientId);
-  };
-
-  const getInvoicesByClient = (clientId: string) => {
-    return invoices.filter(invoice => invoice.clientId === clientId);
-  };
-
-  const getSalesSummary = () => {
-    const totalSales = sales.length;
-    const invoicedSales = sales.filter(sale => sale.isInvoiced).length;
-    const uninvoicedSales = totalSales - invoicedSales;
-
-    // Calculate total amount, handling null/undefined values
-    const totalAmount = sales.reduce((sum, sale) => {
-      const amount = sale.totalAmountTTC || 0;
-      return sum + (isNaN(amount) ? 0 : amount);
-    }, 0);
-
-    // Group sales by month and sort by date
-    const monthlySales = sales
-      .reduce((acc: { month: string; monthKey: string; amountTTC: number }[], sale) => {
-        const date = new Date(sale.date);
-        const month = date.toLocaleString('default', { month: 'long' });
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        console.error('Failed to initialize data:', error);
         
-        const existingMonth = acc.find(m => m.monthKey === monthKey);
-        if (existingMonth) {
-          // Handle null/undefined/NaN values
-          const amount = sale.totalAmountTTC || 0;
-          existingMonth.amountTTC += isNaN(amount) ? 0 : amount;
+        // Retry logic
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`Retrying database initialization (attempt ${retryCount}/${MAX_RETRIES})...`);
+          retryTimeout = setTimeout(initializeData, RETRY_DELAY);
         } else {
-          acc.push({ 
-            month,
-            monthKey,
-            amountTTC: isNaN(sale.totalAmountTTC || 0) ? 0 : (sale.totalAmountTTC || 0)
-          });
+          setInitError(error instanceof Error ? error.message : 'Failed to initialize database');
         }
-        return acc;
-      }, [])
-      .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
-      .map(({ month, amountTTC }) => ({ month, amountTTC }));
-
-    return {
-      totalSales,
-      invoicedSales,
-      uninvoicedSales,
-      totalAmount,
-      monthlySales
-    };
-  };
-
-  const getDebtSummary = (): DebtSummary => {
-    // Calculate total sales amount for each client
-    const debtByClient = clients.reduce((acc: { clientId: string; clientName: string; amountTTC: number }[], client) => {
-      // Get all sales for this client
-      const clientSales = sales.filter(sale => sale.clientId === client.id);
-      const totalSalesAmount = clientSales.reduce((sum, sale) => sum + (sale.totalAmountTTC || 0), 0);
-      
-      // Get all payments for this client's sales
-      const clientPayments = payments.filter(p => p.clientId === client.id);
-      const totalPaidAmount = clientPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      
-      // Calculate client's debt (never show negative debt)
-      const clientDebt = Math.max(0, totalSalesAmount - totalPaidAmount);
-      
-      // Only add client if they have debt
-      if (clientDebt > 0) {
-        acc.push({
-          clientId: client.id,
-          clientName: client.name,
-          amountTTC: clientDebt
-        });
       }
-      return acc;
-    }, []);
+    }
 
-    // Calculate total sales
-    const totalSales = sales.reduce((sum, sale) => sum + (sale.totalAmountTTC || 0), 0);
-    
-    // Calculate total paid amount
-    const totalPaid = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-    
-    // Calculate total debt (never show negative debt)
-    const totalDebt = Math.max(0, totalSales - totalPaid);
-    
-    // Calculate overdue amount from unpaid sales
-    const overdueDebt = sales
-      .filter(sale => {
-        // Get payments for this sale
-        const salePayments = payments.filter(p => p.saleId === sale.id);
-        const totalPaid = salePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-        
-        // Check if there's remaining amount and it's overdue
-        const invoice = invoices.find(inv => inv.id === sale.invoiceId);
-        return totalPaid < (sale.totalAmountTTC || 0) && invoice && new Date(invoice.dueDate) < new Date();
-      })
-      .reduce((sum, sale) => {
-        // Calculate remaining amount for this sale
-        const salePayments = payments.filter(p => p.saleId === sale.id);
-        const totalPaid = salePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-        return sum + Math.max(0, (sale.totalAmountTTC || 0) - totalPaid);
-      }, 0);
-    
-    // Upcoming debt is total debt minus overdue debt (never show negative)
-    const upcomingDebt = Math.max(0, totalDebt - overdueDebt);
+    initializeData();
 
-    return {
-      totalDebtTTC: totalDebt,
-      overdueDebtTTC: overdueDebt,
-      upcomingDebtTTC: upcomingDebt,
-      debtByClient
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
     };
-  };
+  }, [localAdapter]);
 
-  const getClientDebt = (clientId: string): number => {
-    // Get all sales for this client
-    const clientSales = sales.filter(sale => sale.clientId === clientId);
-    const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
-    
-    // Get all payments for this client
-    const clientPayments = payments.filter(p => p.clientId === clientId);
-    const totalPaidAmount = clientPayments.reduce((sum, p) => sum + p.amount, 0);
-    
-    // Total debt is total sales minus total payments (never show negative)
-    return Math.max(0, totalSalesAmount - totalPaidAmount);
-  };
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
-  const getClientCreditBalance = (clientId: string): number => {
-    // Get all sales for this client
-    const clientSales = sales.filter(sale => sale.clientId === clientId);
-    const totalSalesAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
-    
-    // Get all payments for this client
-    const clientPayments = payments.filter(p => p.clientId === clientId);
-    const totalPaidAmount = clientPayments.reduce((sum, p) => sum + p.amount, 0);
-    
-    // If totalPaidAmount > totalSalesAmount, the difference is what we owe the client
-    return Math.max(0, totalPaidAmount - totalSalesAmount);
-  };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
-  const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
-    const newSale = await saleService.createSale(sale);
-    setSales(prev => [...prev, newSale]);
-    return newSale;
-  };
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
-  const updateSale = async (id: string, sale: Partial<Sale>) => {
+  // Data summary functions
+  const getSalesSummary = React.useCallback(() => {
+    const totalAmount = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
+    return {
+      totalAmount,
+      count: sales.length
+    };
+  }, [sales]);
+
+  const getDebtSummary = React.useCallback(() => {
+    const unpaidInvoices = invoices.filter(inv => !inv.is_paid);
+    const totalAmount = unpaidInvoices.reduce((sum, inv) => sum + inv.total_amount, 0);
+    return {
+      totalAmount,
+      count: unpaidInvoices.length
+    };
+  }, [invoices]);
+
+  const getSalesByClient = React.useCallback((clientId: string) => {
+    return sales.filter(sale => sale.client_id === clientId);
+  }, [sales]);
+
+  // Automatic daily backup
+  useEffect(() => {
+    const checkAndBackup = async () => {
+      if (!isOnline || backupInProgress || !initialized) return;
+
+      const now = new Date();
+      const lastBackupTime = lastBackup ? new Date(lastBackup) : new Date(0);
+      const timeSinceLastBackup = now.getTime() - lastBackupTime.getTime();
+      
+      // If last backup was more than 24 hours ago
+      if (timeSinceLastBackup > 24 * 60 * 60 * 1000) {
+        try {
+          setBackupInProgress(true);
+          await backupService.backupToSupabase();
+          setLastBackup(now.toISOString());
+        } catch (error) {
+          console.error('Automatic backup failed:', error);
+        } finally {
+          setBackupInProgress(false);
+        }
+      }
+    };
+
+    // Check for backup needs when coming online or on initialization
+    if (isOnline && initialized) {
+      checkAndBackup();
+    }
+
+    // Set up periodic checks
+    const interval = setInterval(checkAndBackup, 60 * 60 * 1000); // Check every hour
+    return () => clearInterval(interval);
+  }, [isOnline, backupInProgress, initialized, lastBackup, backupService]);
+
+  // Manual backup function
+  const performBackup = React.useCallback(async () => {
+    if (!isOnline || backupInProgress || !initialized) {
+      throw new Error('Cannot perform backup at this time');
+    }
+
     try {
-      const updatedSale = await saleService.updateSale(id, sale);
-      setSales(prev => prev.map(s => s.id === id ? updatedSale : s));
-    } catch (error) {
-      console.error('Error updating sale:', error);
-      throw error;
+      setBackupInProgress(true);
+      await backupService.backupToSupabase();
+      const now = new Date();
+      setLastBackup(now.toISOString());
+    } finally {
+      setBackupInProgress(false);
     }
-  };
+  }, [isOnline, backupInProgress, initialized, backupService]);
 
-  const deleteSale = async (id: string) => {
-    await saleService.deleteSale(id);
-    setSales(prev => prev.filter(s => s.id !== id));
-  };
-
-  const getSaleById = (id: string) => {
-    return sales.find(sale => sale.id === id);
-  };
-
-  const addInvoice = async (invoice: Omit<Invoice, 'id' | 'createdAt'>) => {
-    const newInvoice = await invoiceService.createInvoice(invoice);
-    setInvoices(prev => [...prev, newInvoice]);
-
-    // Mark related sales as invoiced
-    if (invoice.salesIds) {
-      await Promise.all(
-        invoice.salesIds.map(saleId =>
-          updateSale(saleId, { isInvoiced: true, invoiceId: newInvoice.id })
-        )
-      );
-    }
-
-    return newInvoice;
-  };
-
-  const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
-    const existingInvoice = invoices.find(i => i.id === id);
-    if (!existingInvoice) return;
-    
-    // If salesIds are being updated, check if all new sales are paid
-    if (invoice.salesIds) {
-      const allSalesPaid = invoice.salesIds.every(saleId => {
-        const saleStatus = getSalePaymentStatus(saleId);
-        return saleStatus?.isFullyPaid;
-      });
-      
-      // Automatically update isPaid status based on sales payment status
-      invoice.isPaid = allSalesPaid;
-      invoice.paidAt = allSalesPaid ? new Date() : undefined;
-    }
-    
-    const updatedInvoice = await invoiceService.updateInvoice(id, invoice);
-    setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...updatedInvoice } : i));
-
-    // Update related sales if salesIds have changed
-    if (existingInvoice && invoice.salesIds) {
-      // Unmark previously invoiced sales
-      await Promise.all(
-        existingInvoice.salesIds
-          .filter(saleId => !invoice.salesIds?.includes(saleId))
-          .map(saleId => updateSale(saleId, { isInvoiced: false, invoiceId: null }))
-      );
-
-      // Mark newly added sales as invoiced
-      await Promise.all(
-        invoice.salesIds
-          .filter(saleId => !existingInvoice.salesIds.includes(saleId))
-          .map(saleId => updateSale(saleId, { isInvoiced: true, invoiceId: id }))
-      );
-    }
-  };
-
-  const deleteInvoice = async (id: string) => {
-    const invoice = invoices.find(i => i.id === id);
-    if (invoice) {
-      // Unmark all related sales as invoiced
-      await Promise.all(
-        invoice.salesIds.map(saleId =>
-          updateSale(saleId, { isInvoiced: false, invoiceId: null })
-        )
-      );
-    }
-
-    await invoiceService.deleteInvoice(id);
-    setInvoices(prev => prev.filter(i => i.id !== id));
-  };
-
-  const getInvoiceById = (id: string) => {
-    return invoices.find(invoice => invoice.id === id);
-  };
-
-  const deletePayment = async (id: string) => {
-    const payment = payments.find(p => p.id === id);
-    if (!payment) return;
-
-    await paymentService.deletePayment(id);
-    setPayments(prev => prev.filter(p => p.id !== id));
-  };
-
-  const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
-    const newPayment = await paymentService.addPayment(payment);
-    setPayments(prevPayments => [...prevPayments, newPayment].sort((a, b) => b.date.getTime() - a.date.getTime()));
-    return newPayment;
-  };
-
-  const addBulkPayment = async (payment: BulkPayment): Promise<Payment[]> => {
-    const newPayments = await paymentService.addBulkPayment(payment);
-    setPayments(prev => [...prev, ...newPayments]);
-    return newPayments;
-  };
-
-  const getPaymentsBySale = (saleId: string) => {
-    return payments.filter(payment => payment.saleId === saleId);
-  };
-
-  const getSalePaymentStatus = (saleId: string) => {
-    const sale = getSaleById(saleId);
-    if (!sale) return null;
-
-    const salePayments = getPaymentsBySale(saleId);
-    const totalPaid = salePayments.reduce((sum, payment) => sum + payment.amount, 0);
-    const remainingAmount = Math.max(0, sale.totalAmountTTC - totalPaid);
-
-    return {
-      totalAmount: sale.totalAmountTTC,
-      totalPaid,
-      remainingAmount,
-      isFullyPaid: remainingAmount === 0,
-      payments: salePayments
-    };
-  };
-
-  const getInvoicePaymentStatus = (invoiceId: string) => {
-    const invoice = invoices.find(i => i.id === invoiceId);
-    if (!invoice) return null;
-
-    const totalAmount = invoice.totalAmountTTC;
-    let totalPaid = 0;
-    const allPayments: Payment[] = [];
-
-    // Get payments for all sales in this invoice
-    invoice.salesIds.forEach(saleId => {
-      const salePayments = getPaymentsBySale(saleId);
-      totalPaid += salePayments.reduce((sum, p) => sum + p.amount, 0);
-      allPayments.push(...salePayments);
-    });
-
-    return {
-      totalAmount,
-      totalPaid,
-      remainingAmount: Math.max(0, totalAmount - totalPaid),
-      isFullyPaid: totalPaid >= totalAmount,
-      payments: allPayments
-    };
-  };
-
-  const getClientBalance = (clientId: string) => {
-    // Get all sales for this client and calculate total, handling null/undefined values
-    const clientSales = sales.filter(sale => sale.clientId === clientId);
-    const totalSalesAmount = clientSales.reduce((sum, sale) => {
-      const amount = sale.totalAmountTTC || 0;
-      return sum + (isNaN(amount) ? 0 : amount);
-    }, 0);
-    
-    // Get all payments for this client and calculate total, handling null/undefined values
-    const clientPayments = payments.filter(payment => payment.clientId === clientId);
-    const totalPayments = clientPayments.reduce((sum, payment) => {
-      const amount = payment.amount || 0;
-      return sum + (isNaN(amount) ? 0 : amount);
-    }, 0);
-    
-    return {
-      totalSalesAmount,
-      totalPayments,
-      balance: totalSalesAmount - totalPayments
-    };
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchSales = async () => {
-      try {
-        setLoading(prev => ({ ...prev, sales: true }));
-        const salesData = await saleService.getSales();
-        if (isMounted) {
-          setSales(salesData || []);
-          // console.log('Fetched sales:', salesData);
-        }
-      } catch (error) {
-        console.error('Error fetching sales:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(prev => ({ ...prev, sales: false }));
-        }
-      }
-    };
-
-    fetchSales();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchInvoices = async () => {
-      try {
-        setLoading(prev => ({ ...prev, invoices: true }));
-        const invoicesData = await invoiceService.getInvoices();
-        if (isMounted) {
-          setInvoices(invoicesData || []);
-          // console.log('Fetched invoices:', invoicesData);
-        }
-      } catch (error) {
-        console.error('Error fetching invoices:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(prev => ({ ...prev, invoices: false }));
-        }
-      }
-    };
-
-    fetchInvoices();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchPayments = async () => {
-      try {
-        setLoading(prev => ({ ...prev, payments: true }));
-        const paymentsData = await paymentService.getPayments();
-        if (isMounted) {
-          setPayments(paymentsData || []);
-          // console.log('Fetched payments:', paymentsData);
-        }
-      } catch (error) {
-        console.error('Error fetching payments:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(prev => ({ ...prev, payments: false }));
-        }
-      }
-    };
-
-    fetchPayments();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Credit Transaction Management
-  const handleCreateCreditTransaction = async (transaction: CreditTransactionInput) => {
-    const newTransaction = await createCreditTransaction(transaction);
-    return newTransaction;
-  };
-
-  const handleUpdateCreditTransaction = async (
-    id: string,
-    transaction: CreditTransactionUpdate
-  ) => {
-    const updatedTransaction = await updateCreditTransaction(id, transaction);
-    return updatedTransaction;
-  };
-
-  const handleDeleteCreditTransaction = async (id: string) => {
-    await deleteCreditTransaction(id);
-  };
-
-  const value = {
+  // Context value
+  const contextValue = React.useMemo(() => ({
+    localAdapter,
+    isOnline,
+    lastBackup,
+    performBackup,
+    backupInProgress,
+    // Data
     clients,
     sales,
     invoices,
     payments,
-    loading,
-    addClient,
-    updateClient,
-    deleteClient,
-    getClientById,
-    getSalesByClient,
-    getInvoicesByClient,
+    // Functions
     getSalesSummary,
     getDebtSummary,
-    getClientDebt,
-    getClientCreditBalance,
-    addSale,
-    updateSale,
-    deleteSale,
-    getSaleById,
-    addInvoice,
-    updateInvoice,
-    deleteInvoice,
-    getInvoiceById,
-    deletePayment,
-    addPayment,
-    addBulkPayment,
-    getPaymentsBySale,
-    getSalePaymentStatus,
-    getInvoicePaymentStatus,
-    getClientBalance,
-    createCreditTransaction: handleCreateCreditTransaction,
-    updateCreditTransaction: handleUpdateCreditTransaction,
-    deleteCreditTransaction: handleDeleteCreditTransaction,
-  };
+    getSalesByClient,
+  }), [
+    localAdapter,
+    isOnline,
+    lastBackup,
+    performBackup,
+    backupInProgress,
+    clients,
+    sales,
+    invoices,
+    payments,
+    getSalesSummary,
+    getDebtSummary,
+    getSalesByClient,
+  ]);
+
+  // Show error state if initialization failed
+  if (initError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="bg-destructive/15 text-destructive p-4 rounded-lg max-w-md">
+          <h2 className="text-lg font-semibold mb-2">Database Initialization Error</h2>
+          <p className="text-sm">{initError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state during initialization
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
-    <AppContext.Provider value={value}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );
-}
+};
 
-export const useAppContext = () => {
+// Add useApp hook after AppProvider
+export function useApp(): AppContextType {
   const context = useContext(AppContext);
   if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppProvider');
+    throw new Error('useApp must be used within an AppProvider');
   }
   return context;
-};
+}

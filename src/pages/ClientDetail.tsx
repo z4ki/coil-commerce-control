@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useAppContext } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,7 +49,7 @@ const ClientDetail = () => {
     getClientCreditBalance,
     getSaleById,
     loading: { clients: loadingClients, sales: loadingSales, payments: loadingPayments }
-  } = useAppContext();
+  } = useApp();
 
   // Get client data
   const client = id ? getClientById(id) : undefined;

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAppContext } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useInvoiceSettings } from '../../context/InvoiceSettingsContext';
 import { Button } from '@/components/ui/button';
@@ -65,7 +65,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     getSalesByClient, 
     sales, 
     getSalePaymentStatus 
-  } = useAppContext();
+  } = useApp();
   const { settings: appSettings, updateInvoiceSettings } = useAppSettings();
   const { settings: invoiceSettings } = useInvoiceSettings();
   const { t } = useLanguage();

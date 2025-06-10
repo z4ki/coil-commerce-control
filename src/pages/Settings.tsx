@@ -3,6 +3,7 @@ import MainLayout from '../components/layout/MainLayout';
 import { useTheme } from 'next-themes';
 import { PlusCircle, Check, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { BackupButton } from '@/components/ui/BackupButton';
 import {
   Card,
   CardContent,
@@ -106,6 +107,7 @@ const Settings = () => {
             <TabsTrigger value="company">Société</TabsTrigger>
             <TabsTrigger value="invoice">Facture</TabsTrigger>
             <TabsTrigger value="import-export">Import/Export</TabsTrigger>
+            <TabsTrigger value="sync">Synchronisation</TabsTrigger>
           </TabsList>
           
           <TabsContent value="general" className="space-y-4">
@@ -362,6 +364,28 @@ const Settings = () => {
                   <Button onClick={handleExportData}>
                     Exporter des données
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="sync" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Synchronisation des données</CardTitle>
+                <CardDescription>
+                  Gérez la sauvegarde et la synchronisation de vos données
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-medium">Sauvegarde dans le cloud</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                      Sauvegardez vos données locales dans le cloud. Cela aide à protéger vos données et les rend disponibles sur tous les appareils.
+                    </p>
+                    <BackupButton />
+                  </div>
                 </div>
               </CardContent>
             </Card>

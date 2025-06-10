@@ -1,27 +1,66 @@
-import Database from 'tauri-plugin-sql-api';
+// src/services/database/localAdapter.ts
+import Database from '@tauri-apps/plugin-sql';
 import { DatabaseAdapter, SyncQueueItem } from './types';
 import { Database as SupabaseDatabase } from '@/types/supabase';
 
 export class LocalAdapter implements DatabaseAdapter {
   private db: Database | null = null;
-  private syncQueue: SyncQueueItem[] = [];
+  private initializationPromise: Promise<void>;
+  private isInitialized = false;
 
   constructor() {
-    this.initDatabase();
+    this.initializationPromise = this.initDatabase()
+      .then(() => {
+        this.isInitialized = true;
+      })
+      .catch(error => {
+        console.error('Database initialization failed:', error);
+        throw error;
+      });
   }
 
   private async initDatabase() {
     try {
-      this.db = await Database.load('sqlite:local.db');
+      console.log('Starting database initialization...');
+      
+      // Use the platform-specific path for AppData
+      const dbPath = process.platform === 'win32' 
+        ? process.env.APPDATA 
+        : process.platform === 'darwin'
+          ? `${process.env.HOME}/Library/Application Support`
+          : `${process.env.HOME}/.local/share`;
+          
+      const appName = 'coil-commerce-control';
+      const fullPath = `${dbPath}/${appName}`.replace(/\\/g, '/');
+      const dbFilePath = `${fullPath}/database.db`;
+      
+      console.log('Database path:', dbFilePath);
+      
+      // Try to load the database with proper URI format
+      this.db = await Database.load(`sqlite:${dbFilePath}`);
+      console.log('Database loaded successfully');
+      
+      // Create tables in a transaction
       await this.createTables();
-    } catch (error) {
+      console.log('Tables created successfully');
+    } catch (error: unknown) {
       console.error('Failed to initialize local database:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+      }
+      throw error;
     }
-  }    private async createTables() {
+  }
+
+  private async createTables() {
     if (!this.db) throw new Error('Database not initialized');
 
     try {
-      await this.db.execute('BEGIN TRANSACTION');
+      await this.db.execute('BEGIN');
 
       // Core tables
       await this.db.execute(`
@@ -41,7 +80,7 @@ export class LocalAdapter implements DatabaseAdapter {
           credit_balance REAL DEFAULT 0,
           created_at TEXT NOT NULL,
           updated_at TEXT
-        )
+        );
       `);
 
       await this.db.execute(`
@@ -57,7 +96,7 @@ export class LocalAdapter implements DatabaseAdapter {
           created_at TEXT NOT NULL,
           updated_at TEXT,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-        )
+        );
       `);
 
       await this.db.execute(`
@@ -75,7 +114,7 @@ export class LocalAdapter implements DatabaseAdapter {
           updated_at TEXT,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
           FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL
-        )
+        );
       `);
 
       await this.db.execute(`
@@ -101,23 +140,7 @@ export class LocalAdapter implements DatabaseAdapter {
           created_at TEXT NOT NULL,
           updated_at TEXT,
           FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
-        )
-      `);
-
-      // Create credit-related tables
-      await this.db.execute(`
-        CREATE TABLE IF NOT EXISTS credit_transactions (
-          id TEXT PRIMARY KEY,
-          client_id TEXT NOT NULL,
-          amount REAL NOT NULL,
-          type TEXT CHECK (type IN ('credit', 'debit')),
-          source_type TEXT CHECK (source_type IN ('payment', 'refund', 'manual_adjustment', 'credit_use')),
-          source_id TEXT,
-          notes TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT,
-          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-        )
+        );
       `);
 
       await this.db.execute(`
@@ -134,10 +157,9 @@ export class LocalAdapter implements DatabaseAdapter {
           generates_credit BOOLEAN DEFAULT false,
           FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-        )
+        );
       `);
 
-      // Create sync queue table for offline changes
       await this.db.execute(`
         CREATE TABLE IF NOT EXISTS sync_queue (
           id TEXT PRIMARY KEY,
@@ -147,64 +169,73 @@ export class LocalAdapter implements DatabaseAdapter {
           timestamp INTEGER NOT NULL,
           status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'error')),
           error TEXT
-        )
+        );
       `);
 
-      // Create indexes for better performance
-      await this.db.execute(`
-        CREATE INDEX IF NOT EXISTS idx_sales_client ON sales(client_id);
-        CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date);
-        CREATE INDEX IF NOT EXISTS idx_sales_invoice ON sales(invoice_id);
-        CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
-        CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
-        CREATE INDEX IF NOT EXISTS idx_payments_client ON payments(client_id);
-        CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
-        CREATE INDEX IF NOT EXISTS idx_credit_client ON credit_transactions(client_id);
-        CREATE INDEX IF NOT EXISTS idx_credit_date ON credit_transactions(created_at);
-        CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
-        CREATE INDEX IF NOT EXISTS idx_sync_queue_timestamp ON sync_queue(timestamp);
-      `);
+      // Indexes
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_sales_client ON sales(client_id);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_sales_invoice ON sales(invoice_id);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_payments_client ON payments(client_id);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);`);
+      await this.db.execute(`CREATE INDEX IF NOT EXISTS idx_sync_queue_timestamp ON sync_queue(timestamp);`);
 
       await this.db.execute('COMMIT');
     } catch (error) {
-      await this.db.execute('ROLLBACK');
+      if (this.db) {
+        await this.db.execute('ROLLBACK');
+      }
       console.error('Failed to create tables:', error);
-      throw new Error(`Failed to initialize database schema: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to initialize database schema: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  private async ensureInitialized() {
+    if (!this.isInitialized) {
+      await this.initializationPromise;
+    }
+    if (!this.db) {
+      throw new Error('Database not initialized');
     }
   }
 
   async isOnline(): Promise<boolean> {
-    return false; // Local database is always "offline"
-  }  async create<T extends keyof SupabaseDatabase['public']['Tables']>(
+    await this.ensureInitialized();
+    return true; // Local database is always "online"
+  }
+
+  async create<T extends keyof SupabaseDatabase['public']['Tables']>(
     table: T,
     data: SupabaseDatabase['public']['Tables'][T]['Insert']
   ): Promise<SupabaseDatabase['public']['Tables'][T]['Row']> {
-    if (!this.db) throw new Error('Database not initialized');
+    await this.ensureInitialized();
+    const { columnNames, values } = this.prepareInsertData(data);
 
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = values.map((_, i) => `?${i + 1}`).join(', ');
+    const result = await this.db!.select<SupabaseDatabase['public']['Tables'][T]['Row'][]>(
+      `INSERT INTO ${table} (${columnNames.join(', ')})
+       VALUES (${columnNames.map((_, i) => `$${i + 1}`).join(', ')})
+       RETURNING *`,
+      values
+    );
 
-    const query = `
-      INSERT INTO ${String(table)} (${columns.join(', ')})
-      VALUES (${placeholders})
-      RETURNING *
-    `;
-
-    const result = await this.db.select(query, values);
-    
-    // Queue for sync
-    await this.queueChange({
-      id: crypto.randomUUID(),
-      operation: 'create',
-      table: String(table),
-      data,
-      timestamp: Date.now(),
-      status: 'pending'
-    });
-
-    return result[0] as SupabaseDatabase['public']['Tables'][T]['Row'];
+    if (!result?.[0]) throw new Error('Failed to create record');
+    return result[0];
   }
+
+  private prepareInsertData(data: Record<string, any>) {
+    const entries = Object.entries(data).filter(([_, value]) => value !== undefined);
+    return {
+      columnNames: entries.map(([key]) => key),
+      values: entries.map(([_, value]) => value),
+    };
+  }
+
   async read<T extends keyof SupabaseDatabase['public']['Tables']>(
     table: T,
     query?: {
@@ -215,188 +246,119 @@ export class LocalAdapter implements DatabaseAdapter {
       offset?: number;
     }
   ): Promise<SupabaseDatabase['public']['Tables'][T]['Row'][]> {
-    if (!this.db) throw new Error('Database not initialized');
+    await this.ensureInitialized();
+    
+    const { sql, params } = this.buildSelectQuery(table, query);
+    const result = await this.db!.select<SupabaseDatabase['public']['Tables'][T]['Row'][]>(sql, params);
+    return result || [];
+  }
 
-    let sql = `SELECT ${query?.select || '*'} FROM ${String(table)}`;
-    const values: any[] = [];
+  private buildSelectQuery(table: string, query?: {
+    where?: Record<string, any>;
+    select?: string;
+    order?: Record<string, 'asc' | 'desc'>;
+    limit?: number;
+    offset?: number;
+  }) {
+    let sql = `SELECT ${query?.select || '*'} FROM ${table}`;
+    const params: any[] = [];
 
     if (query?.where) {
       const conditions = Object.entries(query.where)
-        .map(([key], index) => `${key} = ?${index + 1}`)
-        .join(' AND ');
-      sql += ` WHERE ${conditions}`;
-      values.push(...Object.values(query.where));
+        .filter(([_, value]) => value !== undefined)
+        .map(([key], index) => `${key} = $${index + 1}`);
+      
+      if (conditions.length > 0) {
+        sql += ` WHERE ${conditions.join(' AND ')}`;
+        params.push(...Object.values(query.where).filter(v => v !== undefined));
+      }
     }
 
     if (query?.order) {
       const orderClauses = Object.entries(query.order)
-        .map(([key, direction]) => `${key} ${direction.toUpperCase()}`)
-        .join(', ');
-      sql += ` ORDER BY ${orderClauses}`;
+        .map(([key, dir]) => `${key} ${dir.toUpperCase()}`);
+      if (orderClauses.length > 0) {
+        sql += ` ORDER BY ${orderClauses.join(', ')}`;
+      }
     }
 
-    if (query?.limit) {
-      sql += ` LIMIT ${query.limit}`;
-    }
+    if (query?.limit) sql += ` LIMIT ${query.limit}`;
+    if (query?.offset) sql += ` OFFSET ${query.offset}`;
 
-    if (query?.offset) {
-      sql += ` OFFSET ${query.offset}`;
-    }
-
-    const results = await this.db.select(sql, values);
-    return results as SupabaseDatabase['public']['Tables'][T]['Row'][];
+    return { sql, params };
   }
+
   async update<T extends keyof SupabaseDatabase['public']['Tables']>(
     table: T,
     data: Partial<SupabaseDatabase['public']['Tables'][T]['Update']>,
     where: Record<string, any>
   ): Promise<SupabaseDatabase['public']['Tables'][T]['Row']> {
-    if (!this.db) throw new Error('Database not initialized');
+    await this.ensureInitialized();
 
-    const setClause = Object.keys(data)
-      .map((key, index) => `${key} = ?${index + 1}`)
-      .join(', ');
+    const updates = Object.entries(data)
+      .filter(([_, value]) => value !== undefined)
+      .map(([key], index) => `${key} = $${index + 1}`);
 
-    const whereClause = Object.keys(where)
-      .map((key, index) => `${key} = ?${index + 1 + Object.keys(data).length}`)
-      .join(' AND ');
+    const whereClauses = Object.entries(where)
+      .filter(([_, value]) => value !== undefined)
+      .map(([key], index) => `${key} = $${updates.length + index + 1}`);
 
-    const values = [...Object.values(data), ...Object.values(where)];
-
-    const query = `
-      UPDATE ${String(table)}
-      SET ${setClause}
-      WHERE ${whereClause}
+    const sql = `
+      UPDATE ${table}
+      SET ${updates.join(', ')}
+      WHERE ${whereClauses.join(' AND ')}
       RETURNING *
-    `;    const result = await this.db.select(query, values);    // Queue for sync
-    await this.queueChange({
-      id: crypto.randomUUID(),
-      operation: 'update',
-      table: String(table),
-      data: { ...data, where },
-      timestamp: Date.now(),
-      status: 'pending'
-    });
+    `;
 
-    return result[0] as SupabaseDatabase['public']['Tables'][T]['Row'];
+    const values = [
+      ...Object.values(data).filter(v => v !== undefined),
+      ...Object.values(where).filter(v => v !== undefined)
+    ];
+
+    const result = await this.db!.select<SupabaseDatabase['public']['Tables'][T]['Row'][]>(sql, values);
+    if (!result?.[0]) throw new Error('Failed to update record');
+    return result[0];
   }
+
   async delete<T extends keyof SupabaseDatabase['public']['Tables']>(
     table: T,
     where: Record<string, any>
   ): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
+    await this.ensureInitialized();
 
-    const whereClause = Object.keys(where)
-      .map((key, index) => `${key} = ?${index + 1}`)
-      .join(' AND ');
+    const whereClauses = Object.entries(where)
+      .filter(([_, value]) => value !== undefined)
+      .map(([key], index) => `${key} = $${index + 1}`);
 
-    const values = Object.values(where);
+    const sql = `DELETE FROM ${table} WHERE ${whereClauses.join(' AND ')}`;
+    const values = Object.values(where).filter(v => v !== undefined);
 
-    await this.db.execute(`DELETE FROM ${String(table)} WHERE ${whereClause}`, values);
-
-    // Queue for sync
-    await this.queueChange({
-      id: crypto.randomUUID(),
-      operation: 'delete',
-      table: String(table),
-      data: where,
-      timestamp: Date.now(),
-      status: 'pending'
-    });
+    await this.db!.execute(sql, values);
   }
 
   async transaction<T>(operations: () => Promise<T>): Promise<T> {
-    if (!this.db) throw new Error('Database not initialized');
-
+    await this.ensureInitialized();
+    await this.db!.execute('BEGIN');
+    
     try {
-      await this.db.execute('BEGIN TRANSACTION');
       const result = await operations();
-      await this.db.execute('COMMIT');
+      await this.db!.execute('COMMIT');
       return result;
     } catch (error) {
-      await this.db.execute('ROLLBACK');
+      await this.db!.execute('ROLLBACK');
       throw error;
     }
   }
 
   async sync(): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    try {
-      // Get all pending changes
-      const pendingChanges = await this.getPendingChanges();
-      
-      if (pendingChanges.length === 0) {
-        return;
-      }
-
-      // Process each change in order
-      for (const change of pendingChanges) {
-        try {
-          // Mark as processing
-          await this.updateSyncStatus(change.id, 'processing');
-
-          // Keep track of the change to retry later if needed
-          const retryChange = { ...change };
-
-          // Cleanup successful change
-          await this.db.execute(
-            `DELETE FROM sync_queue WHERE id = ?`,
-            [change.id]
-          );
-
-          // Remove from memory queue
-          const index = this.syncQueue.findIndex(item => item.id === change.id);
-          if (index !== -1) {
-            this.syncQueue.splice(index, 1);
-          }
-        } catch (error) {
-          console.error(`Failed to process sync change ${change.id}:`, error);
-          await this.updateSyncStatus(
-            change.id,
-            'error',
-            error instanceof Error ? error.message : String(error)
-          );
-        }
-      }
-
-      // Cleanup old sync items
-      await this.cleanupSyncQueue();
-    } catch (error) {
-      console.error('Failed to sync changes:', error);
-      throw new Error(`Failed to sync changes: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  private async queueChange(change: SyncQueueItem): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    try {
-      await this.db.execute(
-        `INSERT INTO sync_queue (id, operation, table_name, data, timestamp, status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          change.id,
-          change.operation,
-          change.table,
-          JSON.stringify(change.data),
-          change.timestamp,
-          change.status
-        ]
-      );
-
-      this.syncQueue.push(change);
-    } catch (error) {
-      console.error('Failed to queue change:', error);
-      throw new Error(`Failed to queue change: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    await this.ensureInitialized();
+    // Sync implementation will be added later
   }
 
   async getPendingChanges(): Promise<SyncQueueItem[]> {
-    if (!this.db) throw new Error('Database not initialized');
-
+    await this.ensureInitialized();
     try {
-      const result = await this.db.select<Array<{
+      interface SyncQueueRow {
         id: string;
         operation: string;
         table_name: string;
@@ -404,58 +366,29 @@ export class LocalAdapter implements DatabaseAdapter {
         timestamp: number;
         status: string;
         error?: string;
-      }>>(
+      }
+
+      const result = await this.db!.select<SyncQueueRow[]>(
         `SELECT * FROM sync_queue 
          WHERE status = 'pending'
          ORDER BY timestamp ASC`
       );
 
-      return result.map(row => ({
-        id: row.id,
-        operation: row.operation as SyncQueueItem['operation'],
-        table: row.table_name,
-        data: JSON.parse(row.data),
-        timestamp: row.timestamp,
-        status: row.status as SyncQueueItem['status'],
-        error: row.error
-      }));
+      return result.map(row => {
+        const syncItem: SyncQueueItem = {
+          id: row.id,
+          operation: row.operation as SyncQueueItem['operation'],
+          table: row.table_name as keyof SupabaseDatabase['public']['Tables'],
+          data: JSON.parse(row.data),
+          timestamp: row.timestamp,
+          status: row.status as SyncQueueItem['status'],
+          error: row.error
+        };
+        return syncItem;
+      });
     } catch (error) {
       console.error('Failed to get pending changes:', error);
-      throw new Error(`Failed to get pending changes: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  async updateSyncStatus(id: string, status: SyncQueueItem['status'], error?: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    try {
-      await this.db.execute(
-        `UPDATE sync_queue 
-         SET status = ?, error = ?, updated_at = datetime('now')
-         WHERE id = ?`,
-        [status, error, id]
-      );
-    } catch (error) {
-      console.error('Failed to update sync status:', error);
-      throw new Error(`Failed to update sync status: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  async cleanupSyncQueue(maxAge: number = 7 * 24 * 60 * 60 * 1000): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    try {
-      // Remove successful syncs older than maxAge
-      const cutoffTime = Date.now() - maxAge;
-      await this.db.execute(
-        `DELETE FROM sync_queue 
-         WHERE status != 'pending' 
-         AND timestamp < ?`,
-        [cutoffTime]
-      );
-    } catch (error) {
-      console.error('Failed to cleanup sync queue:', error);
-      throw new Error(`Failed to cleanup sync queue: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
     }
   }
 }

@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { useAppContext } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import DataCard from '../components/ui/DataCard';
 import { BarChart2, DollarSign, Users, FileText, AlertTriangle, AlertCircle, Wallet, CreditCard } from 'lucide-react';
@@ -8,10 +8,17 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { formatCurrency } from '../utils/format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLanguage } from '../context/LanguageContext';
+import { Client, Sale, Invoice, Payment } from '@/types';
 
 interface MonthlySalesData {
   month: string;
   amountTTC: number;
+}
+
+interface TopClientData {
+  id: string;
+  name: string;
+  totalAmount: number;
 }
 
 // Memoized chart components to prevent unnecessary re-renders
@@ -65,52 +72,49 @@ const Dashboard = () => {
     getDebtSummary,
     invoices,
     getSalesByClient,
-    payments
-  } = useAppContext();
+    payments 
+  } = useApp();
 
-  // ADD THESE CONSOLE LOGS:
-  console.log("[Dashboard.tsx] Payments data from context:", JSON.stringify(payments, null, 2));
-  console.log(`[Dashboard.tsx] Number of payments loaded: ${payments.length}`);
-  payments.forEach((p, index) => {
-    console.log(`[Dashboard.tsx] Payment ${index + 1}: method='${p.method}', amount=${p.amount}`);
-  });
-  // END OF ADDED CONSOLE LOGS
   const { t } = useLanguage();
   
   const salesSummary = getSalesSummary();
   const debtSummary = getDebtSummary();
   
-  // Calculate payment method totals
+  // Calculate payment method totals with proper typing
   const paymentMethodTotals = {
-    cash: payments.filter(p => p.method === 'cash').reduce((sum, p) => sum + (p.amount || 0), 0),
-    bank_transfer: payments.filter(p => p.method === 'bank_transfer').reduce((sum, p) => sum + (p.amount || 0), 0),
-    check: payments.filter(p => p.method === 'check').reduce((sum, p) => sum + (p.amount || 0), 0),
-    deferred: payments.filter(p => p.method === 'deferred').reduce((sum, p) => sum + (p.amount || 0), 0),
-    bank_account: payments.filter(p => ['bank_transfer', 'check'].includes(p.method)).reduce((sum, p) => sum + (p.amount || 0), 0)
+    cash: payments.filter((p: Payment) => p.method === 'cash')
+      .reduce((sum: number, p: Payment) => sum + p.amount, 0),
+    bank_transfer: payments.filter((p: Payment) => p.method === 'bank_transfer')
+      .reduce((sum: number, p: Payment) => sum + p.amount, 0),
+    check: payments.filter((p: Payment) => p.method === 'check')
+      .reduce((sum: number, p: Payment) => sum + p.amount, 0),
+    deferred: payments.filter((p: Payment) => p.method === 'deferred')
+      .reduce((sum: number, p: Payment) => sum + p.amount, 0),
+    bank_account: payments.filter((p: Payment) => ['bank_transfer', 'check'].includes(p.method))
+      .reduce((sum: number, p: Payment) => sum + p.amount, 0)
   };
   
   // Count unpaid invoices
-  const unpaidInvoices = invoices.filter(inv => !inv.isPaid).length;
+  const unpaidInvoices = invoices.filter((inv: Invoice) => !inv.isPaid).length;
   
   // Calculate total sales amount (TTC)
-  const totalSalesAmount = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
+  const totalSalesAmount = sales.reduce((sum: number, sale: Sale) => sum + sale.totalAmountTTC, 0);
   
   // Calculate average sale amount (TTC)
   const averageSaleAmount = sales.length > 0 ? totalSalesAmount / sales.length : 0;
-  
-  // Get top clients by sales amount (TTC)
-  const topClients = clients
-    .map(client => {
-      const clientSales = getSalesByClient(client.id);
-      const totalAmount = clientSales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
-      return {
-        ...client,
-        totalAmount,
-        salesCount: clientSales.length
-      };
-    })
-    .sort((a, b) => b.totalAmount - a.totalAmount)
-    .slice(0, 5);
+
+  // Get top clients by sales amount
+  const topClients: TopClientData[] = clients.map((client: Client) => {
+    const clientSales = getSalesByClient(client.id);
+    const totalAmount = clientSales.reduce((sum: number, sale: Sale) => sum + sale.totalAmountTTC, 0);
+    return {
+      id: client.id,
+      name: client.company || client.name,
+      totalAmount
+    };
+  })
+  .sort((a: TopClientData, b: TopClientData) => b.totalAmount - a.totalAmount)
+  .slice(0, 5);
 
   return (
     <MainLayout title={t('dashboard.title')}>

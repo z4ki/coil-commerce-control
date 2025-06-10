@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useAppContext } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import {
@@ -107,7 +107,7 @@ const Reports = () => {
     invoices,
     sales,
     getClientById
-  } = useAppContext();
+  } = useApp();
   const { t } = useLanguage();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);

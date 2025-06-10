@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppContext } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import { useLanguage } from '@/context/LanguageContext';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -70,7 +70,7 @@ const SaleDialog = ({ open, onOpenChange, sale }: SaleDialogProps) => {
 };
 
 const Sales = () => {
-  const { sales, clients, deleteSale, updateSale, getClientById, getSalePaymentStatus } = useAppContext();
+  const { sales, clients, deleteSale, updateSale, getClientById, getSalePaymentStatus } = useApp();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);

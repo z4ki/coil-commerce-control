@@ -31,18 +31,15 @@ export interface DatabaseAdapter {
     where: Record<string, any>
   ): Promise<void>;
   
-  // Transaction support
   transaction<T>(operations: () => Promise<T>): Promise<T>;
-  
-  // Sync operations
   sync(): Promise<void>;
-  getPendingChanges(): Promise<any[]>;
+  getPendingChanges(): Promise<SyncQueueItem[]>;
 }
 
 export interface SyncQueueItem {
   id: string;
   operation: 'create' | 'update' | 'delete';
-  table: string;
+  table: keyof Database['public']['Tables'];
   data: any;
   timestamp: number;
   status: 'pending' | 'processing' | 'error';

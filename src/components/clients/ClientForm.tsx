@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAppContext } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +39,7 @@ interface ClientFormProps {
 }
 
 const ClientForm = ({ client, onSuccess }: ClientFormProps) => {
-  const { addClient, updateClient } = useAppContext();
+  const { addClient, updateClient } = useApp();
   const { t } = useLanguage();
 
   const defaultValues: FormValues = {

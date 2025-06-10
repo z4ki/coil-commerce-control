@@ -1,125 +1,59 @@
+import { LocalAdapter } from './database/localAdapter';
+import type { Client } from '@/types/index';
 
-import { supabase } from '@/integrations/supabase/client';
-import { Client } from '@/types';
+const localAdapter = new LocalAdapter();
+
+function dbToClient(row: any): Client {
+  return {
+    id: row.id,
+    name: row.name,
+    company: row.company ?? undefined,
+    address: row.address ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    nif: row.nif ?? undefined,
+    nis: row.nis ?? undefined,
+    rc: row.rc ?? undefined,
+    ai: row.ai ?? undefined,
+    rib: row.rib ?? undefined,
+    notes: row.notes ?? undefined,
+    creditBalance: typeof row.credit_balance === 'number' ? row.credit_balance : 0,
+    createdAt: new Date(row.created_at),
+    updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  };
+}
 
 export const getClients = async (): Promise<Client[]> => {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .order('name');
-  
-  if (error) {
-    console.error('Error fetching clients:', error);
-    throw error;
-  }
-  
-  // Convert to Client type with correct date format
-  return (data || []).map(client => ({
-    ...client,
-    id: client.id,
-    createdAt: new Date(client.created_at),
-    updatedAt: client.updated_at ? new Date(client.updated_at) : undefined
-  }));
+  const rows = await localAdapter.read('clients', { order: { name: 'asc' } });
+  return rows.map(dbToClient);
 };
 
 export const getClientById = async (id: string): Promise<Client | null> => {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('id', id)
-    .single();
-  
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // No data found
-      return null;
-    }
-    console.error('Error fetching client:', error);
-    throw error;
-  }
-  
-  if (!data) return null;
-  
-  return {
-    ...data,
-    id: data.id,
-    createdAt: new Date(data.created_at),
-    updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
-  };
+  const rows = await localAdapter.read('clients', { where: { id } });
+  return rows[0] ? dbToClient(rows[0]) : null;
 };
 
 export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
-  const { data, error } = await supabase
-    .from('clients')
-    .insert({
-      name: client.name,
-      company: client.company,
-      email: client.email,
-      phone: client.phone,
-      address: client.address,
-      notes: client.notes,
-      nif: client.nif,
-      nis: client.nis,
-      rc: client.rc,
-      ai: client.ai
-    })
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error creating client:', error);
-    throw error;
-  }
-  
-  return {
-    ...data,
-    id: data.id,
-    createdAt: new Date(data.created_at),
-    updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
-  };
+  const now = new Date().toISOString();
+  const data = await localAdapter.create('clients', {
+    ...client,
+    credit_balance: client.creditBalance ?? 0,
+    created_at: now,
+    updated_at: now,
+  });
+  return dbToClient(data);
 };
 
 export const updateClient = async (id: string, client: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Client> => {
-  const { data, error } = await supabase
-    .from('clients')
-    .update({
-      name: client.name,
-      company: client.company,
-      email: client.email,
-      phone: client.phone,
-      address: client.address,
-      notes: client.notes,
-      nif: client.nif,
-      nis: client.nis,
-      rc: client.rc,
-      ai: client.ai,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error updating client:', error);
-    throw error;
-  }
-  
-  return {
-    ...data,
-    id: data.id,
-    createdAt: new Date(data.created_at),
-    updatedAt: data.updated_at ? new Date(data.updated_at) : undefined
-  };
+  const now = new Date().toISOString();
+  const data = await localAdapter.update('clients', {
+    ...client,
+    credit_balance: client.creditBalance,
+    updated_at: now,
+  }, { id });
+  return dbToClient(data);
 };
 
 export const deleteClient = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('clients')
-    .delete()
-    .eq('id', id);
-  
-  if (error) {
-    console.error('Error deleting client:', error);
-    throw error;
-  }
+  await localAdapter.delete('clients', { id });
 };

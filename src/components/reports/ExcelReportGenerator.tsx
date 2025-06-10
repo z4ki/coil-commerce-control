@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,7 +38,7 @@ interface ExcelReportGeneratorProps {
 }
 
 const ExcelReportGenerator: React.FC<ExcelReportGeneratorProps> = ({ onClose }) => {
-  const { sales, clients } = useAppContext();
+  const { sales, clients } = useApp();
   const { t } = useLanguage();
 
   const [reportType, setReportType] = useState<ReportType>('sales');

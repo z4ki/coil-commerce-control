@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ import ClientForm from '../components/clients/ClientForm';
 import { Client } from '../types';
 
 const Clients = () => {
-  const { clients, deleteClient, getClientDebt } = useAppContext();
+  const { clients, deleteClient, getClientDebt } = useApp();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);

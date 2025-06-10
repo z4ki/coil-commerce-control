@@ -162,3 +162,30 @@ class SyncService {
 }
 
 export const syncService = new SyncService();
+
+export async function isLocalDbInitialized(): Promise<boolean> {
+  return await invoke<boolean>('is_local_db_initialized');
+}
+
+export async function initialDownloadAndInsert(supabaseUrl: string, supabaseKey: string): Promise<void> {
+  return await invoke('initial_download_and_insert', {
+    supabaseUrl,
+    supabaseKey,
+  });
+}
+
+export async function queueLocalChange(table: string, entityId: string, operation: string, data: object): Promise<void> {
+  return await invoke('queue_local_change', {
+    table,
+    entityId,
+    operation,
+    data: JSON.stringify(data),
+  });
+}
+
+export async function processSyncQueue(supabaseUrl: string, supabaseKey: string): Promise<void> {
+  return await invoke('process_sync_queue', {
+    supabaseUrl,
+    supabaseKey,
+  });
+}

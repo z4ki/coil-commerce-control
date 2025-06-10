@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAppContext } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -91,7 +91,7 @@ interface SummaryTotals {
 }
 
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
-  const { addSale, updateSale, clients, getClientById } = useAppContext();
+  const { addSale, updateSale, clients, getClientById } = useApp();
   const { t } = useLanguage();
   
   const [itemsState, setItemsState] = useState<SaleItemFormData[]>(

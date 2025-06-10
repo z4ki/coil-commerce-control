@@ -1,8 +1,14 @@
 // Define shared types
 export type PaymentMethodType = 'cash' | 'bank_transfer' | 'check' | 'term';
 
+export interface BaseEntity {
+  id: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
 // Define the type for a business client
-export interface Client {
+export interface Client extends BaseEntity {
   id: string;
   name: string;
   company?: string;

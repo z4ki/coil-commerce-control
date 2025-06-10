@@ -170,6 +170,44 @@ export interface Database {
           updated_at?: string | null;
         };
       };
+      invoices: {
+        Row: {
+          id: string;
+          client_id: string;
+          date: string;
+          due_date: string;
+          invoice_number: string;
+          total_amount: number;
+          is_paid: boolean;
+          paid_at: string | null;
+          created_at: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          date: string;
+          due_date: string;
+          invoice_number: string;
+          total_amount: number;
+          is_paid?: boolean;
+          paid_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          client_id?: string;
+          date?: string;
+          due_date?: string;
+          invoice_number?: string;
+          total_amount?: number;
+          is_paid?: boolean;
+          paid_at?: string | null;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -181,4 +219,4 @@ export interface Database {
       [_ in never]: never;
     };
   };
-} 
+}

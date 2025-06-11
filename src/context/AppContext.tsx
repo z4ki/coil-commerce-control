@@ -4,12 +4,14 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { LocalAdapter } from '@/services/database/localAdapter';
 import { BackupService } from '@/services/backupService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import type { Client, Sale, Invoice, Payment } from '@/types';
+import { mapDbClientToClient, mapDbSaleToSale, mapDbInvoiceToInvoice, mapDbPaymentToPayment } from '@/types/mappings';
 import type { Database } from '@/types/supabase';
 
-type Client = Database['public']['Tables']['clients']['Row'];
-type Sale = Database['public']['Tables']['sales']['Row'];
-type Invoice = Database['public']['Tables']['invoices']['Row'];
-type Payment = Database['public']['Tables']['payments']['Row'];
+type DbClient = Database['public']['Tables']['clients']['Row'];
+type DbSale = Database['public']['Tables']['sales']['Row'];
+type DbInvoice = Database['public']['Tables']['invoices']['Row'];
+type DbPayment = Database['public']['Tables']['payments']['Row'];
 
 interface AppContextType {
   localAdapter: LocalAdapter;
@@ -26,6 +28,10 @@ interface AppContextType {
   getSalesSummary: () => { totalAmount: number; count: number };
   getDebtSummary: () => { totalAmount: number; count: number };
   getSalesByClient: (clientId: string) => Sale[];
+  createSale: (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Sale>;
+  updateSale: (id: string, updates: Partial<Sale>) => Promise<Sale>;
+  deleteSale: (id: string) => Promise<void>;
+  getPaymentStatus: (saleId: string) => { totalPaid: number; remainingAmount: number; isFullyPaid: boolean };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -128,6 +134,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return sales.filter(sale => sale.client_id === clientId);
   }, [sales]);
 
+  // Sale Management Functions
+  const createSale = async (saleData: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const result = await localAdapter.create<'sales'>('sales', saleData);
+    const newSale = mapDbSaleToSale(result as DbSale);
+    setSales(prev => [...prev, result as DbSale]);
+    return newSale;
+  };
+
+  const updateSale = async (id: string, updates: Partial<Sale>) => {
+    const result = await localAdapter.update<'sales'>('sales', id, updates);
+    const updatedSale = mapDbSaleToSale(result as DbSale);
+    setSales(prev => prev.map(s => s.id === id ? result as DbSale : s));
+    return updatedSale;
+  };
+
+  const deleteSale = async (id: string) => {
+    await localAdapter.delete<'sales'>('sales', id);
+    setSales(prev => prev.filter(s => s.id !== id));
+  };
+
+  const getPaymentStatus = (saleId: string) => {
+    const salePaidAmount = payments
+      .filter(p => p.sale_id === saleId)
+      .reduce((total, payment) => total + payment.amount, 0);
+
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return { totalPaid: 0, remainingAmount: 0, isFullyPaid: false };
+
+    const totalAmount = sale.total_amount;
+    return {
+      totalPaid: salePaidAmount,
+      remainingAmount: totalAmount - salePaidAmount,
+      isFullyPaid: salePaidAmount >= totalAmount
+    };
+  };
+
   // Automatic daily backup
   useEffect(() => {
     const checkAndBackup = async () => {
@@ -186,13 +228,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     backupInProgress,
     // Data
     clients,
-    sales,
-    invoices,
-    payments,
+    sales: sales.map(mapDbSaleToSale),
+    invoices: invoices.map(mapDbInvoiceToInvoice),
+    payments: payments.map(mapDbPaymentToPayment),
     // Functions
     getSalesSummary,
     getDebtSummary,
     getSalesByClient,
+    createSale,
+    updateSale,
+    deleteSale,
+    getPaymentStatus,
   }), [
     localAdapter,
     isOnline,
@@ -206,6 +252,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     getSalesSummary,
     getDebtSummary,
     getSalesByClient,
+    createSale,
+    updateSale,
+    deleteSale,
+    getPaymentStatus,
   ]);
 
   // Show error state if initialization failed

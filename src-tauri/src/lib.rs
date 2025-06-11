@@ -1,4 +1,3 @@
-use sqlx::SqlitePool;
 use tauri::{Manager, Wry};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -13,13 +12,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn run_app() {
     let context = tauri::generate_context!();
 
-    // Define the database migrations using the official plugin feature.
-    // This will automatically create your tables the first time the app is run.
     let migrations = vec![
         Migration {
             version: 1,
             description: "create_initial_tables",
-            sql: include_str!("../db/schema.sql"), // This embeds your schema.sql into the app
+            sql: include_str!("../db/schema.sql"),
             kind: MigrationKind::Up,
         }
     ];
@@ -29,17 +26,16 @@ pub fn run_app() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default()
-            // This tells the plugin about your database and automatically
-            // handles its creation and migrations at runtime.
             .add_migrations("sqlite:app.db", migrations)
             .build())
         .setup(|app| {
-            // Now that the plugin manages the DB, the setup is much cleaner.
-            // We can get a handle to the DB pool if we need it for other tasks.
-            let pool: SqlitePool = app.state::<tauri_plugin_sql::TauriSql<Wry>>().get_pool("sqlite:app.db")?;
-            app.manage(pool);
-
-            log::info!("App setup complete. Database initialized by tauri-plugin-sql.");
+            // The plugin automatically manages the database pool.
+            // We can just use the setup hook to run async tasks at startup.
+            let _handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                log::info!("App setup complete. Database has been initialized by the plugin.");
+                // You could run startup tasks like an initial sync check here.
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

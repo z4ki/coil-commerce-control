@@ -1,7 +1,7 @@
 // Shared types
 export type PaymentMethodType = 'cash' | 'bank_transfer' | 'check' | 'term';
 
-import { ProductType, TN40Properties, SteelSlittingProperties } from './productTypes';
+import { ProductType } from './productTypes';
 
 // Domain types
 export interface SaleItem {
@@ -45,43 +45,28 @@ export interface Sale {
   updatedAt?: Date;
 }
 
+import { Sale, SaleItem, PaymentMethodType } from '@/types/index';
+import { Database } from '@/types/supabase';
+
 // Database types
-export interface DbSaleItem {
-  id?: string;
-  sale_id: string;
-  description: string;
-  product_type: ProductType;
-  // TN40 properties
-  coil_ref: string | null;
-  coil_thickness: number | null;
-  coil_width: number | null;
-  top_coat_ral: string | null;
-  back_coat_ral: string | null;
-  coil_weight: number | null;
-  // Steel Slitting properties
-  input_width: number | null;
-  output_width: number | null;
-  thickness: number | null;
-  weight: number | null;
-  strips_count: number | null;
-  // Common properties
-  quantity: number;
-  price_per_ton: number;
-  total_amount: number;
+export type DbSale = Database['public']['Tables']['sales']['Row'];
+export type DbSaleItem = Database['public']['Tables']['sale_items']['Row'];
+
+// Type guards
+export function isSale(obj: any): obj is Sale {
+    return obj && 
+        typeof obj === 'object' && 
+        'id' in obj && 
+        'clientId' in obj && 
+        'date' in obj && 
+        'items' in obj;
 }
 
-export interface DbSale {
-  id?: string;
-  client_id: string;
-  date: string;
-  total_amount: number;
-  is_invoiced: boolean;
-  invoice_id: string | null;
-  notes: string | null;
-  payment_method: PaymentMethodType | null;
-  tax_rate: number;
-  transportation_fee: number | null;
-  created_at: string;
-  updated_at: string | null;
-  sale_items?: DbSaleItem[];
+export function isSaleItem(obj: any): obj is SaleItem {
+    return obj && 
+        typeof obj === 'object' && 
+        'id' in obj && 
+        'description' in obj && 
+        'quantity' in obj && 
+        'pricePerTon' in obj;
 }

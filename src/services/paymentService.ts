@@ -1,45 +1,49 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Payment, PaymentMethodType } from '@/types'; // Ensure PaymentMethodType is imported or use the full union
+import type { Database } from '@/types/supabase';
+import type { Payment } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
 
-// Interface for what Supabase returns in the database for payments
-interface DbPaymentResponse {
-  id: string;
-  sale_id: string;
-  client_id: string;
-  bulk_payment_id?: string | null;
-  date: string;
-  amount: number;
-  method: string; // This will be 'cash', 'bank_transfer', 'check', 'term', 'deferred'
-  notes: string | null;
-  created_at: string;
-  updated_at: string | null;
-  // Ensure no 'credit_amount' or 'generates_credit' here unless they are truly in your DB table
+export type DbPayment = Database['public']['Tables']['payments']['Row'];
+
+export interface PaymentStatus {
+  totalPaid: number;
+  remainingAmount: number;
+  isFullyPaid: boolean;
 }
 
-// Interface for data being inserted into Supabase for payments
-interface DbPaymentInsert {
-  sale_id: string;
-  client_id: string;
-  bulk_payment_id?: string | null;
-  date: string;
+export interface BulkPaymentDistribution {
+  saleId: string;
   amount: number;
-  method: PaymentMethodType | 'deferred'; // Use the correct type for method
-  notes: string | null;
-  // DO NOT include 'credit_amount' or 'generates_credit' if columns don't exist
 }
 
-const mapDbPaymentToPayment = (dbPayment: DbPaymentResponse): Payment => ({
-  id: dbPayment.id,
-  saleId: dbPayment.sale_id,
-  clientId: dbPayment.client_id,
-  bulkPaymentId: dbPayment.bulk_payment_id || undefined,
-  date: new Date(dbPayment.date),
-  amount: Number(dbPayment.amount), // Ensure amount is a number
-  method: dbPayment.method as Payment['method'], // Cast to the App's Payment method type
-  notes: dbPayment.notes || undefined,
-  createdAt: new Date(dbPayment.created_at),
-  updatedAt: dbPayment.updated_at ? new Date(dbPayment.updated_at) : undefined,
-});
+export function mapDbPaymentToPayment(dbPayment: DbPayment): Payment {
+  return {
+    id: dbPayment.id,
+    saleId: dbPayment.sale_id || undefined,
+    clientId: dbPayment.client_id,
+    bulkPaymentId: dbPayment.bulk_payment_id || undefined,
+    date: new Date(dbPayment.date),
+    amount: dbPayment.amount,
+    method: dbPayment.method,
+    notes: dbPayment.notes || undefined,
+    generatesCredit: dbPayment.generates_credit,
+    createdAt: new Date(dbPayment.created_at),
+    updatedAt: dbPayment.updated_at ? new Date(dbPayment.updated_at) : undefined
+  };
+}
+
+export function mapPaymentToDbPayment(payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Omit<DbPayment, 'id' | 'created_at' | 'updated_at'> {
+  return {
+    sale_id: payment.saleId || null,
+    client_id: payment.clientId,
+    bulk_payment_id: payment.bulkPaymentId || null,
+    date: payment.date.toISOString(),
+    amount: payment.amount,
+    method: payment.method,
+    notes: payment.notes || null,
+    generates_credit: payment.generatesCredit
+  };
+}
 
 export const getPaymentsBySale = async (saleId: string): Promise<Payment[]> => {
   const { data, error } = await supabase
@@ -52,7 +56,7 @@ export const getPaymentsBySale = async (saleId: string): Promise<Payment[]> => {
     console.error('Error fetching payments by sale:', error);
     throw error;
   }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPayment));
 };
 
 export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> => {
@@ -66,7 +70,7 @@ export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> 
     console.error('Error fetching payments by client:', error);
     throw error;
   }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPayment));
 };
 
 export const getPayments = async (): Promise<Payment[]> => {
@@ -79,14 +83,14 @@ export const getPayments = async (): Promise<Payment[]> => {
     console.error('Error fetching all payments:', error);
     throw error;
   }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPayment));
 };
 
 export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'bulkPaymentId'> & { bulkPaymentId?: string }): Promise<Payment> => {
   // The 'payment' object coming from PaymentForm will have:
   // saleId, clientId, date (Date object), amount (number), method (PaymentMethodType), notes (string | undefined)
 
-  const insertData: DbPaymentInsert = {
+  const insertData: Omit<DbPayment, 'id' | 'created_at' | 'updated_at'> = {
     sale_id: payment.saleId,
     client_id: payment.clientId,
     date: payment.date.toISOString(),
@@ -118,12 +122,12 @@ export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'up
       console.error("[paymentService] No data returned from Supabase after payment insert.");
       throw new Error("No data returned from Supabase after payment insert.");
   }
-  return mapDbPaymentToPayment(data as DbPaymentResponse);
+  return mapDbPaymentToPayment(data as DbPayment);
 };
 
 export const addBulkPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'saleId' | 'amount'> & { totalAmount: number; distribution?: { saleId: string; amount: number }[] }): Promise<Payment[]> => {
   const bulkPaymentIdToUse = uuidv4(); // Generate a UUID for bulk_payment_id
-  const paymentsToInsert: DbPaymentInsert[] = [];
+  const paymentsToInsert: Omit<DbPayment, 'id' | 'created_at' | 'updated_at'>[] = [];
   
   if (!payment.distribution || payment.distribution.length === 0) {
     // If no distribution, this function might need to behave differently or throw an error
@@ -160,12 +164,12 @@ export const addBulkPayment = async (payment: Omit<Payment, 'id' | 'createdAt' |
     console.error('Error adding bulk payments to Supabase:', error);
     throw error;
   }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
+  return (data || []).map(p => mapDbPaymentToPayment(p as DbPayment));
 };
 
 
 export const updatePayment = async (id: string, paymentUpdate: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Payment> => {
-  const updateData: Partial<DbPaymentInsert> & { updated_at?: string } = { // updated_at should be optional
+  const updateData: Partial<Omit<DbPayment, 'id' | 'created_at' | 'updated_at'>> & { updated_at?: string } = { // updated_at should be optional
     updated_at: new Date().toISOString()
   };
 
@@ -191,7 +195,7 @@ export const updatePayment = async (id: string, paymentUpdate: Partial<Omit<Paym
   if (!data) {
     throw new Error("No data returned from Supabase after payment update.");
   }
-  return mapDbPaymentToPayment(data as DbPaymentResponse);
+  return mapDbPaymentToPayment(data as DbPayment);
 };
 
 export const deletePayment = async (id: string): Promise<void> => {

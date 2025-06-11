@@ -1,16 +1,9 @@
-import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TN40Properties } from '@/types/index';
 
 interface TN40FieldsProps {
-  values: {
-    coilRef?: string;
-    coilThickness?: number;
-    coilWidth?: number;
-    topCoatRAL?: string;
-    backCoatRAL?: string;
-    coilWeight?: number;
-  };
+  values: Partial<TN40Properties>;
   onChange: (field: string, value: any) => void;
 }
 

@@ -69,12 +69,21 @@ interface SaleFormProps {
 interface SaleItemFormData {
   id: string;
   description: string;
+  productType: ProductType;
+  // TN40 properties
   coilRef?: string;
   coilThickness?: number;
   coilWidth?: number;
   topCoatRAL?: string;
   backCoatRAL?: string;
   coilWeight?: number;
+  // Steel Slitting properties
+  inputWidth?: number;
+  outputWidth?: number;
+  thickness?: number;
+  weight?: number;
+  stripsCount?: number;
+  // Common properties
   quantity: number;
   pricePerTon: number;
   totalAmountHT: number;
@@ -98,12 +107,21 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     sale?.items.map(item => ({
       id: item.id,
       description: item.description,
+      productType: item.productType || ProductType.STANDARD,
+      // TN40 properties
       coilRef: item.coilRef || '',
       coilThickness: Number(item.coilThickness) || 0,
       coilWidth: Number(item.coilWidth) || 0,
       topCoatRAL: item.topCoatRAL || '',
       backCoatRAL: item.backCoatRAL || '',
       coilWeight: Number(item.coilWeight) || 0,
+      // Steel Slitting properties
+      inputWidth: Number(item.inputWidth) || 0,
+      outputWidth: Number(item.outputWidth) || 0,
+      thickness: Number(item.thickness) || 0,
+      weight: Number(item.weight) || 0,
+      stripsCount: Number(item.stripsCount) || 0,
+      // Common properties
       quantity: item.quantity,
       pricePerTon: Number(item.pricePerTon) || 0,
       totalAmountHT: item.totalAmountHT,
@@ -140,12 +158,21 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     items: z.array(z.object({
       id: z.string(),
       description: z.string().min(1, { message: t('form.required') }),
+      productType: z.nativeEnum(ProductType),
+      // TN40 properties
       coilRef: z.string().optional(),
       coilThickness: z.coerce.number().min(0).optional(),
       coilWidth: z.coerce.number().min(0).optional(),
       topCoatRAL: z.string().optional(),
       backCoatRAL: z.string().optional(),
       coilWeight: z.coerce.number().min(0).optional(),
+      // Steel Slitting properties
+      inputWidth: z.coerce.number().min(0).optional(),
+      outputWidth: z.coerce.number().min(0).optional(),
+      thickness: z.coerce.number().min(0).optional(),
+      weight: z.coerce.number().min(0).optional(),
+      stripsCount: z.coerce.number().min(0).optional(),
+      // Common properties
       quantity: z.coerce.number().min(0, { message: t('form.sale.quantityPositive') }),
       pricePerTon: z.coerce.number().min(0, { message: t('form.sale.pricePositive') }),
       totalAmountHT: z.number(),
@@ -216,9 +243,27 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
 
   const addItem = () => {
     const newItem: SaleItemFormData = {
-      id: uuidv4(), description: '', coilRef: '', coilThickness: 0,
-      coilWidth: 0, topCoatRAL: '', backCoatRAL: '', coilWeight: 0,
-      quantity: 1, pricePerTon: 0, totalAmountHT: 0, totalAmountTTC: 0
+      id: uuidv4(),
+      description: '',
+      productType: ProductType.STANDARD,
+      // TN40 properties
+      coilRef: '',
+      coilThickness: 0,
+      coilWidth: 0,
+      topCoatRAL: '',
+      backCoatRAL: '',
+      coilWeight: 0,
+      // Steel Slitting properties
+      inputWidth: 0,
+      outputWidth: 0,
+      thickness: 0,
+      weight: 0,
+      stripsCount: 0,
+      // Common properties
+      quantity: 1,
+      pricePerTon: 0,
+      totalAmountHT: 0,
+      totalAmountTTC: 0
     };
     const currentItems = form.getValues('items') || [];
     const newItems = [...currentItems, newItem];
@@ -249,8 +294,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       const finalCalculatedTotals = calculateFinalTotal();
       const itemsWithTotal: SaleItem[] = data.items.map(item => {
         const { totalHT, totalTTC } = calculateItemTotal(item);
+        const weight = item.productType === ProductType.STEEL_SLITTING ? item.weight : item.coilWeight;
         return {
           ...item,
+          productType: item.productType,
+          // TN40 properties
           coilRef: item.coilRef || '',
           coilThickness: Number(item.coilThickness || 0),
           coilWidth: Number(item.coilWidth || 0),

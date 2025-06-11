@@ -1,16 +1,9 @@
-import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SteelSlittingProperties } from '@/types/index';
 
 interface SteelSlittingFieldsProps {
-  values: {
-    coilRef?: string;
-    inputWidth?: number;
-    outputWidth?: number;
-    thickness?: number;
-    weight?: number;
-    stripsCount?: number;
-  };
+  values: Partial<SteelSlittingProperties>;
   onChange: (field: string, value: any) => void;
 }
 

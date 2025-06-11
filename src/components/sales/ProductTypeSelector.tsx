@@ -1,5 +1,4 @@
 import React from 'react';
-import { ProductType } from '@/services/productTypes';
 import {
   Select,
   SelectContent,
@@ -8,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import { ProductType } from '@/types/index';
 
 interface ProductTypeSelectorProps {
   value: ProductType;

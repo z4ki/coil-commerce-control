@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { useLanguage } from '@/context/LanguageContext';
-import MainLayout from '@/components/layout/MainLayout';
+import { formatDate, formatCurrency } from '@/utils/format';
+import { Plus, Edit, FileText, ChevronDown, ChevronRight, MoreVertical, DollarSign, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -12,34 +20,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download, MoreVertical, Trash, DollarSign } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { Input } from '@/components/ui/input';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { Sale } from '@/types';
+import MainLayout from '@/components/layout/MainLayout';
 import { toast } from 'sonner';
-import SaleForm from '@/components/sales/SaleForm';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { saveSalePDF } from '@/utils/pdfService';
+import type { Sale, SaleItem } from '@/types/index';
+import type { PaymentStatus } from '@/services/paymentService';
 import { PaymentForm } from '@/components/invoices/PaymentForm';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Link } from 'react-router-dom';
-import { saveSalePDF } from '@/utils/pdfService.tsx';
+import SaleForm from '@/components/sales/SaleForm';
 
 interface SaleDialogProps {
   open: boolean;
@@ -69,40 +59,50 @@ const SaleDialog = ({ open, onOpenChange, sale }: SaleDialogProps) => {
   );
 };
 
-const Sales = () => {
-  const { sales, clients, deleteSale, updateSale, getClientById, getSalePaymentStatus } = useApp();
-  const { t } = useLanguage();
+export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [selectedSaleForPayment, setSelectedSaleForPayment] = useState<string | null>(null);
-  const [expandedSales, setExpandedSales] = useState<{[key: string]: boolean}>({});
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
-  const handleDeleteSale = (sale: Sale) => {
-    if (window.confirm(t('sales.deleteConfirm'))) {
-      deleteSale(sale.id);
-      toast.success(t('sales.deleted'));
-    }
+  const { t } = useLanguage();
+  const { sales, clients, payments, deleteSale } = useApp();
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
   };
 
-  const toggleInvoiceStatus = (sale: Sale) => {
-    if (sale.isInvoiced) {
-      // Can only toggle if not already linked to an invoice
-      if (sale.invoiceId) {
-        toast.error(t('sales.cannotChangeStatus'));
-        return;
-      }
-      updateSale(sale.id, { isInvoiced: false });
-      toast.success(t('sales.markedAsNotInvoiced'));
-    } else {
-      updateSale(sale.id, { isInvoiced: true });
-      toast.success(t('sales.markedAsInvoiced'));
-    }
+  const filteredSales = sales
+    .filter((sale) => {
+      const client = clients.find(c => c.id === sale.clientId);
+      if (!client) return false;
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        client.name.toLowerCase().includes(searchLower) ||
+        (client.company || '').toLowerCase().includes(searchLower)
+      );
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const getPaymentStatus = (saleId: string): PaymentStatus => {
+    const salePaidAmount = payments
+      .filter(p => p.saleId === saleId)
+      .reduce((total, payment) => total + payment.amount, 0);
+
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return { totalPaid: 0, remainingAmount: 0, isFullyPaid: false };
+
+    return {
+      totalPaid: salePaidAmount,
+      remainingAmount: sale.totalAmountTTC - salePaidAmount,
+      isFullyPaid: salePaidAmount >= sale.totalAmountTTC
+    };
   };
 
-  const toggleSaleExpansion = (saleId: string) => {
-    setExpandedSales(prev => ({
+  const toggleExpanded = (saleId: string) => {
+    setExpandedRows(prev => ({
       ...prev,
       [saleId]: !prev[saleId]
     }));
@@ -113,26 +113,8 @@ const Sales = () => {
     setShowPaymentDialog(true);
   };
 
-  const filteredSales = sales
-    .filter((sale) => {
-      const client = getClientById(sale.clientId);
-      if (!client) return false;
-      const clientNameMatches = client.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const clientCompanyMatches = client.company.toLowerCase().includes(searchTerm.toLowerCase());
-      return clientNameMatches || clientCompanyMatches;
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  const handleExportInvoice = (sale: Sale) => {
-    toast.info(t('sales.exportPending').replace('{0}', 'Invoice'));
-  };
-
-  const handleExportQuotation = (sale: Sale) => {
-    toast.info(t('sales.exportPending').replace('{0}', 'Quotation'));
-  };
-
   const handleExportPDF = async (sale: Sale) => {
-    const client = getClientById(sale.clientId);
+    const client = clients.find(c => c.id === sale.clientId);
     if (!client) {
       toast.error(t('sales.clientNotFound'));
       return;
@@ -147,19 +129,29 @@ const Sales = () => {
     }
   };
 
+  const handleDelete = async (sale: Sale) => {
+    if (!window.confirm(t('sales.deleteConfirm'))) return;
+    
+    try {
+      await deleteSale(sale.id);
+      toast.success(t('sales.deleted'));
+    } catch (error) {
+      console.error('Error deleting sale:', error);
+      toast.error(t('general.error'));
+    }
+  };
+
   return (
     <MainLayout title={t('sales.title')}>
       <div className="space-y-6">
         {/* Header Actions */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex-1 w-full sm:w-auto">
-            <Input
-              placeholder={t('general.search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-[300px]"
-            />
-          </div>
+        <div className="flex justify-between items-center gap-4">
+          <Input
+            placeholder={t('general.search')}
+            value={searchTerm}
+            onChange={handleSearchChange}
+            className="max-w-sm"
+          />
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
             {t('sales.add')}
@@ -169,7 +161,7 @@ const Sales = () => {
         {/* Sales Table */}
         <div className="rounded-md border">
           <Table>
-            <TableHeader className="bg-gray-100">
+            <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]"></TableHead>
                 <TableHead>{t('sales.date')}</TableHead>
@@ -183,9 +175,10 @@ const Sales = () => {
             <TableBody>
               {filteredSales.length > 0 ? (
                 filteredSales.map((sale) => {
-                  const client = getClientById(sale.clientId);
-                  const isExpanded = expandedSales[sale.id] || false;
-                  const paymentStatus = getSalePaymentStatus(sale.id);
+                  const client = clients.find(c => c.id === sale.clientId);
+                  const isExpanded = expandedRows[sale.id] || false;
+                  const paymentStatus = getPaymentStatus(sale.id);
+
                   return (
                     <React.Fragment key={sale.id}>
                       <TableRow>
@@ -193,7 +186,7 @@ const Sales = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => toggleSaleExpansion(sale.id)}
+                            onClick={() => toggleExpanded(sale.id)}
                           >
                             {isExpanded ? (
                               <ChevronDown className="h-4 w-4" />
@@ -206,16 +199,25 @@ const Sales = () => {
                         <TableCell>
                           <div className="font-medium">
                             {client && (
-                              <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
+                              <Link 
+                                to={`/clients/${client.id}`}
+                                className="text-primary hover:underline hover:text-primary/80"
+                              >
                                 {client.name}
                               </Link>
                             )}
                           </div>
-                          <div className="text-xs text-muted-foreground">{client?.company}</div>
+                          {client?.company && (
+                            <div className="text-xs text-muted-foreground">
+                              {client.company}
+                            </div>
+                          )}
                         </TableCell>
-                        <TableCell>{sale.items.length} {t('general.items')}</TableCell>
+                        <TableCell>{sale.items?.length || 0} {t('general.items')}</TableCell>
                         <TableCell className="text-right">
-                          <div className="font-medium">{formatCurrency(sale.totalAmountTTC)}</div>
+                          <div className="font-medium">
+                            {formatCurrency(sale.totalAmountTTC)}
+                          </div>
                           {paymentStatus && (
                             <div className="text-xs text-muted-foreground">
                               {t('sales.paid')}: {formatCurrency(paymentStatus.totalPaid)}
@@ -250,7 +252,7 @@ const Sales = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -274,7 +276,7 @@ const Sales = () => {
                                 <Edit className="mr-2 h-4 w-4" />
                                 {t('general.edit')}
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
+                              <DropdownMenuItem onClick={() => handleDelete(sale)}>
                                 <Trash className="mr-2 h-4 w-4" />
                                 {t('general.delete')}
                               </DropdownMenuItem>
@@ -282,7 +284,7 @@ const Sales = () => {
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
-                      
+
                       {/* Expanded Sale Details */}
                       {isExpanded && (
                         <TableRow>
@@ -293,7 +295,7 @@ const Sales = () => {
                                 <div>
                                   <h4 className="font-medium mb-2">{t('sales.items')}</h4>
                                   <div className="space-y-2">
-                                    {sale.items.map((item, index) => (
+                                    {sale.items?.map((item: SaleItem) => (
                                       <div key={item.id} className="bg-background rounded-md p-3">
                                         <div className="flex justify-between items-start">
                                           <div>
@@ -303,12 +305,6 @@ const Sales = () => {
                                               {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
                                               {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
                                             </div>
-                                            {/* {(item.topCoatRAL || item.backCoatRAL) && (
-                                              <div className="text-sm text-muted-foreground">
-                                                {item.topCoatRAL && `${t('form.sale.topCoatRAL')}: ${item.topCoatRAL}`}
-                                                {item.backCoatRAL && ` • ${t('form.sale.backCoatRAL')}: ${item.backCoatRAL}`}
-                                              </div>
-                                            )} */}
                                           </div>
                                           <div className="text-right">
                                             <div>{formatCurrency(item.totalAmountTTC)}</div>
@@ -327,7 +323,7 @@ const Sales = () => {
                                   <div className="w-72 space-y-1">
                                     <div className="flex justify-between text-sm">
                                       <span>{t('form.sale.subtotalHT')}:</span>
-                                      <span>{formatCurrency(sale.totalAmountHT - (sale.transportationFee || 0))}</span>
+                                      <span>{formatCurrency(sale.totalAmountHT)}</span>
                                     </div>
                                     {sale.transportationFee > 0 && (
                                       <div className="flex justify-between text-sm">
@@ -340,7 +336,7 @@ const Sales = () => {
                                       <span>{formatCurrency(sale.totalAmountHT)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                      <span>{t('form.sale.tva')} (19%):</span>
+                                      <span>{t('form.sale.tva')} ({(sale.taxRate * 100).toFixed(0)}%):</span>
                                       <span>{formatCurrency(sale.totalAmountTTC - sale.totalAmountHT)}</span>
                                     </div>
                                     <div className="flex justify-between font-medium pt-1 border-t">
@@ -350,7 +346,7 @@ const Sales = () => {
                                   </div>
                                 </div>
 
-                                {/* Notes if any */}
+                                {/* Notes */}
                                 {sale.notes && (
                                   <div>
                                     <h4 className="font-medium mb-2">{t('form.sale.notes')}</h4>
@@ -378,14 +374,12 @@ const Sales = () => {
       </div>
 
       {/* Add/Edit Sale Dialog */}
-      {showAddDialog && (
-        <SaleDialog
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          sale={selectedSale || undefined}
-        />
-      )}
-      
+      <SaleDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        sale={selectedSale || undefined}
+      />
+
       {/* Payment Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
@@ -399,16 +393,10 @@ const Sales = () => {
                 setShowPaymentDialog(false);
                 setSelectedSaleForPayment(null);
               }}
-              onCancel={() => {
-                setShowPaymentDialog(false);
-                setSelectedSaleForPayment(null);
-              }}
             />
           )}
         </DialogContent>
       </Dialog>
     </MainLayout>
   );
-};
-
-export default Sales;
+}

@@ -11,11 +11,13 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Trash2 } from 'lucide-react';
-import { calculateItemTotalHT, calculateItemTotalTTC, TAX_RATE } from '../../utils/calculations';
-import { ProductType } from '@/services/productTypes';
+import { calculateItemTotalHT, calculateItemTotalTTC } from '@/utils/calculations';
+import { ProductType } from '@/types/index';
 import { ProductTypeSelector } from './ProductTypeSelector';
 import { TN40Fields } from './TN40Fields';
 import { SteelSlittingFields } from './SteelSlittingFields';
+
+const TAX_RATE = 0.19;
 
 interface SaleItemFormProps {
   index: number;
@@ -28,14 +30,18 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const { t } = useLanguage();
   
   const [productType, setProductType] = useState<ProductType>(ProductType.STANDARD);
-
   // Watch for changes in all relevant fields
   const values = watch(`items.${index}`);
-  const { quantity, pricePerTon } = values || { quantity: 0, pricePerTon: 0 };
+  const { quantity, pricePerTon, productType: currentProductType } = values || { 
+    quantity: 0, 
+    pricePerTon: 0, 
+    productType: ProductType.STANDARD 
+  };
   
   // Calculate totals using utility functions
-  const weight = productType === ProductType.STEEL_SLITTING ? values?.weight : values?.coilWeight;
-  const totalHT = calculateItemTotalHT(Number(quantity), Number(weight) / 1000, Number(pricePerTon));
+  const weight = currentProductType === ProductType.STEEL_SLITTING ? values?.weight : values?.coilWeight;
+  const weightInTons = Number(weight || 0) / 1000; // Convert kg to tons
+  const totalHT = calculateItemTotalHT(Number(quantity), weightInTons, Number(pricePerTon));
   const totalTTC = calculateItemTotalTTC(Number(totalHT), TAX_RATE);
 
   // Update form values when totals change
@@ -44,7 +50,6 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
     setValue(`items.${index}.totalAmountTTC`, totalTTC);
     trigger();
   }, [totalHT, totalTTC, index, setValue, trigger]);
-
   const handleProductTypeChange = (type: ProductType) => {
     setProductType(type);
     setValue(`items.${index}.productType`, type);
@@ -52,16 +57,16 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
     // Clear type-specific fields
     const fieldsToReset = {
       coilRef: '',
-      coilThickness: null,
-      coilWidth: null,
+      coilThickness: 0,
+      coilWidth: 0,
       topCoatRAL: '',
       backCoatRAL: '',
-      coilWeight: null,
-      inputWidth: null,
-      outputWidth: null,
-      thickness: null,
-      weight: null,
-      stripsCount: null,
+      coilWeight: 0,
+      inputWidth: 0,
+      outputWidth: 0,
+      thickness: 0,
+      weight: 0,
+      stripsCount: 0,
     };
 
     Object.entries(fieldsToReset).forEach(([field, value]) => {
@@ -156,6 +161,34 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={control}
+              name={`items.${index}.totalAmountHT`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total HT</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} disabled />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name={`items.${index}.totalAmountTTC`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total TTC</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} disabled />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </div>
 
@@ -168,21 +201,6 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         >
           <Trash2 className="h-5 w-5" />
         </Button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <FormLabel>Total HT</FormLabel>
-          <div className="text-lg font-semibold">
-            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'DZD' }).format(totalHT)}
-          </div>
-        </div>
-        <div>
-          <FormLabel>Total TTC</FormLabel>
-          <div className="text-lg font-semibold">
-            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'DZD' }).format(totalTTC)}
-          </div>
-        </div>
       </div>
     </div>
   );

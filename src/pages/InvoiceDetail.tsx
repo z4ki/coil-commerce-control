@@ -199,7 +199,7 @@ const InvoiceDetail = () => {
       setIsGeneratingPDF(false);
     }
   };
-  
+  console.log(invoice,client,invoiceId);
   if (!invoice || !client) {
     return (
       <MainLayout title={t('invoices.notFound')}>
@@ -209,7 +209,7 @@ const InvoiceDetail = () => {
       </MainLayout>
     );
   }
-
+  console.log("invoice",invoice.totalAmountTTC);
   const taxAmount = invoice.totalAmountTTC - invoice.totalAmountHT;
 
   return (

@@ -1,73 +1,72 @@
-# Welcome to your Lovable project
+# Coil Commerce Control
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3
+**Coil Commerce Control** is a business management web application designed for companies dealing with steel coil sales, slitting, and related services. It streamlines the process of managing clients, sales, invoices, payments, and  providing a modern and efficient interface for day-to-day operations.
 
-## How can I edit this code?
+### Key Features
 
-There are several ways of editing your application.
+- **Client Management:** Add, edit, and track clients with full contact and tax information.
+- **Sales Management:** Create and manage sales records, including detailed product types (e.g., TN40, Steel Slitting) and itemized sale entries.
+- **Invoice Generation:** Generate, edit, and track invoices linked to sales, with support for payment status and due dates.
+- **Payment Tracking:** Record and manage payments, track outstanding balances, and handle multiple payment methods.
+- **Reporting:** Generate reports on sales, outstanding debts, and client activity.
+- **Modern UI:** Built with React, shadcn-ui, and Tailwind CSS for a responsive and user-friendly experience.
 
-**Use Lovable**
+## Technology Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3) and start prompting.
+- **Frontend:** React, TypeScript, Vite
+- **UI:** shadcn-ui, Tailwind CSS
+- **Backend/Database:** Supabase (PostgreSQL)
+- **Build/Runtime:** Node.js, Bun, Tauri (for desktop builds)
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js & npm (recommended: use [nvm](https://github.com/nvm-sh/nvm#installing-and-updating))
+- Bun (for Tauri desktop builds)
+- (Optional) Tauri CLI for building native apps
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Running the Project (Web)
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Running as a Desktop App (Tauri)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+# Install Bun if not already installed
+npm install -g bun
 
-**Use GitHub Codespaces**
+# Start the Tauri development build
+bun tauri dev
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Deployment
 
-## What technologies are used for this project?
+- Deploy via [Lovable](https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3) for instant web publishing.
+- You can also connect a custom domain via Lovable project settings.
 
-This project is built with:
+## Contributing
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- All type definitions are consolidated in `src/types/` for consistency.
+- Use the provided form components and services for adding new features.
+- Please ensure type safety and validation when extending forms or database logic.
 
-## How can I deploy this project?
+## License
 
-Simply open [Lovable](https://lovable.dev/projects/09b14231-b5b7-48b7-b71e-6f0fa9558ae3) and click on Share -> Publish.
+This project is proprietary and intended for internal business use.
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+For more details, see the codebase or contact the project maintainers.

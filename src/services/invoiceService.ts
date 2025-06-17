@@ -6,45 +6,34 @@ import { formatDateInput } from '@/utils/format';
 interface DbInvoiceInsert {
   invoice_number: string;
   client_id: string;
-  date: string;           // ISO string
-  due_date: string;       // ISO string
-  total_amount: number;
-  total_amount_ttc: number; // Was missing, now added
-  tax_rate: number;         // Was missing, now added
+  date: string;
+  due_date: string;
+  total_amount_ht: number;    // HT amount
+  total_amount_ttc: number;   // TTC amount (fix: use snake_case)
   is_paid: boolean;
-  paid_at?: string | null;
+  paid_at: string | null;
 }
 
 // Interface for the row structure returned from Supabase (after select)
-interface DbInvoiceResponse {
+interface DbInvoiceResponse extends DbInvoiceInsert {
   id: string;
-  invoice_number: string;
-  client_id: string;
-  date: string;
-  due_date: string;
-  total_amount: number;
-  total_amount_ttc: number;
-  tax_rate: number;
-  is_paid: boolean;
-  paid_at?: string | null;
   created_at: string;
   updated_at?: string | null;
 }
 
 // Interface for the mapped DbInvoice (internal representation)
 interface DbInvoice {
-    id: string;
-    invoice_number: string;
-    client_id: string;
-    date: string;
-    due_date: string;
-    total_amount: number;
-    total_amount_ttc: number;
-    tax_rate: number;
-    is_paid: boolean;
-    paid_at?: string;
-    created_at: string;
-    updated_at?: string;
+  id: string;
+  invoice_number: string;
+  client_id: string;
+  date: string;
+  due_date: string;
+  total_amount_ht: number;
+  total_amount_ttc: number; // fix: use snake_case
+  is_paid: boolean;
+  paid_at?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 // Helper to convert database response to DbInvoice
@@ -54,13 +43,12 @@ const mapResponseToDbInvoice = (response: DbInvoiceResponse): DbInvoice => ({
   client_id: response.client_id,
   date: response.date,
   due_date: response.due_date,
-  total_amount: response.total_amount,
+  total_amount_ht: response.total_amount_ht,
   total_amount_ttc: response.total_amount_ttc,
-  tax_rate: response.tax_rate,
   is_paid: response.is_paid,
-  paid_at: response.paid_at,
+  paid_at: response.paid_at ?? undefined,
   created_at: response.created_at,
-  updated_at: response.updated_at,
+  updated_at: response.updated_at ?? undefined,
 });
 
 // Helper to convert database invoice to our application Invoice type
@@ -71,16 +59,12 @@ const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = []): I
   date: new Date(dbInvoice.date),
   dueDate: new Date(dbInvoice.due_date),
   salesIds,
-  totalAmountHT: Number(dbInvoice.total_amount),
-  totalAmountTTC: Number(dbInvoice.total_amount_ttc),
-  taxRate: Number(dbInvoice.tax_rate),
+  totalAmountHT: Number(dbInvoice.total_amount_ht),
+  totalAmountTTC: Number(dbInvoice.total_amount_ttc), // fix: use snake_case
   isPaid: dbInvoice.is_paid,
   paidAt: dbInvoice.paid_at ? new Date(dbInvoice.paid_at) : undefined,
   createdAt: new Date(dbInvoice.created_at),
   updatedAt: dbInvoice.updated_at ? new Date(dbInvoice.updated_at) : undefined,
-  // Ensure your Invoice type in src/types/index.ts also includes transportationFee if it's part of the app logic for invoices
-  // transportationFee: Number(dbInvoice.transportation_fee || 0), // Example if it were part of DbInvoice
-  // transportationFeeTTC: Number(dbInvoice.transportation_fee_ttc || 0), // Example
 });
 
 
@@ -88,30 +72,29 @@ export const createInvoice = async (
   invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> & { prefix?: string }
 ): Promise<Invoice> => {
   try {
-    // console.log('[invoiceService] Received invoice data:', JSON.stringify(invoice, null, 2));
-    // console.log(`[invoiceService] Initial invoice.totalAmountHT: ${invoice.totalAmountHT} (type: ${typeof invoice.totalAmountHT})`);
-    // console.log(`[invoiceService] Initial invoice.totalAmountTTC: ${invoice.totalAmountTTC} (type: ${typeof invoice.totalAmountTTC})`);
-    // console.log(`[invoiceService] Initial invoice.taxRate: ${invoice.taxRate} (type: ${typeof invoice.taxRate})`);
+    // Ensure we have valid numbers for totals
+    const safeTotalAmountHT = Number.isFinite(invoice.totalAmountHT) ? 
+      Math.round(invoice.totalAmountHT * 100) / 100 : 0;
+    
+    const safeTotalAmountTTC = Number.isFinite(invoice.totalAmountTTC) ? 
+      Math.round(invoice.totalAmountTTC * 100) / 100 : 0;
 
-    const safeTotalAmountHT = Number.isFinite(invoice.totalAmountHT) ? invoice.totalAmountHT : 0;
-    const safeTotalAmountTTC = Number.isFinite(invoice.totalAmountTTC) ? invoice.totalAmountTTC : 0;
-    const safeTaxRate = Number.isFinite(invoice.taxRate) ? invoice.taxRate : 0.19;
-
-    // console.log(`[invoiceService] Sanitized values: ht=${safeTotalAmountHT}, ttc=${safeTotalAmountTTC}, taxRate=${safeTaxRate}`);
+    // Log the values we're about to insert
+    console.log('Creating invoice with amounts:', {
+      HT: safeTotalAmountHT,
+      TTC: safeTotalAmountTTC
+    });
 
     const insertData: DbInvoiceInsert = {
       invoice_number: invoice.invoiceNumber,
       client_id: invoice.clientId,
       date: invoice.date.toISOString(),
       due_date: invoice.dueDate.toISOString(),
-      total_amount: safeTotalAmountHT,
-      total_amount_ttc: safeTotalAmountTTC, // Ensured this is included
-      tax_rate: safeTaxRate,               // Ensured this is included
+      total_amount_ht: safeTotalAmountHT,
+      total_amount_ttc: safeTotalAmountTTC,
       is_paid: invoice.isPaid || false,
       paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
     };
-    
-    // console.log("[invoiceService] Data for Supabase insert:", JSON.stringify(insertData, null, 2));
 
     const { data, error } = await supabase
       .from('invoices')
@@ -120,17 +103,16 @@ export const createInvoice = async (
       .single();
     
     if (error) {
-      console.error('Error creating invoice in service (Supabase error object):', JSON.stringify(error, null, 2));
-      throw error; 
+      console.error('Error creating invoice:', error);
+      throw error;
     }
     
     if (!data) {
-        console.error("Supabase insert returned no data and no error.");
-        throw new Error("No data returned from Supabase after invoice insert.");
+      throw new Error("No data returned from Supabase after invoice insert.");
     }
 
     if (invoice.salesIds && invoice.salesIds.length > 0) {
-      const salesInvoices = invoice.salesIds.map(saleId => ({
+      const salesInvoices = invoice.salesIds.map((saleId: string) => ({
         invoice_id: data.id, 
         sale_id: saleId
       }));
@@ -140,7 +122,7 @@ export const createInvoice = async (
         .insert(salesInvoices);
       
       if (linkError) {
-        console.error('Error linking sales to invoice:', JSON.stringify(linkError, null, 2));
+        console.error('Error linking sales to invoice:', linkError);
         throw linkError;
       }
     }
@@ -255,7 +237,7 @@ export const updateInvoice = async (
       client_id?: string;
       date?: string;
       due_date?: string;
-      total_amount?: number;
+      total_amount_ht?: number;
       total_amount_ttc?: number;
       tax_rate?: number;
       is_paid?: boolean;
@@ -272,7 +254,7 @@ export const updateInvoice = async (
     if (invoice.dueDate !== undefined) updateData.due_date = invoice.dueDate.toISOString();
     
     if (invoice.totalAmountHT !== undefined) {
-      updateData.total_amount = Number.isFinite(invoice.totalAmountHT) ? invoice.totalAmountHT : 0;
+      updateData.total_amount_ht = Number.isFinite(invoice.totalAmountHT) ? invoice.totalAmountHT : 0;
     }
     if (invoice.totalAmountTTC !== undefined) {
       updateData.total_amount_ttc = Number.isFinite(invoice.totalAmountTTC) ? invoice.totalAmountTTC : 0;

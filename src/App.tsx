@@ -8,6 +8,12 @@ import { LanguageProvider } from './context/LanguageContext';
 import { InvoiceSettingsProvider } from './context/InvoiceSettingsContext';
 import { AppSettingsProvider } from './context/AppSettingsContext';
 import ThemeProvider from './components/theme/ThemeProvider';
+import React, { useState } from 'react';
+import { ProductAnalytics } from './components/analytics/ProductAnalytics';
+import { ErrorBoundary } from './components/error/ErrorBoundary';
+import { ProductSearchBar } from './components/products/ProductSearchBar';
+import { ProductList } from './components/products/ProductList';
+import { useProductStore } from './stores/product-store';
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -49,6 +55,14 @@ const ClientFormWrapper = () => {
 };
 
 const App = () => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { filters, setFilters } = useProductStore();
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+    document.documentElement.classList.toggle('dark');
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -65,7 +79,7 @@ const App = () => {
                       <Route path="/sales/:id" element={<SaleForm />} />
                       <Route path="/invoices" element={<Invoices />} />
                       <Route path="/invoices/new" element={<InvoiceFormWrapper />} />
-                      <Route path="/invoices/:id" element={<InvoiceFormWrapper />} />
+                      <Route path="/invoices/:invoiceId" element={<InvoiceDetail />} />
                       <Route path="/clients" element={<Clients />} />
                       <Route path="/clients/new" element={<ClientFormWrapper />} />
                       <Route path="/clients/:id" element={<ClientDetail />} />
@@ -83,6 +97,11 @@ const App = () => {
           </ThemeProvider>
         </LanguageProvider>
       </TooltipProvider>
+      <ErrorBoundary>
+        <ProductSearchBar filters={filters} onChange={setFilters} />
+        <ProductList />
+        <ProductAnalytics />
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 };

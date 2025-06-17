@@ -31,14 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Invoice, Sale, PaymentMethodType } from '../../types'; // Import PaymentMethodType
-import { formatCurrency, formatDate, formatDateInput, generateInvoiceNumber, parseDateInput } from '../../utils/format';
+import { Invoice, Sale, PaymentMethodType } from '../../types';
+import { formatCurrency, formatDate, formatDateInput, generateInvoiceNumber } from '../../utils/format';
 import { toast } from 'sonner';
 import { useLanguage } from '@/context/LanguageContext';
 
-// Use the imported PaymentMethodType for consistency
 const paymentMethods = ['cash', 'bank_transfer', 'check', 'term'] as const;
-
 
 const formSchema = z.object({
   prefix: z.string().min(1, { message: 'Le préfixe est requis' }),
@@ -47,7 +45,7 @@ const formSchema = z.object({
   date: z.string().min(1, { message: 'La date est requise' }),
   dueDate: z.string().min(1, { message: 'La date d\'échéance est requise' }),
   salesIds: z.array(z.string()).optional(),
-  paymentMethod: z.enum(paymentMethods).optional().nullable(), // Use the paymentMethods constant
+  paymentMethod: z.enum(paymentMethods).optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -58,13 +56,13 @@ interface InvoiceFormProps {
 }
 
 const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
-  const { 
-    addInvoice, 
-    updateInvoice, 
-    clients, 
-    getSalesByClient, 
-    sales, 
-    getSalePaymentStatus 
+  const {
+    addInvoice,
+    updateInvoice,
+    clients,
+    getSalesByClient,
+    sales,
+    getSalePaymentStatus
   } = useAppContext();
   const { settings: appSettings, updateInvoiceSettings } = useAppSettings();
   const { settings: invoiceSettings } = useInvoiceSettings();
@@ -75,11 +73,9 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
   const [selectedClientId, setSelectedClientId] = useState<string>(invoice?.clientId || '');
   const [totalAmount, setTotalAmount] = useState<number>(invoice?.totalAmountTTC || 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const getInitialPaymentMethod = useCallback(() => {
-    if (invoice?.paymentMethod) {
-      return invoice.paymentMethod;
-    }
+    if (invoice?.paymentMethod) return invoice.paymentMethod;
     if (selectedSales.length === 1) {
       const saleDetail = sales.find(s => s.id === selectedSales[0]);
       return saleDetail?.paymentMethod;
@@ -105,6 +101,31 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
 
   const [isInvoiceNumberManuallyEdited, setIsInvoiceNumberManuallyEdited] = useState(!!invoice);
 
+  const calculateTotals = useCallback(() => {
+    const selectedSalesData = selectedSales
+      .map(id => sales.find(s => s.id === id))
+      .filter((sale): sale is Sale => sale !== undefined);
+
+    // --- START: DEBUGGING LOG ---
+    // This is the most important step. It will show you the exact objects being used for the calculation.
+    console.log("Sales objects being used for total calculation:", selectedSalesData);
+    // --- END: DEBUGGING LOG ---
+
+    let totalHT = 0;
+    if (selectedSalesData.length > 0) {
+      totalHT = selectedSalesData.reduce((sum, sale) => {
+        const ht = sale.totalAmountHT ?? 0;
+        return sum + (Number.isFinite(ht) ? ht : 0);
+      }, 0);
+    }
+
+    totalHT = Math.round(totalHT * 100) / 100;
+    const taxAmount = Math.round(totalHT * 0.19 * 100) / 100;
+    const totalTTC = Math.round((totalHT + taxAmount) * 100) / 100;
+
+    return { totalHT, totalTTC, taxAmount };
+  }, [selectedSales, sales]);
+
   useEffect(() => {
     const prefix = form.watch('prefix');
     if (!invoice && !isInvoiceNumberManuallyEdited) {
@@ -112,25 +133,6 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       form.setValue('invoiceNumber', newInvoiceNumber);
     }
   }, [form, invoice, isInvoiceNumberManuallyEdited, appSettings.invoice.nextNumber, form.watch('prefix')]);
-
-  const calculateTotals = useCallback(() => {
-    const selectedSalesData = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean);
-    let totalHT = 0;
-    if (selectedSalesData.length > 0) {
-        totalHT = selectedSalesData.reduce((sum, sale) => {
-            const ht = sale?.totalAmountHT;
-            return sum + (Number.isFinite(ht) ? ht : 0); 
-        }, 0);
-    }
-    const taxRate = 0.19; 
-    const taxAmount = totalHT * taxRate;
-    const totalTTC = totalHT + taxAmount;
-    return { 
-        totalHT: Number.isFinite(totalHT) ? totalHT : 0,
-        totalTTC: Number.isFinite(totalTTC) ? totalTTC : 0,
-        taxAmount: Number.isFinite(taxAmount) ? taxAmount : 0
-    };
-  }, [selectedSales, sales]);
 
   useEffect(() => {
     const clientId = form.watch('clientId');
@@ -140,14 +142,14 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       );
       setClientSales(uninvoicedSales);
       if (clientId !== selectedClientId) {
-        setSelectedSales([]); 
-        form.setValue('paymentMethod', undefined, {shouldValidate: true}); 
+        setSelectedSales([]);
+        form.setValue('paymentMethod', undefined, { shouldValidate: true });
       }
       setSelectedClientId(clientId);
     } else {
       setClientSales([]);
       setSelectedSales([]);
-      form.setValue('paymentMethod', undefined, {shouldValidate: true});
+      form.setValue('paymentMethod', undefined, { shouldValidate: true });
     }
   }, [form.watch('clientId'), invoice, getSalesByClient, selectedClientId, form]);
 
@@ -162,48 +164,61 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     } else if (selectedSales.length > 1) {
       const firstSaleMethod = sales.find(s => s.id === selectedSales[0])?.paymentMethod;
       const allSameMethod = selectedSales.every(id => sales.find(s => s.id === id)?.paymentMethod === firstSaleMethod);
-      if (allSameMethod) {
-        newPaymentMethod = firstSaleMethod;
-      } else {
-        newPaymentMethod = undefined; // Different methods, let user choose or set a default/placeholder
-      }
+      newPaymentMethod = allSameMethod ? firstSaleMethod : undefined;
     } else {
-        newPaymentMethod = invoice?.paymentMethod || undefined; // Revert to original invoice method or undefined
+      newPaymentMethod = invoice?.paymentMethod || undefined;
     }
-    
-    // Only update if the derived payment method is different from the current form value
-    // to avoid unnecessary re-renders or overריting user's explicit selection.
+
     if (form.getValues('paymentMethod') !== newPaymentMethod) {
-        form.setValue('paymentMethod', newPaymentMethod, { shouldValidate: true });
+      form.setValue('paymentMethod', newPaymentMethod, { shouldValidate: true });
     }
-
   }, [selectedSales, sales, calculateTotals, form, invoice?.paymentMethod]);
-
 
   const onSubmit = async (data: FormValues) => {
     try {
+      
+      setIsSubmitting(true);  
+
       if (selectedSales.length === 0) {
-        toast.error('Please select at least one sale to include in the invoice');
+        toast.error("Please select at least one sale to include in the invoice.");
+        setIsSubmitting(false);
         return;
       }
-      setIsSubmitting(true);
-      const { totalHT, totalTTC } = calculateTotals();
-      const allSalesPaid = selectedSales.every(saleId => getSalePaymentStatus(saleId)?.isFullyPaid === true);
 
-      const invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> = {
+      const { totalHT, totalTTC } = calculateTotals();
+
+      if (!Number.isFinite(totalTTC) || totalTTC <= 0) {
+        console.error("Calculation error: totalTTC is not a valid positive number.", { totalHT, totalTTC });
+        toast.error("Error in calculation. Invoice total must be greater than zero.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const emissionDate = new Date(`${data.date}T00:00:00`);
+      const expirationDate = new Date(`${data.dueDate}T00:00:00`);
+
+      if (isNaN(emissionDate.getTime()) || isNaN(expirationDate.getTime())) {
+        toast.error("Invalid date format. Please check the dates and try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const allSalesPaid = selectedSales.every(saleId => getSalePaymentStatus(saleId)?.isFullyPaid === true);
+      
+      const invoiceData = {
         invoiceNumber: data.invoiceNumber,
         clientId: data.clientId,
-        date: parseDateInput(data.date),
-        dueDate: parseDateInput(data.dueDate),
+        date: emissionDate,
+        dueDate: expirationDate,
         salesIds: selectedSales,
         totalAmountHT: totalHT,
         totalAmountTTC: totalTTC,
         taxRate: 0.19,
         isPaid: allSalesPaid,
         paidAt: allSalesPaid ? new Date() : undefined,
-        paymentMethod: data.paymentMethod || undefined, 
+        paymentMethod: data.paymentMethod || undefined,
       };
-
+      
       if (invoice) {
         await updateInvoice(invoice.id, invoiceData);
         toast.success('Invoice has been updated');
@@ -225,145 +240,144 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     <FormProvider {...form}>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Form fields... */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <FormField
-                control={form.control}
-                name="prefix"
-                render={({ field }) => (
+              control={form.control}
+              name="prefix"
+              render={({ field }) => (
                 <FormItem>
-                    <FormLabel>Préfixe</FormLabel>
-                    <Select
+                  <FormLabel>Préfixe</FormLabel>
+                  <Select
                     onValueChange={(value) => {
-                        field.onChange(value);
-                        if (!invoice) setIsInvoiceNumberManuallyEdited(false);
+                      field.onChange(value);
+                      if (!invoice) setIsInvoiceNumberManuallyEdited(false);
                     }}
                     value={field.value}
                     defaultValue={field.value}
-                    >
+                  >
                     <FormControl>
-                        <SelectTrigger>
+                      <SelectTrigger>
                         <SelectValue placeholder="Sélectionner un préfixe" />
-                        </SelectTrigger>
+                      </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                        {invoiceSettings.prefixes.map(p => (
-                            <SelectItem key={p.value} value={p.value}>{p.value}</SelectItem>
-                        ))}
+                      {invoiceSettings.prefixes.map(p => (
+                        <SelectItem key={p.value} value={p.value}>{p.value}</SelectItem>
+                      ))}
                     </SelectContent>
-                    </Select>
-                    <FormMessage />
+                  </Select>
+                  <FormMessage />
                 </FormItem>
-                )}
+              )}
             />
             <FormField
-                control={form.control}
-                name="invoiceNumber"
-                render={({ field }) => (
+              control={form.control}
+              name="invoiceNumber"
+              render={({ field }) => (
                 <FormItem className="sm:col-span-2">
-                    <FormLabel>Numéro de Facture</FormLabel>
-                    <FormControl>
-                    <Input 
-                        {...field} 
-                        onChange={(e) => {
+                  <FormLabel>Numéro de Facture</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      onChange={(e) => {
                         field.onChange(e.target.value);
                         setIsInvoiceNumberManuallyEdited(true);
-                        }}
+                      }}
                     />
-                    </FormControl>
-                    <FormMessage />
+                  </FormControl>
+                  <FormMessage />
                 </FormItem>
-                )}
+              )}
             />
-            </div>
+          </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                    control={form.control}
-                    name="clientId"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Client</FormLabel>
-                        <Select
-                        onValueChange={(value) => {
-                            field.onChange(value);
-                        }}
-                        value={field.value}
-                        defaultValue={field.value}
-                        >
-                        <FormControl>
-                            <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un client" />
-                            </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            {clients.map((client) => (
-                            <SelectItem key={client.id} value={client.id}>
-                                {client.name} - {client.company}
-                            </SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="paymentMethod"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Mode de paiement</FormLabel>
-                        <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ""} 
-                        defaultValue={field.value || ""}
-                        >
-                        <FormControl>
-                            <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un mode" />
-                            </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            <SelectItem value="cash">Espèces</SelectItem>
-                            <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
-                            <SelectItem value="check">Chèque</SelectItem>
-                            <SelectItem value="term">À Terme</SelectItem>
-                        </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="clientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Client</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un client" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} - {client.company}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="paymentMethod"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Mode de paiement</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || ""}
+                    defaultValue={field.value || ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un mode" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="cash">Espèces</SelectItem>
+                      <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
+                      <SelectItem value="check">Chèque</SelectItem>
+                      <SelectItem value="term">À Terme</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Date d'émission</FormLabel>
-                        <FormControl>
-                        <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="dueDate"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Date d'échéance</FormLabel>
-                        <FormControl>
-                        <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date d'émission</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dueDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date d'échéance</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           {selectedClientId && (
             <div className="space-y-4">
@@ -379,15 +393,15 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                     <TableRow>
                       <TableHead className="w-[50px] sticky top-0 bg-background z-10">
                         <Checkbox
-                            checked={clientSales.length > 0 && selectedSales.length === clientSales.filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id)).length}
-                            disabled={clientSales.filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id)).length === 0}
-                            onCheckedChange={(checked) => {
-                                const availableSalesIds = clientSales
-                                    .filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id))
-                                    .map(s => s.id);
-                                setSelectedSales(checked ? availableSalesIds : []);
-                            }}
-                            aria-label="Select all available sales"
+                          checked={clientSales.length > 0 && selectedSales.length === clientSales.filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id)).length}
+                          disabled={clientSales.filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id)).length === 0}
+                          onCheckedChange={(checked) => {
+                            const availableSalesIds = clientSales
+                              .filter(s => !(s.isInvoiced && s.invoiceId !== invoice?.id))
+                              .map(s => s.id);
+                            setSelectedSales(checked ? availableSalesIds : []);
+                          }}
+                          aria-label="Select all available sales"
                         />
                       </TableHead>
                       <TableHead className="sticky top-0 bg-background z-10">Date</TableHead>
@@ -397,31 +411,37 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {clientSales.length > 0 ? clientSales.map((sale) => (
-                      <TableRow key={sale.id} data-state={selectedSales.includes(sale.id) && "selected"}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedSales.includes(sale.id)}
-                            onCheckedChange={(checked) => {
-                              setSelectedSales(
-                                checked
-                                  ? [...selectedSales, sale.id]
-                                  : selectedSales.filter(id => id !== sale.id)
-                              );
-                            }}
-                            disabled={sale.isInvoiced && sale.invoiceId !== invoice?.id}
-                            aria-labelledby={`sale-label-${sale.id}`}
-                          />
-                        </TableCell>
-                        <TableCell id={`sale-label-${sale.id}`}>{formatDate(sale.date)}</TableCell>
-                        <TableCell>Vente #{sale.id.slice(0, 8)} (Mode: {sale.paymentMethod || 'N/P'})</TableCell> {/* Display sale's payment method */}
-                        <TableCell>{sale.items.length} articles</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(sale.totalAmountTTC)}
+                    {clientSales.length > 0 &&
+                      clientSales.map((sale) => (
+                        <TableRow key={sale.id} data-state={selectedSales.includes(sale.id) ? "selected" : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedSales.includes(sale.id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedSales(
+                                  checked
+                                    ? [...selectedSales, sale.id]
+                                    : selectedSales.filter((id) => id !== sale.id)
+                                );
+                              }}
+                              disabled={sale.isInvoiced && sale.invoiceId !== invoice?.id}
+                              aria-labelledby={`sale-label-${sale.id}`}
+                            />
+                          </TableCell>
+                          <TableCell id={`sale-label-${sale.id}`}>{formatDate(sale.date)}</TableCell>
+                          <TableCell>Vente #{sale.id.slice(0, 8)} (Mode: {sale.paymentMethod || 'N/P'})</TableCell>
+                          <TableCell>{sale.items.length} articles</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(sale.totalAmountTTC)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    {clientSales.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                          Aucune vente disponible pour ce client.
                         </TableCell>
                       </TableRow>
-                    )) : (
-                        <TableRow><TableCell colSpan={5} className="h-24 text-center">Aucune vente disponible pour ce client.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>

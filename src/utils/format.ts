@@ -54,11 +54,36 @@ export const formatDateInput = (date: Date | null): string => {
   return d.toISOString().split('T')[0];
 };
 
+// /**
+//  * Parse a date string from an input field
+//  */
+// export const parseDateInput = (dateString: string): Date => {
+//   return new Date(dateString);
+// };
 /**
- * Parse a date string from an input field
+ * Parses a date string from an <input type="date"> (YYYY-MM-DD)
+ * into a JavaScript Date object, correctly handling timezones.
+ * @param dateString The date string to parse.
+ * @returns A Date object or null if the input is invalid.
  */
-export const parseDateInput = (dateString: string): Date => {
-  return new Date(dateString);
+export const parseDateInput = (dateString: string): Date | null => {
+  // Guard against null, undefined, or non-string inputs
+  if (!dateString || typeof dateString !== 'string') {
+    return null;
+  }
+
+  // The 'T00:00:00' part is crucial. It tells the Date constructor
+  // to parse the date in the user's local timezone, not UTC. This avoids
+  // the common "off-by-one-day" error that can happen when using new Date('YYYY-MM-DD').
+  const localDate = new Date(`${dateString}T00:00:00`);
+
+  // Check if the constructed date is valid
+  if (isNaN(localDate.getTime())) {
+    console.error("Invalid date string provided to parseDateInput:", dateString);
+    return null;
+  }
+
+  return localDate;
 };
 
 /**

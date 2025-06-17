@@ -1,0 +1,46 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+{
+  "rules": [
+    {
+      "where": "global",
+      "must_not": [
+        "invent commands that aren't declared in src-tauri/src/commands/",
+        "create new Zustand stores unless explicitly asked",
+        "rename existing hooks, types, or commands arbitrarily",
+        "change the structure of SaleItem without aligning with Rust enum or SQLite schema",
+        "change product form logic unless instructed"
+      ],
+      "must": [
+        "use Tauri commands via the `tauri-api.ts` wrapper",
+        "match all Rust enum variants to TypeScript discriminated unions",
+        "reference Zod schemas when creating forms or validations",
+        "follow project folder structure conventions",
+        "always type all function parameters and return values explicitly"
+      ]
+    },
+    {
+      "where": "src-tauri/src/commands/",
+      "must": [
+        "use `Result<T, AppError>` as return type",
+        "log sync operations using the sync module",
+        "respect SQLite table structure using explicit SQL joins for polymorphism",
+        "return JSON-serializable types with camelCase keys",
+        "derive Serialize and Deserialize on all structs/enums exposed to frontend"
+      ]
+    },
+    {
+      "where": "src/components/products/",
+      "must": [
+        "render dynamic forms based on product type",
+        "use controlled inputs with react-hook-form",
+        "respect existing calculation helpers in `lib/calculations.ts`",
+        "pull default values from product templates if present"
+      ]
+    }
+  ]
+}
+

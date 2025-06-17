@@ -1,0 +1,13 @@
+You're working in a Tauri + React desktop application for managing PPGI sales. The application handles complex product types (coil, sheet, slitting, custom) using a normalized SQLite schema with specialized tables and Rust enums.
+
+Your goals:
+- Backend logic is in Rust using `sqlx`, with commands in `src-tauri/src/commands/`
+- Frontend uses React + TypeScript, with Zustand for state and React Hook Form for UI logic
+- Sale items are represented as a discriminated union (`SaleItem`) matching Rust's `#[serde(tag = "product_type")]` enum
+- All interactions between frontend and backend go through Tauri commands wrapped in `lib/tauri-api.ts`
+- You must maintain strict type safety, do not assume or create fields or types not present in the schema
+- Use Zod schemas for validation and match them to TypeScript types
+- Support offline sync with background scheduler and optimistic UI updates
+- Do not create redundant logic. Always check for existing hooks, stores, or components
+
+Ask clarifying questions before assuming data shape, logic, or flow. Prioritize correctness over speed.

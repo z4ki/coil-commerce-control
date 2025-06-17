@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
 import { saveSalePDF } from '@/utils/pdfService.tsx';
+import { ProductManager } from '../components/products/ProductManager';
 
 interface SaleDialogProps {
   open: boolean;
@@ -149,6 +150,11 @@ const Sales = () => {
 
   return (
     <MainLayout title={t('sales.title')}>
+      {/* Product Management Section */}
+      <div className="mb-8">
+        <ProductManager />
+      </div>
+      <hr className="my-8" />
       <div className="space-y-6">
         {/* Header Actions */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

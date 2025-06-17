@@ -28,13 +28,7 @@ export const InvoiceItems: React.FC<InvoiceItemsProps> = ({ items }) => {
         </thead>
         <tbody>
           {items.map((item, index) => (
-            <tr key={index} className="border-b border-[#D7DAE0] last:border-b-0">
-              <td className="py-3 px-4 text-sm text-[#4B5563]">{item.code}</td>
-              <td className="py-3 px-4 text-sm text-[#4B5563]">{item.description}</td>
-              <td className="py-3 px-4 text-sm text-[#4B5563] text-right">{item.weight.toFixed(1)}</td>
-              <td className="py-3 px-4 text-sm text-[#4B5563] text-right">{formatCurrency(item.unitPrice)}</td>
-              <td className="py-3 px-4 text-sm text-[#4B5563] text-right">{formatCurrency(item.total)}</td>
-            </tr>
+            <tr key={index} className="border-b border-[#D7DAE0] last:border-b-0"><td className="py-3 px-4 text-sm text-[#4B5563]">{item.code}</td><td className="py-3 px-4 text-sm text-[#4B5563]">{item.description}</td><td className="py-3 px-4 text-sm text-[#4B5563] text-right">{item.weight.toFixed(1)}</td><td className="py-3 px-4 text-sm text-[#4B5563] text-right">{formatCurrency(item.unitPrice)}</td><td className="py-3 px-4 text-sm text-[#4B5563] text-right">{formatCurrency(item.total)}</td></tr>
           ))}
         </tbody>
       </table>

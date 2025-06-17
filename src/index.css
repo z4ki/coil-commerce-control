@@ -139,3 +139,34 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
+
+/* Dark mode styles */
+.dark {
+  --bg-color: #1a1a1a;
+  --text-color: #ffffff;
+}
+
+.dark body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.dark .bg-white {
+  background-color: #2d2d2d;
+}
+
+.dark .text-gray-900 {
+  color: #ffffff;
+}
+
+.dark .border-gray-300 {
+  border-color: #4a4a4a;
+}
+
+.dark .focus\:border-indigo-500:focus {
+  border-color: #6366f1;
+}
+
+.dark .focus\:ring-indigo-500:focus {
+  --tw-ring-color: #6366f1;
+}

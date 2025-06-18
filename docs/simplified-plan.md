@@ -22,7 +22,7 @@ Update `src-tauri/tauri.conf.json`:
   "tauri": {
     "windows": [
       {
-        "title": "Invoice Manager",
+        "title": "Coil Commerce Control",
         "width": 1200,
         "height": 800,
         "minWidth": 1000,
@@ -212,7 +212,7 @@ use std::fs;
 #[tokio::main]
 async fn main() {
     // Create database directory
-    let app_dir = dirs::config_dir().unwrap().join("invoice-manager");
+    let app_dir = dirs::config_dir().unwrap().join("coil-commerce-control");
     fs::create_dir_all(&app_dir).expect("Failed to create app directory");
     
     // Setup database

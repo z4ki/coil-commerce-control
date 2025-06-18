@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"enables the default permissions","local":true,"windows":["main"],"permissions":["core:default"]},"sql":{"identifier":"sql","description":"SQL database access capability","local":true,"windows":["main"],"permissions":["sql:default"],"platforms":["windows","macOS","linux"]}}

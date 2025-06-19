@@ -1,8 +1,9 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
+
 {
   "rules": [
     {
@@ -15,6 +16,7 @@ alwaysApply: true
         "change product form logic unless instructed"
       ],
       "must": [
+        "update simplified-plan.md when ever we make a successful task"
         "use Tauri commands via the `tauri-api.ts` wrapper",
         "match all Rust enum variants to TypeScript discriminated unions",
         "reference Zod schemas when creating forms or validations",

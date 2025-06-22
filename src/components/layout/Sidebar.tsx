@@ -20,10 +20,10 @@ const Sidebar = () => {
   return (
     <div className="w-64 h-full bg-sidebar text-sidebar-foreground flex flex-col overflow-hidden">
       {/* Logo */}
-      <div className="flex items-center justify-center h-16 border-b border-sidebar-border">
+      <div className="flex items-center justify-center py-4 border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-3">
-          <img src="/lovable-uploads/9e20d722-b154-48fe-9e9d-616d64585926.png" alt="Logo" className="h-8" />
-          <h1 className="text-lg font-bold">GROUPE HA</h1>
+          <img src="/images/logo_HA_Sales_Manager.png" alt="Logo" className="h-32" />
+          {/* <h1 className="text-lg font-bold">GROUPE HA</h1> */}
         </div>
       </div>
       

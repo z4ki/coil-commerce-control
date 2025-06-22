@@ -85,7 +85,7 @@ As each CRUD is migrated to Tauri, mark it as completed here.
 ### **Phase 4: Add Your Product Schema (DAY 3-4)**
 **Time: 3-4 hours**
 
-#### 4.1 Add Product Tables
+<!-- #### 4.1 Add Product Tables
 Create `src-tauri/migrations/002_products.sql` with the product schema from your original plan:
 ```sql
 -- Add the corrugated_sheet_items, steel_slitting_strip_items, etc.
@@ -103,7 +103,7 @@ Add product management UI components
 ---
 
 ### **Phase 5: Future - Supabase Backup (LATER)**
-**When you're ready:**
+**When you're ready:** -->
 
 #### 5.1 Add Backup Commands
 ```rust

@@ -3,6 +3,7 @@
     use sqlx::Row;
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
+    use serde_json;
 
     // Client structs
     #[derive(Debug, Serialize, Deserialize)]
@@ -69,6 +70,7 @@
         pub quantity: f64,
         pub price_per_ton: f64,
         pub total_amount: f64,
+        pub product_type: String,
         pub created_at: DateTime<Utc>,
         pub updated_at: Option<DateTime<Utc>>,
     }
@@ -118,6 +120,7 @@
         pub quantity: f64,
         pub price_per_ton: f64,
         pub total_amount: f64,
+        pub product_type: String,
     }
 
     // Client commands
@@ -332,6 +335,7 @@
                 quantity: row.get("quantity"),
                 price_per_ton: row.get("price_per_ton"),
                 total_amount: row.get("total_amount"),
+                product_type: row.get("product_type"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             }).collect();
@@ -388,6 +392,7 @@
                 quantity: row.get("quantity"),
                 price_per_ton: row.get("price_per_ton"),
                 total_amount: row.get("total_amount"),
+                product_type: row.get("product_type"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
             }).collect();
@@ -410,6 +415,64 @@
         } else {
             Ok(None)
         }
+    }
+
+    fn calculate_total_amount(item: &CreateSaleItemRequest) -> f64 {
+        match item.product_type.as_str() {
+            "coil" => {
+                let weight = item.coil_weight.unwrap_or(0.0);
+                item.price_per_ton * weight
+            }
+            "corrugated_sheet" => {
+                let length = item.coil_width.unwrap_or(0.0);
+                item.quantity * length * item.price_per_ton
+            }
+            "steel_slitting" => {
+                let weight = item.coil_weight.unwrap_or(0.0);
+                item.price_per_ton * weight
+            }
+            _ => item.total_amount
+        }
+    }
+
+    fn validate_sale_item(item: &CreateSaleItemRequest) -> Result<(), String> {
+        if item.description.trim().is_empty() {
+            return Err("Description is required".to_string());
+        }
+        if item.product_type.trim().is_empty() {
+            return Err("Product type is required".to_string());
+        }
+        match item.product_type.as_str() {
+            "coil" => {
+                if item.coil_thickness.unwrap_or(0.0) <= 0.0 {
+                    return Err("Coil thickness is required and must be positive for coils".to_string());
+                }
+                if item.coil_width.unwrap_or(0.0) <= 0.0 {
+                    return Err("Coil width is required and must be positive for coils".to_string());
+                }
+                if item.coil_weight.unwrap_or(0.0) <= 0.0 {
+                    return Err("Coil weight is required and must be positive for coils".to_string());
+                }
+            }
+            "corrugated_sheet" => {
+                if item.coil_width.unwrap_or(0.0) <= 0.0 {
+                    return Err("Length (coil_width) is required and must be positive for corrugated sheets".to_string());
+                }
+                if item.quantity <= 0.0 {
+                    return Err("Quantity is required and must be positive for corrugated sheets".to_string());
+                }
+            }
+            "steel_slitting" => {
+                if item.coil_weight.unwrap_or(0.0) <= 0.0 {
+                    return Err("Weight (coil_weight) is required and must be positive for steel slitting".to_string());
+                }
+                if item.quantity <= 0.0 {
+                    return Err("Quantity is required and must be positive for steel slitting".to_string());
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     #[tauri::command]
@@ -442,24 +505,27 @@
         .map_err(|e| e.to_string())?;
         // Insert sale items
         for item in &sale.items {
+            validate_sale_item(item)?;
             let item_id = Uuid::new_v4().to_string();
+            let total_amount = calculate_total_amount(item);
             sqlx::query(
                 r#"INSERT INTO sale_items (
-                    id, sale_id, description, coil_ref, coil_thickness, coil_width, top_coat_ral, back_coat_ral, coil_weight, quantity, price_per_ton, total_amount, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+                    id, sale_id, description, coil_ref, coil_thickness, coil_width, top_coat_ral, back_coat_ral, coil_weight, quantity, price_per_ton, total_amount, product_type, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
             )
             .bind(&item_id)
             .bind(&sale_id)
             .bind(&item.description)
-            .bind(&item.coil_ref)
+            .bind(item.coil_ref.as_ref())
             .bind(item.coil_thickness)
             .bind(item.coil_width)
-            .bind(&item.top_coat_ral)
-            .bind(&item.back_coat_ral)
+            .bind(item.top_coat_ral.as_ref())
+            .bind(item.back_coat_ral.as_ref())
             .bind(item.coil_weight)
             .bind(item.quantity)
             .bind(item.price_per_ton)
-            .bind(item.total_amount)
+            .bind(total_amount)
+            .bind(&item.product_type)
             .bind(now)
             .bind(now)
             .execute(&*pool)
@@ -503,24 +569,27 @@
             .map_err(|e| e.to_string())?;
         // Insert new items
         for item in &sale.items {
+            validate_sale_item(item)?;
             let item_id = Uuid::new_v4().to_string();
+            let total_amount = calculate_total_amount(item);
             sqlx::query(
                 r#"INSERT INTO sale_items (
-                    id, sale_id, description, coil_ref, coil_thickness, coil_width, top_coat_ral, back_coat_ral, coil_weight, quantity, price_per_ton, total_amount, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+                    id, sale_id, description, coil_ref, coil_thickness, coil_width, top_coat_ral, back_coat_ral, coil_weight, quantity, price_per_ton, total_amount, product_type, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
             )
             .bind(&item_id)
             .bind(&id)
             .bind(&item.description)
-            .bind(&item.coil_ref)
+            .bind(item.coil_ref.as_ref())
             .bind(item.coil_thickness)
             .bind(item.coil_width)
-            .bind(&item.top_coat_ral)
-            .bind(&item.back_coat_ral)
+            .bind(item.top_coat_ral.as_ref())
+            .bind(item.back_coat_ral.as_ref())
             .bind(item.coil_weight)
             .bind(item.quantity)
             .bind(item.price_per_ton)
-            .bind(item.total_amount)
+            .bind(total_amount)
+            .bind(&item.product_type)
             .bind(now)
             .bind(now)
             .execute(&*pool)
@@ -578,32 +647,45 @@
     }
 
     #[tauri::command]
-    pub async fn get_invoices(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Invoice>, String> {
+    pub async fn get_invoices(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<serde_json::Value>, String> {
         let invoices = sqlx::query(
             r#"
-            SELECT id, invoice_number, client_id, date, due_date, total_amount_ht, total_amount_ttc, is_paid, paid_at, created_at, updated_at
-            FROM invoices
-            ORDER BY date DESC
+            SELECT i.id, i.invoice_number, i.client_id, i.date, i.due_date, 
+                   i.total_amount_ht, i.total_amount_ttc, i.is_paid, i.paid_at, 
+                   i.created_at, i.updated_at,
+                   GROUP_CONCAT(s.id) as sales_ids
+            FROM invoices i
+            LEFT JOIN sales s ON s.invoice_id = i.id
+            GROUP BY i.id
+            ORDER BY i.date DESC
             "#
         )
         .fetch_all(&*pool)
         .await
         .map_err(|e| e.to_string())?;
 
-        let invoices: Vec<Invoice> = invoices
+        let invoices: Vec<serde_json::Value> = invoices
             .into_iter()
-            .map(|row| Invoice {
-                id: row.get("id"),
-                invoice_number: row.get("invoice_number"),
-                client_id: row.get("client_id"),
-                date: row.get("date"),
-                due_date: row.get("due_date"),
-                total_amount_ht: row.get("total_amount_ht"),
-                total_amount_ttc: row.get("total_amount_ttc"),
-                is_paid: row.get("is_paid"),
-                paid_at: row.get("paid_at"),
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
+            .map(|row| {
+                let sales_ids: Option<String> = row.get("sales_ids");
+                let sales_ids_array = sales_ids
+                    .map(|s| s.split(',').filter(|s| !s.is_empty()).map(String::from).collect::<Vec<_>>())
+                    .unwrap_or_default();
+                
+                serde_json::json!({
+                    "id": row.get::<String, _>("id"),
+                    "invoice_number": row.get::<String, _>("invoice_number"),
+                    "client_id": row.get::<String, _>("client_id"),
+                    "date": row.get::<String, _>("date"),
+                    "due_date": row.get::<String, _>("due_date"),
+                    "total_amount_ht": row.get::<f64, _>("total_amount_ht"),
+                    "total_amount_ttc": row.get::<f64, _>("total_amount_ttc"),
+                    "is_paid": row.get::<bool, _>("is_paid"),
+                    "paid_at": row.get::<Option<String>, _>("paid_at"),
+                    "created_at": row.get::<String, _>("created_at"),
+                    "updated_at": row.get::<Option<String>, _>("updated_at"),
+                    "sales_ids": sales_ids_array
+                })
             })
             .collect();
 
@@ -886,10 +968,11 @@
         sale_id: String,
         pool: tauri::State<'_, SqlitePool>
     ) -> Result<(), String> {
-        sqlx::query!(
-            "UPDATE sales SET is_invoiced = 0, invoice_id = NULL WHERE id = ?",
-            sale_id
+        sqlx::query(
+            "UPDATE sales SET is_invoiced = 0, invoice_id = ? WHERE id = ?"
         )
+        .bind(Option::<String>::None) // This will be NULL
+        .bind(&sale_id)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -901,10 +984,32 @@
         id: String,
         pool: tauri::State<'_, SqlitePool>
     ) -> Result<(), String> {
+        // First, get all sales associated with this invoice
+        let sales = sqlx::query!(
+            "SELECT id FROM sales WHERE invoice_id = ?",
+            id
+        )
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        // Unmark all sales as invoiced
+        for sale in &sales {
+            sqlx::query!(
+                "UPDATE sales SET is_invoiced = 0, invoice_id = NULL WHERE id = ?",
+                sale.id
+            )
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+
+        // Delete the invoice
         sqlx::query("DELETE FROM invoices WHERE id = ?")
             .bind(&id)
             .execute(&*pool)
             .await
             .map_err(|e| e.to_string())?;
+        
         Ok(())
     }

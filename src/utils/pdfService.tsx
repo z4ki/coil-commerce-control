@@ -1,4 +1,4 @@
-import { Client, Invoice, Sale, Payment, CompanySettings } from '../types';
+import { Client, Invoice, Sale, Payment, CompanySettings, SaleItem } from '../types/index';
 import { getSettings } from '../services/settingsService';
 import { formatCurrency, formatDate } from './format';
 import { numberToWords } from './numberToWords';
@@ -50,10 +50,14 @@ export const generateInvoicePDF = async (
   companySettings: CompanySettings
 ): Promise<Blob> => {
   // Prepare the data for our PDF template
-  const items = sales.flatMap(sale => sale.items.map(item => ({
-    description: `BOBINES D'ACIER PRELAQUE ${item.coilThickness || ''}*${item.coilWidth || ''} RAL ${item.topCoatRAL || ''} / ${item.backCoatRAL || ''}`,
+  const items = sales.flatMap(sale => sale.items.map((item: SaleItem) => ({
+    description: item.description || '',
     code: item.coilRef || '',
-    weight: item.quantity || 0, // Using quantity as weight
+    weight: ((item as any).productType === 'coil' || (item as any).productType === 'steel_slitting' || (item as any).product_type === 'coil' || (item as any).product_type === 'steel_slitting')
+      ? (item.coilWeight || 0)
+      : ((item as any).productType === 'corrugated_sheet' || (item as any).product_type === 'corrugated_sheet')
+        ? (item.quantity || 0)
+        : (item.coilWeight || 0),
     unitPrice: item.pricePerTon,
     total: item.totalAmountHT,
   })));
@@ -124,14 +128,17 @@ export const generateSalePDF = async (
   companySettings: CompanySettings
 ): Promise<Blob> => {
   // Prepare the data for our PDF template
-  const items = sale.items.map(item => ({
-    description: `BOBINES D'ACIER PRELAQUE ${item.coilThickness || ''}*${item.coilWidth || ''} RAL ${item.topCoatRAL || ''}`,
+  const items = sale.items.map((item: SaleItem) => ({
+    description: item.description || '',
     code: item.coilRef || '',
-    weight: item.quantity || 0, // Using quantity as weight
+    weight: ((item as any).productType === 'coil' || (item as any).productType === 'steel_slitting' || (item as any).product_type === 'coil' || (item as any).product_type === 'steel_slitting')
+      ? (item.coilWeight || 0)
+      : ((item as any).productType === 'corrugated_sheet' || (item as any).product_type === 'corrugated_sheet')
+        ? (item.quantity || 0)
+        : (item.coilWeight || 0),
     unitPrice: item.pricePerTon,
     total: item.totalAmountHT,
   }));
-
   // Add transportation fee if present
   if (sale.transportationFee && sale.transportationFee > 0) {
     items.push({
@@ -158,7 +165,7 @@ export const generateSalePDF = async (
 
   const saleData = {
     documentType: 'sale' as const,
-    invoiceNumber: `Devis-${sale.id}`, // Use sale ID as the document number
+    invoiceNumber: `Devis-${sale.id.slice(0, 8)}`, // Use first 8 chars of UUID
     date: formatDate(sale.date),
     paymentMethod: sale.paymentMethod ? formatPaymentMethod(sale.paymentMethod) : 'Non spécifié',
     paymentTerms: sale.paymentMethod === 'term' ? 'À terme' : '-',

@@ -55,6 +55,7 @@ type FormValues = {
     totalAmountHT: number;
     totalAmountTTC: number;
     sale_id?: string;
+    productType?: string;
   }[];
   transportationFee: number;
   notes?: string;
@@ -80,6 +81,7 @@ interface SaleItemFormData {
   totalAmountHT: number;
   totalAmountTTC: number;
   sale_id?: string;
+  productType?: string;
 }
 
 interface SummaryTotals {
@@ -107,7 +109,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       quantity: item.quantity,
       pricePerTon: Number(item.pricePerTon) || 0,
       totalAmountHT: item.totalAmountHT,
-      totalAmountTTC: item.totalAmountTTC
+      totalAmountTTC: item.totalAmountTTC,
+      productType: item.productType || '',
     })) || [{ 
       id: uuidv4(), 
       description: '', 
@@ -120,7 +123,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       quantity: 1, 
       pricePerTon: 0,
       totalAmountHT: 0,
-      totalAmountTTC: 0
+      totalAmountTTC: 0,
+      productType: '',
     }]
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -134,24 +138,51 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     paymentMethod: sale?.paymentMethod as PaymentMethod | undefined || undefined, // Initialize as undefined
   };
 
+  const itemSchema = z.object({
+    id: z.string(),
+    description: z.string().min(1, { message: t('form.required') }),
+    coilRef: z.string().optional(),
+    coilThickness: z.coerce.number().min(0).optional(),
+    coilWidth: z.coerce.number().min(0).optional(),
+    topCoatRAL: z.string().optional(),
+    backCoatRAL: z.string().optional(),
+    coilWeight: z.coerce.number().min(0).optional(),
+    quantity: z.coerce.number().min(0, { message: t('form.sale.quantityPositive') }),
+    pricePerTon: z.coerce.number().min(0, { message: t('form.sale.pricePositive') }),
+    totalAmountHT: z.number(),
+    totalAmountTTC: z.number(),
+    sale_id: z.string().optional(),
+    productType: z.string().optional(),
+  }).superRefine((item, ctx) => {
+    if (item.productType === 'corrugated_sheet') {
+      if (!item.quantity || item.quantity <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('form.sale.quantityPositive'),
+          path: ['quantity'],
+        });
+      }
+      if (!item.coilWidth || item.coilWidth <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('form.required'),
+          path: ['coilWidth'],
+        });
+      }
+      if (!item.pricePerTon || item.pricePerTon <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('form.sale.pricePositive'),
+          path: ['pricePerTon'],
+        });
+      }
+    }
+  });
+
   const formSchema = z.object({
     clientId: z.string().min(1, { message: t('form.required') }),
     date: z.string().min(1, { message: t('form.required') }),
-    items: z.array(z.object({
-      id: z.string(),
-      description: z.string().min(1, { message: t('form.required') }),
-      coilRef: z.string().optional(),
-      coilThickness: z.coerce.number().min(0).optional(),
-      coilWidth: z.coerce.number().min(0).optional(),
-      topCoatRAL: z.string().optional(),
-      backCoatRAL: z.string().optional(),
-      coilWeight: z.coerce.number().min(0).optional(),
-      quantity: z.coerce.number().min(0, { message: t('form.sale.quantityPositive') }),
-      pricePerTon: z.coerce.number().min(0, { message: t('form.sale.pricePositive') }),
-      totalAmountHT: z.number(),
-      totalAmountTTC: z.number(),
-      sale_id: z.string().optional()
-    })).min(1, { message: t('form.sale.itemRequired') }),
+    items: z.array(itemSchema).min(1, { message: t('form.sale.itemRequired') }),
     transportationFee: z.coerce.number().min(0).default(0),
     notes: z.string().optional(),
     paymentMethod: z.enum(paymentMethods).optional().nullable() // Allow optional and nullable
@@ -178,11 +209,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   
   const calculateFinalTotal = useCallback((): SummaryTotals => {
     const currentFormItems = form.getValues('items') || [];
-    const itemsTotalHT = currentFormItems.reduce((sum, item) => {
-      const quantity = Number(item.quantity || 0);
-      const pricePerTon = Number(item.pricePerTon || 0);
-      return sum + (quantity * pricePerTon);
-    }, 0);
+    const itemsTotalHT = currentFormItems.reduce((sum, item) => sum + (item.totalAmountHT || 0), 0);
 
     const transportationFee = Number(form.getValues('transportationFee') || 0);
     const totalHT = itemsTotalHT + transportationFee;
@@ -218,7 +245,8 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     const newItem: SaleItemFormData = {
       id: uuidv4(), description: '', coilRef: '', coilThickness: 0,
       coilWidth: 0, topCoatRAL: '', backCoatRAL: '', coilWeight: 0,
-      quantity: 1, pricePerTon: 0, totalAmountHT: 0, totalAmountTTC: 0
+      quantity: 1, pricePerTon: 0, totalAmountHT: 0, totalAmountTTC: 0,
+      productType: '',
     };
     const currentItems = form.getValues('items') || [];
     const newItems = [...currentItems, newItem];
@@ -259,7 +287,9 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
         quantity: Number(item.quantity || 0),
         price_per_ton: Number(item.pricePerTon || 0),
         total_amount: Number(item.totalAmountHT || 0),
+        product_type: item.productType || '',
       }));
+      console.log('itemsWithTotal', itemsWithTotal);
       // Map sale fields to snake_case for backend
       const saleData = {
         client_id: data.clientId,
@@ -409,16 +439,6 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
             />
           </div>
           <FormField
-            control={form.control} name="notes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('saleForm.notes')}</FormLabel>
-                <FormControl><Textarea {...field} value={field.value || ''} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
             control={form.control}
             name="paymentMethod"
             render={({ field }) => (
@@ -446,6 +466,17 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
               </FormItem>
             )}
           />
+          <FormField
+            control={form.control} name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('saleForm.notes')}</FormLabel>
+                <FormControl><Textarea {...field} value={field.value || ''} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
         </div>
         <div className="w-full md:w-72 space-y-6 mt-6 md:mt-0 md:sticky md:top-6 md:max-h-[calc(100vh-48px)]">
           <div className="space-y-4 rounded-md border p-4 bg-muted/50">

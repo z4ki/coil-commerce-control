@@ -38,9 +38,16 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const weight = watch(`items.${index}.coilWeight`);
   const topRal = watch(`items.${index}.topCoatRAL`);
   const backRal = watch(`items.${index}.backCoatRAL`);
+  const productType = watch(`items.${index}.productType`);
   
+ 
+
   // Calculate totals using utility functions
-  const totalHT = calculateItemTotalHT(Number(quantity), Number(weight) / 1000, Number(pricePerTon));
+  const totalHT = productType === 'corrugated_sheet'
+    ? calculateItemTotalHT(Number(quantity), Number(width), Number(pricePerTon), productType)
+    : productType === 'coil'
+      ? calculateItemTotalHT(1, Number(weight), Number(pricePerTon), productType)
+      : calculateItemTotalHT(Number(quantity), Number(weight), Number(pricePerTon), productType);
   const totalTTC = calculateItemTotalTTC(Number(totalHT), TAX_RATE);
 
   // Update form values when totals change
@@ -104,6 +111,19 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
     }
   };
 
+  const productTypes = [
+    { value: 'coil', label: t('form.sale.productTypeCoil') || 'Coil' },
+    { value: 'corrugated_sheet', label: t('form.sale.productTypeCorrugatedSheet') || 'Corrugated Sheet' },
+    { value: 'steel_slitting', label: t('form.sale.productTypeSteelSlitting') || 'Steel Slitting' },
+  ];
+
+  const showCoilFields = productType === 'coil';
+  const showCorrugatedSheetFields = productType === 'corrugated_sheet';
+  const showSteelSlittingFields = productType === 'steel_slitting';
+
+  // Debug log for calculation values
+  // (Removed to avoid console spam)
+
   return (
     <div className="space-y-4 p-4 border rounded-md relative">
       <Button
@@ -131,21 +151,18 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
             </FormItem>
           )}
         />
-
         <FormField
           control={control}
-          name={`items.${index}.coilThickness`}
+          name={`items.${index}.productType`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('form.sale.coilThickness')}</FormLabel>
+              <FormLabel>{t('form.sale.productType') || 'Product Type'}</FormLabel>
               <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={thicknessInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setThicknessInput, field)}
-                />
+                <select {...field} value={field.value || 'coil'} onChange={field.onChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                  {productTypes.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -153,105 +170,244 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.coilWidth`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.coilWidth')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={widthInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      {/* Coil fields: show all original fields for coil */}
+      {showCoilFields && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.coilThickness`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.coilThickness')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={thicknessInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setThicknessInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.coilWidth`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.coilWidth')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={widthInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`items.${index}.coilWeight`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.coilWeight')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={weightInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setWeightInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.topCoatRAL`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="9010" {...field} value={field.value || ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`items.${index}.backCoatRAL`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="9002" {...field} value={field.value || ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </>
+      )}
 
-        {/* <FormField
-          control={control}
-          name={`items.${index}.coilWeight`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.coilWeight')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={weightInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setWeightInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        /> */}
-      </div>
+      {/* Corrugated Sheet fields */}
+      {showCorrugatedSheetFields && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.coilThickness`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Thickness (mm)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={thicknessInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setThicknessInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`items.${index}.coilWidth`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Length (m)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={widthInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name={`items.${index}.topCoatRAL`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
-              <FormControl>
-                <Input placeholder="9010" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      {/* Steel Slitting fields */}
+      {showSteelSlittingFields && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.coilThickness`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.coilThickness')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={thicknessInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setThicknessInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`items.${index}.coilWidth`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.coilWidth')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={widthInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.coilWeight`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.coilWeight')}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="0.00" 
+                      value={weightInput}
+                      onChange={(e) => handleNumericInput(e.target.value, setWeightInput, field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </>
+      )}
 
-        <FormField
-          control={control}
-          name={`items.${index}.backCoatRAL`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
-              <FormControl>
-                <Input placeholder="9002" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
+      {/* Common fields for all types */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <FormField
-          control={control}
-          name={`items.${index}.quantity`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('form.sale.quantity')}</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  inputMode="decimal"
-                  placeholder="0.00" 
-                  value={quantityInput}
-                  onChange={(e) => handleNumericInput(e.target.value, setQuantityInput, field)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
+        {/* Only show quantity for non-coil types */}
+        {productType !== 'coil' && (
+          <FormField
+            control={control}
+            name={`items.${index}.quantity`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('form.sale.quantity')}</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="text" 
+                    inputMode="decimal"
+                    placeholder="0.00" 
+                    value={quantityInput}
+                    onChange={(e) => handleNumericInput(e.target.value, setQuantityInput, field)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={control}
           name={`items.${index}.pricePerTon`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('form.sale.pricePerTon')}</FormLabel>
+              <FormLabel>{showCorrugatedSheetFields ? 'Unit Price (per meter)' : t('form.sale.pricePerTon')}</FormLabel>
               <FormControl>
                 <Input 
                   type="text" 
@@ -265,8 +421,20 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
             </FormItem>
           )}
         />
-
       </div>
+      <FormField
+        control={control}
+        name={`items.${index}.description`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('form.sale.description') || 'Description'}</FormLabel>
+            <FormControl>
+              <Input {...field} type="text" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
     </div>
   );
 };

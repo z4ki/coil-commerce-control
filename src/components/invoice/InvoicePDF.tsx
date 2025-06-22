@@ -408,7 +408,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
       </View>
 
       {/* Total in words */}
-      <Text style={styles.totalInWords}>{totalInWords.charAt(0).toUpperCase() + totalInWords.slice(1)} Dinars</Text>
+      <Text style={styles.totalInWords}>Arrêter la present facutre à la somme {totalInWords.charAt(0).toUpperCase() + totalInWords.slice(1)} Dinars</Text>
 
       {/* Footer */}
       <View style={styles.footer}>

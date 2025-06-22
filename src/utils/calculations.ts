@@ -21,10 +21,25 @@ export const calculateTotalTTC = (items: SaleItem[], taxRate: number = TAX_RATE)
 /**
  * Calculate item total before tax
  * @param quantity - The quantity of items
- * @param weightInTons - The weight in tons
- * @param pricePerTon - The price per ton
+ * @param weightInTons - The weight in tons (or length in meters for corrugated_sheet)
+ * @param pricePerTon - The price per ton (or per meter for corrugated_sheet)
+ * @param productType - Optional product type
  */
-export const calculateItemTotalHT = (quantity: number, weightInTons: number, pricePerTon: number): number => {
+export const calculateItemTotalHT = (
+  quantity: number,
+  weightInTons: number,
+  pricePerTon: number,
+  productType?: string
+): number => {
+  if (productType === 'corrugated_sheet') {
+    // For corrugated sheets: total = quantity * length (m) * unit price (per meter)
+    return (quantity || 0) * (weightInTons || 0) * (pricePerTon || 0);
+  }
+  if (productType === 'coil' || productType === 'steel_slitting') {
+    // For coil and steel slitting: total = weight (ton) * price per ton
+    return (weightInTons || 0) * (pricePerTon || 0);
+  }
+  // Default: original logic
   return (quantity || 0) * ((weightInTons || 0) * (pricePerTon || 0));
 };
 

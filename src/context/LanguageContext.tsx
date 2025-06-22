@@ -79,7 +79,8 @@ const translations: { [key in Language]: Translations } = {
       'info': 'Info',
       'invoices': 'Invoices',
       'reports': 'Reports',
-      'adminUser': 'Admin User'
+      'adminUser': 'Admin User',
+      'quantity': 'Quantity'
     },
 
     // Dashboard
@@ -101,7 +102,8 @@ const translations: { [key in Language]: Translations } = {
       'recentSales': 'Recent Activity',
       'noRecentActivity': 'Activity data will appear here as you add sales and invoices',
       'bankAccountBalance': 'Bank Account Balance',
-      'bankAndCheck': 'Bank transfers and checks'
+      'bankAndCheck': 'Bank transfers and checks',
+      'quantity': 'Quantity'
     },
 
     // Sales
@@ -148,7 +150,8 @@ const translations: { [key in Language]: Translations } = {
       'totalAmount': 'Total Amount',
       'amountPaid': 'Amount Paid',
       'actions': 'Actions',
-      'pdfError': 'Error generating quotation'
+      'pdfError': 'Error generating quotation',
+      'quantity': 'Quantity'
     },
 
     // Clients
@@ -207,7 +210,8 @@ const translations: { [key in Language]: Translations } = {
           'update': 'Update Client'
         },
         
-      }
+      },
+      'quantity': 'Quantity'
     },
 
     // Company
@@ -222,7 +226,8 @@ const translations: { [key in Language]: Translations } = {
       'nis': 'NIS Number',
       'rc': 'RC Number',
       'ai': 'AI Number',
-      'rib': 'RIB (Bank Account)'
+      'rib': 'RIB (Bank Account)',
+      'quantity': 'Quantity'
     },
 
     // Invoice
@@ -238,7 +243,8 @@ const translations: { [key in Language]: Translations } = {
       'nextNumber': 'Next Invoice Number',
       'paymentTerms': 'Payment Terms',
       'notes': 'Default Notes',
-      'autoPdf': 'Auto-generate PDF'
+      'autoPdf': 'Auto-generate PDF',
+      'quantity': 'Quantity'
     },
 
     // Import/Export
@@ -268,7 +274,8 @@ const translations: { [key in Language]: Translations } = {
         'upcomingInvoices': 'Upcoming Invoices',
         'noClientDebt': 'No clients with outstanding debt',
         'noOutstandingDebts': 'No outstanding debts for the selected period',
-        'noSalesData': 'No sales data for the selected period'
+        'noSalesData': 'No sales data for the selected period',
+        'quantity': 'Quantity'
       }
     },
 
@@ -294,7 +301,8 @@ const translations: { [key in Language]: Translations } = {
       'upcomingInvoices': 'Upcoming Invoices',
       'noClientDebt': 'No clients with outstanding debt',
       'noOutstandingDebts': 'No outstanding debts for the selected period',
-      'noSalesData': 'No sales data for the selected period'
+      'noSalesData': 'No sales data for the selected period',
+      'quantity': 'Quantity'
     },
 
     // Forms
@@ -318,7 +326,7 @@ const translations: { [key in Language]: Translations } = {
         'addItem': 'Add Item',
         'itemName': 'Item Name',
         'description': 'Description',
-        'quantity': 'Quantity (Tons)',
+        'quantity': 'Quantity',
         'unitPrice': 'Unit Price',
         'tax': 'Tax Rate',
         'total': 'Total',
@@ -361,7 +369,12 @@ const translations: { [key in Language]: Translations } = {
           'quotation': 'Export Quotation',
           'invoice': 'Export Invoice',
           'generating': 'Generating document...'
-        }
+        },
+        'productType': 'Product Type',
+        'productTypeCoil': 'Coil',
+        'productTypeCorrugatedSheet': 'Corrugated Sheet',
+        'productTypeSteelSlitting': 'Steel Slitting',
+        'quantity': 'Quantity'
       },
 
       // Payment Form
@@ -378,7 +391,8 @@ const translations: { [key in Language]: Translations } = {
         'status': 'Payment Status',
         'paid': 'Paid',
         'unpaid': 'Unpaid',
-        'partial': 'Partially Paid'
+        'partial': 'Partially Paid',
+        'quantity': 'Quantity'
       },
 
       // Client Form
@@ -408,7 +422,8 @@ const translations: { [key in Language]: Translations } = {
         'actions': {
           'cancel': 'Cancel',
           'add': 'Add Client'
-        }
+        },
+        'quantity': 'Quantity'
       }
     },
 
@@ -441,7 +456,7 @@ const translations: { [key in Language]: Translations } = {
       'createInvoice': 'Créer une facture',
       'success': 'Vente enregistrée avec succès',
       'error': 'Erreur lors de l\'enregistrement de la vente',
-      'paymentMethod': 'Payment method',
+      'quantity': 'Quantity'
     },
 
     // Client Form
@@ -467,7 +482,8 @@ const translations: { [key in Language]: Translations } = {
       'notes': 'Additional Notes',
       'success': 'Client successfully saved',
       'error': 'Error saving client',
-      'duplicateEmail': 'A client with this email already exists'
+      'duplicateEmail': 'A client with this email already exists',
+      'quantity': 'Quantity'
     },
 
     // Invoices
@@ -498,6 +514,7 @@ const translations: { [key in Language]: Translations } = {
       'pdfGenerated': 'Invoice generated successfully',
       'pdfError': 'Error generating invoice',
       'invoice': 'Invoice',
+      'quantity': 'Quantity'
     },
 
     // Payments
@@ -525,7 +542,8 @@ const translations: { [key in Language]: Translations } = {
         'check': 'Check',
         'term': 'Term Payment',
         'credit_card': 'Credit Card'
-      }
+      },
+      'quantity': 'Quantity'
     },
 
     // Client Details
@@ -540,7 +558,8 @@ const translations: { [key in Language]: Translations } = {
       'outstandingDebt': 'Outstanding Debt',
       'salesHistory': 'Sales History',
       'invoiceHistory': 'Invoice History',
-      'paymentHistory': 'Payment History'
+      'paymentHistory': 'Payment History',
+      'quantity': 'Quantity'
     },
 
     // Invoice Details
@@ -558,7 +577,8 @@ const translations: { [key in Language]: Translations } = {
       'amountPaid': 'Amount Paid',
       'remainingAmount': 'Remaining Amount',
       'sales': 'Related Sales',
-      'payments': 'Payments'
+      'payments': 'Payments',
+      'quantity': 'Quantity'
     },
 
     // PDF Export
@@ -568,6 +588,7 @@ const translations: { [key in Language]: Translations } = {
       'error': 'Error generating PDF',
       'clientNotFound': 'Client not found',
       'saleNotFound': 'Sale not found',
+      'quantity': 'Quantity'
     },
   },
   fr: {
@@ -629,7 +650,8 @@ const translations: { [key in Language]: Translations } = {
       'info': 'Info',
       'invoices': 'Factures',
       'reports': 'Rapports',
-      'adminUser': 'Administrateur'
+      'adminUser': 'Administrateur',
+      'quantity': 'Quantité'
     },
 
     // Dashboard
@@ -651,7 +673,8 @@ const translations: { [key in Language]: Translations } = {
       'recentSales': 'Activité récente',
       'noRecentActivity': 'Les données d\'activité apparaîtront ici au fur et à mesure que vous ajoutez des ventes et des factures',
       'bankAccountBalance': 'Solde Compte Bancaire',
-      'bankAndCheck': 'Virements Bancaires et Chèques'
+      'bankAndCheck': 'Virements Bancaires et Chèques',
+      'quantity': 'Quantité'
     },
 
     // Sales
@@ -698,7 +721,8 @@ const translations: { [key in Language]: Translations } = {
       'totalAmount': 'Montant total',
       'amountPaid': 'Montant payé',
       'actions': 'Actions',
-      'pdfError': 'Erreur lors de la génération du devis'
+      'pdfError': 'Erreur lors de la génération du devis',
+      'quantity': 'Quantité'
     },
 
     // Clients
@@ -756,7 +780,8 @@ const translations: { [key in Language]: Translations } = {
           'add': 'Ajouter le client',
           'update': 'Mettre à jour le client'
         },
-      }
+      },
+      'quantity': 'Quantité'
     },
 
     // Company
@@ -771,7 +796,8 @@ const translations: { [key in Language]: Translations } = {
       'nis': 'Numéro d\'identification statistique',
       'rc': 'Registre du commerce',
       'ai': 'Article d\'imposition',
-      'rib': 'RIB (Relevé d\'Identité Bancaire)'
+      'rib': 'RIB (Relevé d\'Identité Bancaire)',
+      'quantity': 'Quantité'
     },
 
     // Invoice
@@ -787,7 +813,8 @@ const translations: { [key in Language]: Translations } = {
       'nextNumber': 'Prochain numéro de facture',
       'paymentTerms': 'Conditions de paiement',
       'notes': 'Notes par défaut',
-      'autoPdf': 'Générer automatiquement le PDF'
+      'autoPdf': 'Générer automatiquement le PDF',
+      'quantity': 'Quantité'
     },
 
     // Import/Export
@@ -817,7 +844,8 @@ const translations: { [key in Language]: Translations } = {
         'upcomingInvoices': 'Factures à Venir',
         'noClientDebt': 'Aucun client avec des créances en cours',
         'noOutstandingDebts': 'Aucune créance pour la période sélectionnée',
-        'noSalesData': 'Aucune donnée de vente pour la période sélectionnée'
+        'noSalesData': 'Aucune donnée de vente pour la période sélectionnée',
+        'quantity': 'Quantité'
       }
     },
 
@@ -843,7 +871,8 @@ const translations: { [key in Language]: Translations } = {
       'upcomingInvoices': 'Factures à Venir',
       'noClientDebt': 'Aucun client avec des créances en cours',
       'noOutstandingDebts': 'Aucune créance pour la période sélectionnée',
-      'noSalesData': 'Aucune donnée de vente pour la période sélectionnée'
+      'noSalesData': 'Aucune donnée de vente pour la période sélectionnée',
+      'quantity': 'Quantité'
     },
 
     // Forms
@@ -867,7 +896,7 @@ const translations: { [key in Language]: Translations } = {
         'addItem': 'Ajouter un article',
         'itemName': 'Nom de l\'article',
         'description': 'Description',
-        'quantity': 'Quantité (Tonnes)',
+        'quantity': 'Quantité',
         'unitPrice': 'Prix unitaire',
         'tax': 'Taux de TVA',
         'total': 'Total',
@@ -884,7 +913,7 @@ const translations: { [key in Language]: Translations } = {
         'coilWidth': 'Largeur (mm)',
         'topCoatRAL': 'RAL face supérieure',
         'backCoatRAL': 'RAL face inférieure',
-        'coilWeight': 'Poids (tonnes)',
+        'coilWeight': 'Poids (tons)',
         'pricePerTon': 'Prix par tonne (DA)',
         'itemTotal': 'Total article',
         'summary': 'Résumé',
@@ -910,7 +939,12 @@ const translations: { [key in Language]: Translations } = {
           'quotation': 'Exporter le devis',
           'invoice': 'Exporter la facture',
           'generating': 'Génération du document...'
-        }
+        },
+        'productType': 'Type de produit',
+        'productTypeCoil': 'Bobine',
+        'productTypeCorrugatedSheet': 'Tôle nervurée',
+        'productTypeSteelSlitting': "Refendage d'acier",
+        'quantity': 'Quantité'
       },
 
       // Payment Form
@@ -928,7 +962,7 @@ const translations: { [key in Language]: Translations } = {
         'paid': 'Payé',
         'unpaid': 'Non payé',
         'partial': 'Partiellement payé',
-        
+        'quantity': 'Quantité'
       },
 
       // Client Form
@@ -958,7 +992,8 @@ const translations: { [key in Language]: Translations } = {
         'actions': {
           'cancel': 'Annuler',
           'add': 'Ajouter le client'
-        }
+        },
+        'quantity': 'Quantité'
       }
     },
 
@@ -991,7 +1026,8 @@ const translations: { [key in Language]: Translations } = {
       'createInvoice': 'Créer une facture',
       'success': 'Vente enregistrée avec succès',
       
-      'error': 'Erreur lors de l\'enregistrement de la vente'
+      'error': 'Erreur lors de l\'enregistrement de la vente',
+      'quantity': 'Quantité'
     },
 
     // Client Form
@@ -1017,7 +1053,8 @@ const translations: { [key in Language]: Translations } = {
       'notes': 'Additional Notes',
       'success': 'Client successfully saved',
       'error': 'Error saving client',
-      'duplicateEmail': 'A client with this email already exists'
+      'duplicateEmail': 'A client with this email already exists',
+      'quantity': 'Quantité'
     },
 
     // Invoices
@@ -1048,6 +1085,7 @@ const translations: { [key in Language]: Translations } = {
       'pdfGenerated': 'Facture générée avec succès',
       'pdfError': 'Erreur lors de la génération de la facture',
       'invoice': 'Facture',
+      'quantity': 'Quantité'
     },
 
     // Payments
@@ -1074,7 +1112,8 @@ const translations: { [key in Language]: Translations } = {
         'bank_transfer': 'Virement bancaire',
         'check': 'Chèque',
         'term': 'À terme',
-      }
+      },
+      'quantity': 'Quantité'
     },
 
     // Client Details
@@ -1089,7 +1128,8 @@ const translations: { [key in Language]: Translations } = {
       'outstandingDebt': 'Outstanding Debt',
       'salesHistory': 'Sales History',
       'invoiceHistory': 'Invoice History',
-      'paymentHistory': 'Payment History'
+      'paymentHistory': 'Payment History',
+      'quantity': 'Quantité'
     },
 
     // Invoice Details
@@ -1107,7 +1147,8 @@ const translations: { [key in Language]: Translations } = {
       'amountPaid': 'Montant payé',
       'remainingAmount': 'Montant restant',
       'sales': 'Ventes liées',
-      'payments': 'Paiements'
+      'payments': 'Paiements',
+      'quantity': 'Quantité'
     },
 
     // PDF Export
@@ -1117,6 +1158,7 @@ const translations: { [key in Language]: Translations } = {
       'error': 'Erreur lors de la génération du PDF',
       'clientNotFound': 'Client introuvable',
       'saleNotFound': 'Vente introuvable',
+      'quantity': 'Quantité'
     },
   }
 };

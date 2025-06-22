@@ -1,11 +1,11 @@
 // Replace the Supabase import with local data
 // import { supabase } from '@/integrations/supabase/client';
-import { localDB } from '@/lib/local-data';
+import { tauriApi } from '@/lib/tauri-api';
 import { Client } from '@/types';
 
 export const getClients = async (): Promise<Client[]> => {
   try {
-    return await localDB.clients.getAll();
+    return await tauriApi.clients.getAll();
   } catch (error) {
     console.error('Error fetching clients:', error);
     throw error;
@@ -14,7 +14,7 @@ export const getClients = async (): Promise<Client[]> => {
 
 export const getClientById = async (id: string): Promise<Client | null> => {
   try {
-    return await localDB.clients.getById(id);
+    return await tauriApi.clients.getById(id);
   } catch (error) {
     console.error('Error fetching client:', error);
     throw error;
@@ -23,7 +23,7 @@ export const getClientById = async (id: string): Promise<Client | null> => {
 
 export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
   try {
-    return await localDB.clients.create(client);
+    return await tauriApi.clients.create(client);
   } catch (error) {
     console.error('Error creating client:', error);
     throw error;
@@ -32,7 +32,7 @@ export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'up
 
 export const updateClient = async (id: string, client: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Client> => {
   try {
-    return await localDB.clients.update(id, client);
+    return await tauriApi.clients.update(id, client);
   } catch (error) {
     console.error('Error updating client:', error);
     throw error;
@@ -41,7 +41,7 @@ export const updateClient = async (id: string, client: Partial<Omit<Client, 'id'
 
 export const deleteClient = async (id: string): Promise<void> => {
   try {
-    await localDB.clients.delete(id);
+    await tauriApi.clients.delete(id);
   } catch (error) {
     console.error('Error deleting client:', error);
     throw error;

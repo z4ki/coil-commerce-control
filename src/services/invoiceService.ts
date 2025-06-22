@@ -1,5 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
-import { Invoice, InvoiceFilter } from '@/types';
+import { tauriApi } from '@/lib/tauri-api';
+import { Invoice } from '@/types/sales';
 import { formatDateInput } from '@/utils/format';
 
 // Interface for data being inserted into Supabase
@@ -67,265 +67,61 @@ const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = []): I
   updatedAt: dbInvoice.updated_at ? new Date(dbInvoice.updated_at) : undefined,
 });
 
+export const getInvoices = async (): Promise<Invoice[]> => {
+  try {
+    const backendInvoices = await tauriApi.invoices.getAll() as any[];
+    if (!Array.isArray(backendInvoices)) return [];
+    // Map backend fields to frontend Invoice type
+    return backendInvoices.map((inv: any) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      clientId: inv.client_id,
+      date: new Date(inv.date),
+      dueDate: new Date(inv.due_date),
+      salesIds: inv.sales_ids || [],
+      totalAmountHT: Number(inv.total_amount_ht),
+      totalAmountTTC: Number(inv.total_amount_ttc),
+      isPaid: inv.is_paid,
+      paidAt: inv.paid_at ? new Date(inv.paid_at) : undefined,
+      createdAt: new Date(inv.created_at),
+      updatedAt: inv.updated_at ? new Date(inv.updated_at) : undefined,
+    }));
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    throw error;
+  }
+};
 
 export const createInvoice = async (
-  invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> & { prefix?: string }
+  invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<Invoice> => {
   try {
-    // Ensure we have valid numbers for totals
-    const safeTotalAmountHT = Number.isFinite(invoice.totalAmountHT) ? 
-      Math.round(invoice.totalAmountHT * 100) / 100 : 0;
-    
-    const safeTotalAmountTTC = Number.isFinite(invoice.totalAmountTTC) ? 
-      Math.round(invoice.totalAmountTTC * 100) / 100 : 0;
-
-    // Log the values we're about to insert
-    console.log('Creating invoice with amounts:', {
-      HT: safeTotalAmountHT,
-      TTC: safeTotalAmountTTC
-    });
-
-    const insertData: DbInvoiceInsert = {
+    // Map camelCase to snake_case for backend
+    const backendInvoice = {
       invoice_number: invoice.invoiceNumber,
       client_id: invoice.clientId,
       date: invoice.date.toISOString(),
       due_date: invoice.dueDate.toISOString(),
-      total_amount_ht: safeTotalAmountHT,
-      total_amount_ttc: safeTotalAmountTTC,
-      is_paid: invoice.isPaid || false,
-      paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
+      sales_ids: invoice.salesIds,
+      total_amount_ht: invoice.totalAmountHT,
+      total_amount_ttc: invoice.totalAmountTTC,
+      is_paid: invoice.isPaid,
+      paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null,
     };
-
-    const { data, error } = await supabase
-      .from('invoices')
-      .insert(insertData)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error creating invoice:', error);
-      throw error;
-    }
-    
-    if (!data) {
-      throw new Error("No data returned from Supabase after invoice insert.");
-    }
-
-    if (invoice.salesIds && invoice.salesIds.length > 0) {
-      const salesInvoices = invoice.salesIds.map((saleId: string) => ({
-        invoice_id: data.id, 
-        sale_id: saleId
-      }));
-      
-      const { error: linkError } = await supabase
-        .from('invoice_sales')
-        .insert(salesInvoices);
-      
-      if (linkError) {
-        console.error('Error linking sales to invoice:', linkError);
-        throw linkError;
-      }
-    }
-    
-    const dbInvoice = mapResponseToDbInvoice(data as DbInvoiceResponse);
-    return mapDbInvoiceToInvoice(dbInvoice, invoice.salesIds || []);
-
+    return await tauriApi.invoices.create(backendInvoice);
   } catch (error) {
-    console.error('[invoiceService] Exception in createInvoice:', error); 
-    throw error; 
-  }
-};
-
-export const getInvoices = async (filter?: InvoiceFilter): Promise<Invoice[]> => {
-  try {
-    let query = supabase
-      .from('invoices')
-      .select('*')
-      .order('date', { ascending: false });
-    
-    if (filter) {
-      if (filter.clientId) query = query.eq('client_id', filter.clientId);
-      if (filter.isPaid !== undefined) query = query.eq('is_paid', filter.isPaid);
-      if (filter.startDate) query = query.gte('date', formatDateInput(filter.startDate));
-      if (filter.endDate) query = query.lte('date', formatDateInput(filter.endDate));
-    }
-    
-    const { data: invoicesData, error } = await query;
-    
-    if (error) {
-      console.error('Error fetching invoices:', error);
-      throw error;
-    }
-
-    const { data: salesData, error: salesError } = await supabase
-      .from('invoice_sales')
-      .select('invoice_id, sale_id');
-
-    if (salesError) {
-      console.error('Error fetching invoice sales:', salesError);
-      throw salesError;
-    }
-
-    const salesMap = (salesData || []).reduce((acc: { [key: string]: string[] }, item) => {
-      if (!acc[item.invoice_id]) acc[item.invoice_id] = [];
-      acc[item.invoice_id].push(item.sale_id);
-      return acc;
-    }, {});
-    
-    return (invoicesData as DbInvoiceResponse[] || []).map(invoiceResp => {
-      const dbInv = mapResponseToDbInvoice(invoiceResp);
-      return mapDbInvoiceToInvoice(dbInv, salesMap[invoiceResp.id] || []);
-    });
-  } catch (error) {
-    console.error('Error in getInvoices:', error);
-    throw error;
-  }
-};
-
-
-export const getInvoiceSales = async (invoiceId: string): Promise<string[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('invoice_sales')
-      .select('sale_id')
-      .eq('invoice_id', invoiceId);
-    
-    if (error) {
-      console.error('Error fetching invoice sales:', error);
-      throw error;
-    }
-    
-    return data.map(item => item.sale_id);
-  } catch (error) {
-    console.error('Error in getInvoiceSales:', error);
-    throw error;
-  }
-};
-
-export const getInvoiceById = async (id: string): Promise<Invoice | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      console.error('Error fetching invoice:', error);
-      throw error;
-    }
-    
-    if (!data) return null;
-    
-    const salesIds = await getInvoiceSales(id);
-    const dbInvoice = mapResponseToDbInvoice(data as DbInvoiceResponse);
-    return mapDbInvoiceToInvoice(dbInvoice, salesIds);
-  } catch (error) {
-    console.error('Error in getInvoiceById:', error);
-    throw error;
-  }
-};
-
-
-export const updateInvoice = async (
-  id: string,
-  invoice: Partial<Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>>
-): Promise<Invoice> => {
-  try {
-    interface UpdateData {
-      client_id?: string;
-      date?: string;
-      due_date?: string;
-      total_amount_ht?: number;
-      total_amount_ttc?: number;
-      tax_rate?: number;
-      is_paid?: boolean;
-      paid_at?: string | null;
-      updated_at: string;
-    }
-    
-    const updateData: UpdateData = {
-      updated_at: new Date().toISOString()
-    };
-    
-    if (invoice.clientId !== undefined) updateData.client_id = invoice.clientId;
-    if (invoice.date !== undefined) updateData.date = invoice.date.toISOString();
-    if (invoice.dueDate !== undefined) updateData.due_date = invoice.dueDate.toISOString();
-    
-    if (invoice.totalAmountHT !== undefined) {
-      updateData.total_amount_ht = Number.isFinite(invoice.totalAmountHT) ? invoice.totalAmountHT : 0;
-    }
-    if (invoice.totalAmountTTC !== undefined) {
-      updateData.total_amount_ttc = Number.isFinite(invoice.totalAmountTTC) ? invoice.totalAmountTTC : 0;
-    }
-    if (invoice.taxRate !== undefined) {
-        updateData.tax_rate = Number.isFinite(invoice.taxRate) ? invoice.taxRate : 0.19;
-    }
-
-    if (invoice.isPaid !== undefined) updateData.is_paid = invoice.isPaid;
-    if (invoice.paidAt !== undefined) updateData.paid_at = invoice.paidAt ? invoice.paidAt.toISOString() : null;
-    
-    const { data, error } = await supabase
-      .from('invoices')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error updating invoice:', JSON.stringify(error, null, 2));
-      throw error;
-    }
-     if (!data) {
-        throw new Error("No data returned from Supabase after update, though no explicit error was thrown.");
-    }
-    
-    if (invoice.salesIds !== undefined) {
-      await supabase.from('invoice_sales').delete().eq('invoice_id', id);
-      if (invoice.salesIds.length > 0) {
-        const salesInvoices = invoice.salesIds.map(saleId => ({ invoice_id: id, sale_id: saleId }));
-        const { error: insertError } = await supabase.from('invoice_sales').insert(salesInvoices);
-        if (insertError) {
-            console.error('Error linking sales to invoice during update:', JSON.stringify(insertError, null, 2));
-            throw insertError;
-        }
-      }
-    }
-    
-    const salesIds = await getInvoiceSales(id);
-    const dbInvoice = mapResponseToDbInvoice(data as DbInvoiceResponse);
-    return mapDbInvoiceToInvoice(dbInvoice, salesIds);
-
-  } catch (error) {
-    console.error('Error in updateInvoice service:', error);
+    console.error('Error creating invoice:', error);
     throw error;
   }
 };
 
 export const deleteInvoice = async (id: string): Promise<void> => {
   try {
-    const { error: salesLinkError } = await supabase
-      .from('invoice_sales')
-      .delete()
-      .eq('invoice_id', id);
-
-    if (salesLinkError) {
-      console.error('Error deleting invoice_sales links:', salesLinkError);
-      throw salesLinkError;
-    }
-
-    const { error } = await supabase
-      .from('invoices')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Error deleting invoice:', error);
-      throw error;
-    }
+    await tauriApi.invoices.delete(id);
   } catch (error) {
-    console.error('Error in deleteInvoice service:', error);
+    console.error('Error deleting invoice:', error);
     throw error;
   }
 };
+
+// TODO: Implement updateInvoice when backend support is available.

@@ -15,8 +15,11 @@ async fn main() {
         .join("coil-commerce-control");
     fs::create_dir_all(&app_dir).expect("Failed to create app directory");
     
-    // Setup database
-    let database_url = format!("sqlite:{}/database.db", app_dir.display());
+    // Fix path for SQLite URI (use forward slashes)
+    let db_path = app_dir.join("database.db");
+    let db_path_str = db_path.display().to_string().replace('\\', "/");
+    let database_url = format!("sqlite:{}", db_path_str);
+    println!("[DEBUG] Using database path: {}", database_url);
     let pool = SqlitePool::connect(&database_url).await
         .expect("Failed to connect to database");
     
@@ -48,6 +51,18 @@ async fn main() {
             commands::get_sale_by_id,
             commands::create_sale,
             commands::delete_sale,
+            commands::update_sale,
+            commands::mark_sale_invoiced,
+            commands::unmark_sale_invoiced,
+            // Invoice commands
+            commands::get_invoices,
+            commands::create_invoice,
+            commands::delete_invoice,
+            // Product commands
+            commands::get_corrugated_sheet_items,
+            commands::create_corrugated_sheet_item,
+            commands::get_steel_slitting_strip_items,
+            commands::create_steel_slitting_strip_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

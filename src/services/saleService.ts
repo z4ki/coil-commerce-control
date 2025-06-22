@@ -1,17 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { 
-  Client, 
-  Sale, 
-  SaleItem, 
-  Invoice, 
-  Payment, 
-  BulkPayment, 
-  CreditTransaction,
-  CompanySettings,
-  AppSettings,
-  SalesFilter,
-  InvoiceFilter
-} from '@/types';
+import type { Sale } from '@/types';
+import { tauriApi } from '@/lib/tauri-api';
 
 // Mock data storage
 let mockClients: Client[] = [
@@ -554,3 +543,131 @@ export const mockData = {
   creditTransactions: mockCreditTransactions,
   settings: mockSettings
 };
+
+export const getSales = async (): Promise<Sale[]> => {
+  try {
+    const backendSales = await tauriApi.sales.getAll();
+    // Map backend fields to frontend shape
+    return backendSales.map((sale: any) => ({
+      ...sale,
+      clientId: sale.client_id,
+      totalAmountHT: sale.total_amount,
+      totalAmountTTC: sale.total_amount_ttc,
+      isInvoiced: sale.is_invoiced,
+      invoiceId: sale.invoice_id,
+      paymentMethod: sale.payment_method,
+      transportationFee: sale.transportation_fee,
+      taxRate: sale.tax_rate,
+      createdAt: sale.created_at,
+      updatedAt: sale.updated_at,
+      items: (sale.items || []).map((item: any) => ({
+        ...item,
+        saleId: item.sale_id,
+        coilRef: item.coil_ref,
+        coilThickness: item.coil_thickness,
+        coilWidth: item.coil_width,
+        topCoatRAL: item.top_coat_ral,
+        backCoatRAL: item.back_coat_ral,
+        coilWeight: item.coil_weight,
+        pricePerTon: item.price_per_ton,
+        totalAmountHT: item.total_amount, // or totalAmountTTC if needed
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+      })),
+    }));
+  } catch (error) {
+    console.error('Error fetching sales:', error);
+    throw error;
+  }
+};
+
+export const getSaleById = async (id: string): Promise<Sale | null> => {
+  try {
+    return await tauriApi.sales.getById(id);
+  } catch (error) {
+    console.error('Error fetching sale:', error);
+    throw error;
+  }
+};
+
+export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): Promise<Sale> => {
+  try {
+    return await tauriApi.sales.create(sale);
+  } catch (error) {
+    console.error('Error creating sale:', error);
+    throw error;
+  }
+};
+
+export const deleteSale = async (id: string): Promise<void> => {
+  try {
+    await tauriApi.sales.delete(id);
+  } catch (error) {
+    console.error('Error deleting sale:', error);
+    throw error;
+  }
+};
+
+export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale> => {
+  // Always fetch the existing sale
+  const existing = await getSaleById(id);
+  if (!existing) throw new Error('Sale not found');
+  const merged = { ...existing, ...sale };
+  // Ensure all items have pricePerTon
+  const items = (merged.items || []).map((item: any, idx: number) => {
+    if (item.pricePerTon == null) {
+      throw new Error(`Sale item at index ${idx} is missing pricePerTon`);
+    }
+    return {
+      description: item.description,
+      coil_ref: item.coilRef,
+      coil_thickness: item.coilThickness,
+      coil_width: item.coilWidth,
+      top_coat_ral: item.topCoatRAL,
+      back_coat_ral: item.backCoatRAL,
+      coil_weight: item.coilWeight,
+      quantity: item.quantity,
+      price_per_ton: item.pricePerTon,
+      total_amount: item.totalAmountHT,
+    };
+  });
+  const backendSale: any = {
+    client_id: merged.clientId,
+    date: merged.date instanceof Date ? merged.date.toISOString() : merged.date,
+    total_amount: merged.totalAmountHT,
+    total_amount_ttc: merged.totalAmountTTC,
+    is_invoiced: merged.isInvoiced,
+    invoice_id: merged.invoiceId,
+    notes: merged.notes,
+    payment_method: merged.paymentMethod,
+    transportation_fee: merged.transportationFee,
+    tax_rate: merged.taxRate,
+    items,
+  };
+  try {
+    return await tauriApi.sales.update(id, backendSale);
+  } catch (error) {
+    console.error('Error updating sale:', error);
+    throw error;
+  }
+};
+
+export const markSaleAsInvoiced = async (saleId: string, invoiceId: string): Promise<void> => {
+  try {
+    await tauriApi.sales.markInvoiced(saleId, invoiceId);
+  } catch (error) {
+    console.error('Error marking sale as invoiced:', error);
+    throw error;
+  }
+};
+
+export const unmarkSaleAsInvoiced = async (saleId: string): Promise<void> => {
+  try {
+    await tauriApi.sales.unmarkInvoiced(saleId);
+  } catch (error) {
+    console.error('Error unmarking sale as invoiced:', error);
+    throw error;
+  }
+};
+
+// TODO: Implement updateSale and other advanced sale operations when backend support is available.

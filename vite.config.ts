@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    strictPort:true
   },
   plugins: [
     react(),
@@ -14,6 +15,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      '@tauri-apps/api': require.resolve('@tauri-apps/api')
+
     },
   },
   optimizeDeps: {

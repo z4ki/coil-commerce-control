@@ -5,11 +5,12 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, BulkPayment } from '@/types';
+import { Client, Sale, Invoice, Payment, SalesSummary, DebtSummary, BulkPayment } from '@/types/index';
 import * as clientService from '@/services/clientService';
 import * as saleService from '@/services/saleService';
 import * as invoiceService from '@/services/invoiceService';
 import * as paymentService from '@/services/paymentService';
+import { markSaleAsInvoiced, unmarkSaleAsInvoiced } from '@/services/saleService';
 
 export interface AppContextType {
   clients: Client[];
@@ -275,9 +276,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
-    const newSale = await saleService.createSale(sale);
-    setSales(prev => [...prev, newSale]);
-    return newSale;
+    await saleService.createSale(sale);
+    // Re-fetch all sales from backend to ensure consistency
+    const salesData = await saleService.getSales();
+    setSales(salesData || []);
   };
 
   const updateSale = async (id: string, sale: Partial<Sale>) => {
@@ -307,7 +309,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     if (invoice.salesIds) {
       await Promise.all(
         invoice.salesIds.map(saleId =>
-          updateSale(saleId, { isInvoiced: true, invoiceId: newInvoice.id })
+          markSaleAsInvoiced(saleId, newInvoice.id)
         )
       );
     }
@@ -340,14 +342,14 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       await Promise.all(
         existingInvoice.salesIds
           .filter(saleId => !invoice.salesIds?.includes(saleId))
-          .map(saleId => updateSale(saleId, { isInvoiced: false, invoiceId: null }))
+          .map(saleId => unmarkSaleAsInvoiced(saleId))
       );
 
       // Mark newly added sales as invoiced
       await Promise.all(
         invoice.salesIds
           .filter(saleId => !existingInvoice.salesIds.includes(saleId))
-          .map(saleId => updateSale(saleId, { isInvoiced: true, invoiceId: id }))
+          .map(saleId => markSaleAsInvoiced(saleId, id))
       );
     }
   };
@@ -358,13 +360,17 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       // Unmark all related sales as invoiced
       await Promise.all(
         invoice.salesIds.map(saleId =>
-          updateSale(saleId, { isInvoiced: false, invoiceId: null })
+          unmarkSaleAsInvoiced(saleId)
         )
       );
     }
 
     await invoiceService.deleteInvoice(id);
     setInvoices(prev => prev.filter(i => i.id !== id));
+
+    // Re-fetch sales to update their invoiced status in the UI
+    const salesData = await saleService.getSales();
+    setSales(salesData || []);
   };
 
   const getInvoiceById = (id: string) => {

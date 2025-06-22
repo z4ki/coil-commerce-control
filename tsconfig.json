@@ -20,7 +20,8 @@
       "@/*": ["src/*"]
     },
     "types": ["node", "jest", "@testing-library/jest-dom"],
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src", "jest.config.js"],
   "references": [{ "path": "./tsconfig.node.json" }]

@@ -247,41 +247,38 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     
     try {
       const finalCalculatedTotals = calculateFinalTotal();
-      const itemsWithTotal: SaleItem[] = data.items.map(item => {
-        const { totalHT, totalTTC } = calculateItemTotal(item);
-        return {
-          ...item,
-          coilRef: item.coilRef || '',
-          coilThickness: Number(item.coilThickness || 0),
-          coilWidth: Number(item.coilWidth || 0),
-          topCoatRAL: item.topCoatRAL || '',
-          backCoatRAL: item.backCoatRAL || '',
-          coilWeight: Number(item.coilWeight || 0),
-          quantity: Number(item.quantity || 0),
-          pricePerTon: Number(item.pricePerTon || 0),
-          totalAmountHT: totalHT,
-          totalAmountTTC: totalTTC
-        };
-      });
-      
+      // Map items to snake_case for backend
+      const itemsWithTotal = data.items.map(item => ({
+        description: item.description,
+        coil_ref: item.coilRef || '',
+        coil_thickness: Number(item.coilThickness || 0),
+        coil_width: Number(item.coilWidth || 0),
+        top_coat_ral: item.topCoatRAL || '',
+        back_coat_ral: item.backCoatRAL || '',
+        coil_weight: Number(item.coilWeight || 0),
+        quantity: Number(item.quantity || 0),
+        price_per_ton: Number(item.pricePerTon || 0),
+        total_amount: Number(item.totalAmountHT || 0),
+      }));
+      // Map sale fields to snake_case for backend
       const saleData = {
-        clientId: data.clientId,
+        client_id: data.clientId,
         date: parseDateInput(data.date),
         items: itemsWithTotal,
         notes: data.notes || '',
-        isInvoiced: sale?.isInvoiced || false,
-        invoiceId: sale?.invoiceId,
-        transportationFee: Number(data.transportationFee || 0),
-        taxRate: TAX_RATE,
-        totalAmountHT: finalCalculatedTotals.totalHT,
-        totalAmountTTC: finalCalculatedTotals.totalTTC,
-        paymentMethod: data.paymentMethod ? data.paymentMethod : undefined, // Pass undefined if not selected
+        is_invoiced: sale?.isInvoiced || false,
+        invoice_id: sale?.invoiceId,
+        transportation_fee: Number(data.transportationFee || 0),
+        tax_rate: TAX_RATE,
+        total_amount: finalCalculatedTotals.totalHT,
+        total_amount_ttc: finalCalculatedTotals.totalTTC,
+        payment_method: data.paymentMethod ? data.paymentMethod : undefined,
       };
 
       if (sale) {
-        await updateSale(sale.id, saleData as Partial<Sale>); // Cast as Partial<Sale> or ensure all fields match Sale type
+        await updateSale(sale.id, saleData as any); // Cast as any for now
       } else {
-        await addSale(saleData as Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>); // Cast appropriately
+        await addSale(saleData as any); // Cast as any for now
       }
       toast.success(t('form.success'));
       if (onSuccess) onSuccess();

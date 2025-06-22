@@ -1,0 +1,35 @@
+import { core } from '@tauri-apps/api';
+// import * as coreInvoke from '@tauri-apps/api/core';
+
+export const tauriApi = {
+  clients: {
+    getAll: () => core.invoke('get_clients'),
+    getById: (id: string) => core.invoke('get_client_by_id', { id }),
+    create: (client: any) => core.invoke('create_client', { client }),
+    update: (id: string, client: any) => core.invoke('update_client', { id, client }),
+    delete: (id: string) => core.invoke('delete_client', { id }),
+  },
+  sales: {
+    getAll: () => core.invoke('get_sales'),
+    getById: (id: string) => core.invoke('get_sale_by_id', { id }),
+    create: (sale: any) => core.invoke('create_sale', { sale }),
+    delete: (id: string) => core.invoke('delete_sale', { id }),
+    update: (id: string, sale: any) => core.invoke('update_sale', { id, sale }),
+    markInvoiced: async (saleId: string, invoiceId: string) => {
+      return await core.invoke('mark_sale_invoiced', {
+        saleId,
+        invoiceId,
+      });
+    },
+    unmarkInvoiced: async (saleId: string) => {
+      return await core.invoke('unmark_sale_invoiced', {
+        saleId,
+      });
+    },
+  },
+  invoices: {
+    getAll: () => core.invoke('get_invoices'),
+    create: (invoice: any) => core.invoke('create_invoice', { invoice }),
+    delete: (id: string) => core.invoke('delete_invoice', { id }),
+  },
+};

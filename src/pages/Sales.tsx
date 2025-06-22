@@ -80,6 +80,11 @@ const Sales = () => {
   const [selectedSaleForPayment, setSelectedSaleForPayment] = useState<string | null>(null);
   const [expandedSales, setExpandedSales] = useState<{[key: string]: boolean}>({});
 
+  // Debug log to check what sales are loaded
+  React.useEffect(() => {
+    console.log('Loaded sales from context:', sales);
+  }, [sales]);
+
   const handleDeleteSale = (sale: Sale) => {
     if (window.confirm(t('sales.deleteConfirm'))) {
       deleteSale(sale.id);
@@ -114,6 +119,7 @@ const Sales = () => {
     setShowPaymentDialog(true);
   };
 
+  // Only filter by search, do not sort (backend already sorts by date DESC)
   const filteredSales = sales
     .filter((sale) => {
       const client = getClientById(sale.clientId);
@@ -121,8 +127,7 @@ const Sales = () => {
       const clientNameMatches = client.name.toLowerCase().includes(searchTerm.toLowerCase());
       const clientCompanyMatches = client.company.toLowerCase().includes(searchTerm.toLowerCase());
       return clientNameMatches || clientCompanyMatches;
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
 
   const handleExportInvoice = (sale: Sale) => {
     toast.info(t('sales.exportPending').replace('{0}', 'Invoice'));

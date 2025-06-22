@@ -34,184 +34,51 @@ Added Tauri scripts:
 
 ---
 
-### **Phase 2: Replace Supabase Calls with Mock Data (DAY 1-2)** 🔄 IN PROGRESS
-**Time: 3-4 hours**
-
-#### 2.1 Create Local Data Layer ✅ COMPLETED
-Created `src/lib/local-data.ts` with comprehensive mock data structure:
-- ✅ Mock clients with full data structure
-- ✅ Mock sales with items and calculations
-- ✅ Mock invoices with proper relationships
-- ✅ Mock payments and bulk payments
-- ✅ Mock credit transactions with balance updates
-- ✅ Mock settings with company profile
-- ✅ Full CRUD operations for all entities
-
-#### 2.2 Replace Supabase Imports 🔄 IN PROGRESS
+### **Phase 2: Replace Supabase Imports with Mock Data (DAY 1-2)** ✅ COMPLETED
 **Completed:**
 - ✅ Created mock data layer with same API interface
 - ✅ Updated clientService.ts to use localDB
 - ✅ Updated saleService.ts to use localDB
-
-**Next steps:**
-- ⏳ Update remaining services (invoiceService, paymentService, settingsService)
-- ⏳ Test all functionality with mock data
-- ⏳ Verify no Supabase dependencies remain
+- ✅ Updated invoiceService.ts to use localDB
+- ✅ Updated paymentService.ts to use localDB
+- ✅ All functionality tested with mock data
+- ✅ No Supabase dependencies remain
 
 **Goal: App works with mock data, no Supabase dependency**
 
 ---
 
-### **Phase 3: Add Real SQLite (DAY 2-3)**
-**Time: 4-5 hours**
+### **Phase 3: Add Real SQLite (DAY 2-3)** ✅ IN PROGRESS
+**Completed:**
+- ✅ Added SQLite dependencies and schema
+- ✅ All Tauri backend CRUD commands for clients, sales, invoices, and sale items
+- ✅ Frontend services (client, sale, invoice) now use Tauri API integration
+- ✅ Invoice and sale CRUD are fully migrated to Tauri/SQLite
+- ✅ When deleting an invoice, all related sales are correctly unmarked as invoiced (is_invoiced = 0, invoice_id = NULL)
+- ✅ The frontend now re-fetches sales after invoice deletion, so the UI always reflects the correct invoiced status
+- ✅ Atomic backend commands for marking/unmarking sales as invoiced (no more partial update bugs)
+- ✅ Robust mapping and runtime validation between frontend and backend
 
-#### 3.1 Add SQLite Dependencies
-Add to `src-tauri/Cargo.toml`:
-```toml
-[dependencies]
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
-tokio = { version = "1", features = ["full"] }
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-```
+**Next steps:**
+- ⏳ Migrate payment and bulk payment CRUD to Tauri/SQLite
+- ⏳ Test all payment-related functionality
 
-#### 3.2 Create Simple Database Schema
-Create `src-tauri/migrations/001_basic.sql`:
-```sql
--- Keep it simple first - match your current Supabase structure
-CREATE TABLE clients (
-    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    address TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+**Goal: App uses real SQLite database locally for all core entities**
 
-CREATE TABLE sales (
-    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    client_id TEXT NOT NULL,
-    date DATE NOT NULL,
-    total_amount_ht REAL NOT NULL,
-    payment_method TEXT,
-    is_invoiced BOOLEAN DEFAULT FALSE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (client_id) REFERENCES clients(id)
-);
+---
 
--- Add more tables as needed to match your current structure
-```
+### **CRUD Functionalities Checklist**
 
-#### 3.3 Basic Tauri Commands
-Create `src-tauri/src/commands/mod.rs`:
-```rust
-use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+- [x] Clients: get, getById, create, update, delete
+- [x] Sales: get, getById, create, update, delete
+- [x] Invoices: get, getById, create, update, delete
+- [x] Sales unmarking on invoice delete (no stale invoiced sales)
+- [ ] Payments: get, getById, create, update, delete
+- [ ] Bulk Payments: get, getById, create, update, delete
+- [ ] Credit Transactions: get, getById, create, update, delete
+- [ ] Settings: get, update
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Client {
-    pub id: String,
-    pub name: String,
-    pub email: Option<String>,
-    pub phone: Option<String>,
-    pub address: Option<String>,
-}
-
-#[tauri::command]
-pub async fn get_clients(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Client>, String> {
-    let clients = sqlx::query_as!(
-        Client,
-        "SELECT id, name, email, phone, address FROM clients ORDER BY name"
-    )
-    .fetch_all(&**pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    
-    Ok(clients)
-}
-
-#[tauri::command]
-pub async fn create_client(
-    client: Client,
-    pool: tauri::State<'_, SqlitePool>
-) -> Result<Client, String> {
-    let id = uuid::Uuid::new_v4().to_string();
-    
-    sqlx::query!(
-        "INSERT INTO clients (id, name, email, phone, address) VALUES (?, ?, ?, ?, ?)",
-        id, client.name, client.email, client.phone, client.address
-    )
-    .execute(&**pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    
-    Ok(Client {
-        id,
-        name: client.name,
-        email: client.email,
-        phone: client.phone,
-        address: client.address,
-    })
-}
-
-// Add more CRUD commands as needed
-```
-
-#### 3.4 Update main.rs
-```rust
-mod commands;
-
-use sqlx::SqlitePool;
-use std::fs;
-
-#[tokio::main]
-async fn main() {
-    // Create database directory
-    let app_dir = dirs::config_dir().unwrap().join("coil-commerce-control");
-    fs::create_dir_all(&app_dir).expect("Failed to create app directory");
-    
-    // Setup database
-    let database_url = format!("sqlite:{}/database.db", app_dir.display());
-    let pool = SqlitePool::connect(&database_url).await
-        .expect("Failed to connect to database");
-    
-    // Run migrations
-    sqlx::migrate!("./migrations").run(&pool).await
-        .expect("Failed to run migrations");
-
-    tauri::Builder::default()
-        .manage(pool)
-        .invoke_handler(tauri::generate_handler![
-            commands::get_clients,
-            commands::create_client,
-            // Add more commands
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-```
-
-#### 3.5 Update Frontend to Use Tauri
-Replace your mock data with Tauri calls:
-```typescript
-// src/lib/tauri-api.ts
-import { invoke } from '@tauri-apps/api/tauri'
-
-export const db = {
-  clients: {
-    getAll: () => invoke('get_clients'),
-    create: (client) => invoke('create_client', { client }),
-    // Add more methods
-  }
-}
-```
-
-**Goal: App uses real SQLite database locally**
+As each CRUD is migrated to Tauri, mark it as completed here.
 
 ---
 
@@ -225,7 +92,7 @@ Create `src-tauri/migrations/002_products.sql` with the product schema from your
 -- tables from your original plan
 ```
 
-#### 4.2 Add Product Commands
+#### 4.2 Add Product Commands ✅ COMPLETED
 Add product CRUD commands to match your needs
 
 #### 4.3 Update Frontend

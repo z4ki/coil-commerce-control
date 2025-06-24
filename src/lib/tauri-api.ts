@@ -14,6 +14,8 @@ export const tauriApi = {
     getById: (id: string) => core.invoke('get_sale_by_id', { id }),
     create: (sale: any) => core.invoke('create_sale', { sale }),
     delete: (id: string) => core.invoke('delete_sale', { id }),
+    restore: (id: string) => core.invoke('restore_sale', { id }),
+    getDeleted: () => core.invoke('get_deleted_sales'),
     update: (id: string, sale: any) => core.invoke('update_sale', { id, sale }),
     markInvoiced: async (saleId: string, invoiceId: string) => {
       return await core.invoke('mark_sale_invoiced', {
@@ -31,5 +33,15 @@ export const tauriApi = {
     getAll: () => core.invoke('get_invoices'),
     create: (invoice: any) => core.invoke('create_invoice', { invoice }),
     delete: (id: string) => core.invoke('delete_invoice', { id }),
+    restore: (id: string) => core.invoke('restore_invoice', { id }),
+    getDeleted: () => core.invoke('get_deleted_invoices'),
+  },
+  payments: {
+    getAll: () => core.invoke('get_payments'),
+    create: (payment: any) => core.invoke('create_payment', { payment }),
+    delete: (id: string) => core.invoke('delete_payment', { id }),
+    restore: (id: string) => core.invoke('restore_payment', { id }),
+    getDeleted: () => core.invoke('get_deleted_payments'),
+    // update: (id: string, payment: any) => core.invoke('update_payment', { id, payment }), // Commented out, not implemented in backend
   },
 };

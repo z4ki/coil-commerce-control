@@ -64,6 +64,7 @@ export interface AppContextType {
     totalPayments: number;
     balance: number;
   };
+  getPaymentsByInvoice: (invoiceId: string) => Payment[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -464,6 +465,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
   };
 
+  const getPaymentsByInvoice = (invoiceId: string) => {
+    return payments.filter(payment => payment.invoiceId === invoiceId);
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -576,7 +581,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       getPaymentsBySale,
       getSalePaymentStatus,
       getInvoicePaymentStatus,
-      getClientBalance
+      getClientBalance,
+      getPaymentsByInvoice
     }}>
       {children}
     </AppContext.Provider>

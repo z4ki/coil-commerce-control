@@ -85,9 +85,55 @@ export const getInvoices = async (): Promise<Invoice[]> => {
       paidAt: inv.paid_at ? new Date(inv.paid_at) : undefined,
       createdAt: new Date(inv.created_at),
       updatedAt: inv.updated_at ? new Date(inv.updated_at) : undefined,
+      isDeleted: !!inv.is_deleted,
+      deletedAt: inv.deleted_at ? new Date(inv.deleted_at) : undefined,
     }));
   } catch (error) {
     console.error('Error fetching invoices:', error);
+    throw error;
+  }
+};
+
+export const getDeletedInvoices = async (): Promise<Invoice[]> => {
+  try {
+    const backendInvoices = await tauriApi.invoices.getDeleted() as any[];
+    if (!Array.isArray(backendInvoices)) return [];
+    return backendInvoices.map((inv: any) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      clientId: inv.client_id,
+      date: new Date(inv.date),
+      dueDate: new Date(inv.due_date),
+      salesIds: inv.sales_ids || [],
+      totalAmountHT: Number(inv.total_amount_ht),
+      totalAmountTTC: Number(inv.total_amount_ttc),
+      isPaid: inv.is_paid,
+      paidAt: inv.paid_at ? new Date(inv.paid_at) : undefined,
+      createdAt: new Date(inv.created_at),
+      updatedAt: inv.updated_at ? new Date(inv.updated_at) : undefined,
+      isDeleted: !!inv.is_deleted,
+      deletedAt: inv.deleted_at ? new Date(inv.deleted_at) : undefined,
+    }));
+  } catch (error) {
+    console.error('Error fetching deleted invoices:', error);
+    throw error;
+  }
+};
+
+export const restoreInvoice = async (id: string): Promise<void> => {
+  try {
+    await tauriApi.invoices.restore(id);
+  } catch (error) {
+    console.error('Error restoring invoice:', error);
+    throw error;
+  }
+};
+
+export const deleteInvoice = async (id: string): Promise<void> => {
+  try {
+    await tauriApi.invoices.delete(id);
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
     throw error;
   }
 };
@@ -111,15 +157,6 @@ export const createInvoice = async (
     return await tauriApi.invoices.create(backendInvoice);
   } catch (error) {
     console.error('Error creating invoice:', error);
-    throw error;
-  }
-};
-
-export const deleteInvoice = async (id: string): Promise<void> => {
-  try {
-    await tauriApi.invoices.delete(id);
-  } catch (error) {
-    console.error('Error deleting invoice:', error);
     throw error;
   }
 };

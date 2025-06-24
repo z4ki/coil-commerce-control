@@ -545,40 +545,57 @@ export const mockData = {
 };
 
 export const getSales = async (): Promise<Sale[]> => {
-  try {
-    const backendSales = await tauriApi.sales.getAll();
-    // Map backend fields to frontend shape
+  const backendSales = await tauriApi.sales.getAll() as any[];
+  if (!Array.isArray(backendSales)) return [];
+  return backendSales.map((sale: any) => ({
+    id: sale.id,
+    clientId: sale.client_id,
+    date: new Date(sale.date),
+    items: sale.items || [],
+    totalAmountHT: Number(sale.total_amount_ht ?? sale.total_amount),
+    totalAmountTTC: Number(sale.total_amount_ttc),
+    isInvoiced: !!sale.is_invoiced,
+    invoiceId: sale.invoice_id,
+    notes: sale.notes,
+    paymentMethod: sale.payment_method,
+    transportationFee: sale.transportation_fee,
+    taxRate: sale.tax_rate,
+    createdAt: new Date(sale.created_at),
+    updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
+    isDeleted: !!sale.is_deleted,
+    deletedAt: sale.deleted_at ? new Date(sale.deleted_at) : undefined,
+  }));
+};
+
+export const getDeletedSales = async (): Promise<Sale[]> => {
+  const backendSales = await tauriApi.sales.getDeleted() as any[];
+  if (!Array.isArray(backendSales)) return [];
     return backendSales.map((sale: any) => ({
-      ...sale,
+    id: sale.id,
       clientId: sale.client_id,
-      totalAmountHT: sale.total_amount,
-      totalAmountTTC: sale.total_amount_ttc,
-      isInvoiced: sale.is_invoiced,
+    date: new Date(sale.date),
+    items: sale.items || [],
+    totalAmountHT: Number(sale.total_amount_ht ?? sale.total_amount),
+    totalAmountTTC: Number(sale.total_amount_ttc),
+    isInvoiced: !!sale.is_invoiced,
       invoiceId: sale.invoice_id,
+    notes: sale.notes,
       paymentMethod: sale.payment_method,
       transportationFee: sale.transportation_fee,
       taxRate: sale.tax_rate,
-      createdAt: sale.created_at,
-      updatedAt: sale.updated_at,
-      items: (sale.items || []).map((item: any) => ({
-        ...item,
-        saleId: item.sale_id,
-        coilRef: item.coil_ref,
-        coilThickness: item.coil_thickness,
-        coilWidth: item.coil_width,
-        topCoatRAL: item.top_coat_ral,
-        backCoatRAL: item.back_coat_ral,
-        coilWeight: item.coil_weight,
-        pricePerTon: item.price_per_ton,
-        totalAmountHT: item.total_amount, // or totalAmountTTC if needed
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-      })),
-    }));
-  } catch (error) {
-    console.error('Error fetching sales:', error);
-    throw error;
-  }
+    createdAt: new Date(sale.created_at),
+    updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
+    isDeleted: !!sale.is_deleted,
+    deletedAt: sale.deleted_at ? new Date(sale.deleted_at) : undefined,
+  }));
+};
+
+export const restoreSale = async (id: string): Promise<void> => {
+  await tauriApi.sales.restore(id);
+};
+
+export const deleteSale = async (id: string): Promise<void> => {
+  await tauriApi.sales.delete(id);
 };
 
 export const getSaleById = async (id: string): Promise<Sale | null> => {
@@ -595,15 +612,6 @@ export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedA
     return await tauriApi.sales.create(sale);
   } catch (error) {
     console.error('Error creating sale:', error);
-    throw error;
-  }
-};
-
-export const deleteSale = async (id: string): Promise<void> => {
-  try {
-    await tauriApi.sales.delete(id);
-  } catch (error) {
-    console.error('Error deleting sale:', error);
     throw error;
   }
 };

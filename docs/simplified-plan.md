@@ -74,8 +74,8 @@ Added Tauri scripts:
 - [x] Invoices: get, getById, create, update, delete
 - [x] Sales unmarking on invoice delete (no stale invoiced sales)
 - [ ] Payments: get, getById, create, update, delete
-- [ ] Bulk Payments: get, getById, create, update, delete
-- [ ] Credit Transactions: get, getById, create, update, delete
+<!-- - [ ] Bulk Payments: get, getById, create, update, delete -->
+<!-- - [ ] Credit Transactions: get, getById, create, update, delete -->
 - [ ] Settings: get, update
 
 As each CRUD is migrated to Tauri, mark it as completed here.

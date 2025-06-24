@@ -97,11 +97,11 @@ const App = () => {
           </ThemeProvider>
         </LanguageProvider>
       </TooltipProvider>
-      <ErrorBoundary>
+      {/* <ErrorBoundary>
         <ProductSearchBar filters={filters} onChange={setFilters} />
         <ProductList />
         <ProductAnalytics />
-      </ErrorBoundary>
+      </ErrorBoundary> */}
     </QueryClientProvider>
   );
 };

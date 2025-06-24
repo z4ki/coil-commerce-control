@@ -1,44 +1,29 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import MainLayout from '@/components/layout/MainLayout';
+import { useLanguage } from '@/context/LanguageContext';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Trash2, Mail, Phone } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ClientForm from '@/components/clients/ClientForm';
 import { toast } from 'sonner';
-import { useLanguage } from '@/context/LanguageContext';
-import { Invoice, Sale } from '@/types';
+import { formatCurrency, formatDate } from '@/utils/format';
+import type { Invoice, Sale } from '@/types/index';
+import { getDeletedPayments, restorePayment } from '@/services/paymentService';
 
 const ClientDetail = () => {
+  // ========== ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL LOGIC ==========
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showPaymentsArchive, setShowPaymentsArchive] = useState(false);
+  const [deletedPayments, setDeletedPayments] = useState<any[]>([]);
   const { t } = useLanguage();
-  
   const {
     getClientById,
     deleteClient,
@@ -54,17 +39,6 @@ const ClientDetail = () => {
   // Get client data
   const client = id ? getClientById(id) : undefined;
 
-  // Debug logging
-  console.log('Debug state:', { 
-    loadingClients, 
-    loadingSales, 
-    loadingPayments, 
-    id,
-    hasClient: !!client,
-    clientIdType: typeof id,
-    clientObj: client
-  });
-
   // Only fetch related data if we have a client
   const clientSales = client ? getSalesByClient(client.id).sort((a, b) => b.date.getTime() - a.date.getTime()) : [];
   const clientInvoices = client ? getInvoicesByClient(client.id).sort((a, b) => b.date.getTime() - a.date.getTime()) : [];
@@ -73,24 +47,17 @@ const ClientDetail = () => {
   // Loading state for financial data
   const isLoading = loadingClients || loadingSales || loadingPayments;
 
-  console.log('Debug state:', { 
-    loadingClients, 
-    loadingSales, 
-    loadingPayments, 
-    id,
-    hasClient: !!client,
-    salesCount: clientSales.length
-  });
-
-  // Get all payments for all client sales
+  // ALL useMemo hooks
   const clientPayments = useMemo(() => {
-    return clientSales.flatMap(sale => 
-      getPaymentsBySale(sale.id).map(payment => ({
-        ...payment,
-        sale
-      }))
-    ).sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [clientSales, getPaymentsBySale]);
+    if (!client) return [];
+    
+    const allPayments: any[] = [];
+    for (const sale of clientSales) {
+      const payments = getPaymentsBySale(sale.id);
+      allPayments.push(...payments.map((payment: any) => ({ ...payment, sale })));
+    }
+    return allPayments.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [client, clientSales]); // Removed getPaymentsBySale from deps
 
   const totalSalesAmount = useMemo(() => 
     clientSales.reduce((total, sale) => total + sale.totalAmountTTC, 0),
@@ -108,34 +75,56 @@ const ClientDetail = () => {
   );
 
   const totalPaidAmount = useMemo(() => {
-    // Sum up all payments
     const paymentsSum = clientPayments.reduce((total, payment) => total + payment.amount, 0);
-    // Apply credit balance if any (don't include it in total paid amount)
     return paymentsSum;
   }, [clientPayments]);
 
-  // const clientDebt = useMemo(() => {
-  //   // Calculate total debt from unpaid invoices
-  //   const unpaidTotal = clientInvoices
-  //     .filter(invoice => !invoice.isPaid)
-  //     .reduce((total, invoice) => total + invoice.totalAmountTTC, 0);
-    
-  //   // Add uninvoiced amount to debt
-  //   const totalDebt = unpaidTotal + totalUninvoicedAmount;
-    
-  //   // Subtract credit balance if any
-  //   const finalDebt = Math.max(0, totalDebt - creditBalance);
-    
-  //   return finalDebt;
-  // }, [clientInvoices, totalUninvoicedAmount, creditBalance]);
   const clientDebt = useMemo(() => {
-        // Log the inputs to this specific calculation
-        console.log(`[ClientDetail] Calculating clientDebt: totalSalesAmount = ${totalSalesAmount}, totalPaidAmount = ${totalPaidAmount}`);
-        const debt = Math.max(0, totalSalesAmount - totalPaidAmount);
-        console.log(`[ClientDetail] Calculated clientDebt = ${debt}`);
-        return debt;
-      }, [totalSalesAmount, totalPaidAmount]);
+    console.log(`[ClientDetail] Calculating clientDebt: totalSalesAmount = ${totalSalesAmount}, totalPaidAmount = ${totalPaidAmount}`);
+    const debt = Math.max(0, totalSalesAmount - totalPaidAmount);
+    console.log(`[ClientDetail] Calculated clientDebt = ${debt}`);
+    return debt;
+  }, [totalSalesAmount, totalPaidAmount]);
 
+  // ALL useEffect hooks
+  useEffect(() => {
+    if (showPaymentsArchive && client) {
+      getDeletedPayments().then((all: any[]) => {
+        setDeletedPayments(all.filter((p: any) => p.clientId === client.id));
+      });
+    }
+  }, [showPaymentsArchive, client]);
+
+  // ========== CONDITIONAL LOGIC AND EARLY RETURNS - AFTER ALL HOOKS ==========
+  
+  // Debug logging
+  console.log('Debug state:', { 
+    loadingClients, 
+    loadingSales, 
+    loadingPayments, 
+    id,
+    hasClient: !!client,
+    clientIdType: typeof id,
+    clientObj: client
+  });
+
+  console.log('Debug state:', { 
+    loadingClients, 
+    loadingSales, 
+    loadingPayments, 
+    id,
+    hasClient: !!client,
+    salesCount: clientSales.length
+  });
+
+  console.log('ClientDetail debug:', {
+    loadingClients,
+    client,
+    clientSales,
+    isLoading,
+  });
+
+  // ========== HELPER FUNCTIONS ==========
   const getInvoiceStatus = (invoice: Invoice): 'paid' | 'unpaid' | 'overdue' | 'invoiced' | 'notInvoiced' => {
     if (invoice.isPaid) return 'paid';
     if (new Date(invoice.dueDate) < new Date()) return 'overdue';
@@ -160,6 +149,7 @@ const ClientDetail = () => {
     </div>
   );
 
+  // ========== RENDER LOGIC WITH CONDITIONAL RETURNS ==========
   // Show loading state for the entire view if client data is loading
   if (loadingClients) {
     console.log('ClientDetail: stuck in loading state');
@@ -189,13 +179,7 @@ const ClientDetail = () => {
     );
   }
 
-  console.log('ClientDetail debug:', {
-    loadingClients,
-    client,
-    clientSales,
-    isLoading,
-  });
-
+  // ========== MAIN RENDER ==========
   return (
     <MainLayout
       title={client.name}
@@ -384,56 +368,116 @@ const ClientDetail = () => {
 
           <TabsContent value="payments">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>{t('payments.title')}</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setShowPaymentsArchive((v) => !v)}>
+                  {showPaymentsArchive ? t('payments.showActive') || 'Show Active Payments' : t('payments.showDeleted') || 'Show Deleted Payments'}
+                </Button>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('payments.date')}</TableHead>
-                        <TableHead>{t('sales.title')}</TableHead>
-                        <TableHead>{t('payments.method')}</TableHead>
-                        <TableHead className="text-right">{t('payments.amount')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {clientPayments.length > 0 ? (
-                        clientPayments.map((payment) => {
-                          const sale = payment.sale;
-                          return (
-                            <TableRow key={payment.id}>
-                              <TableCell>{formatDate(payment.date)}</TableCell>
-                              <TableCell>
-                                {sale && (
-                                  <div>
-                                    <div className="font-medium">
-                                      {formatDate(sale.date)}
-                                    </div>
-                                    <div className="text-sm text-muted-foreground">
-                                      {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC)}
-                                    </div>
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(payment.amount)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      ) : (
+                {showPaymentsArchive ? (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
                         <TableRow>
-                          <TableCell colSpan={4} className="h-24 text-center">
-                            {t('general.noData')}
-                          </TableCell>
+                          <TableHead>{t('payments.date')}</TableHead>
+                          <TableHead>{t('sales.title')}</TableHead>
+                          <TableHead>{t('payments.method')}</TableHead>
+                          <TableHead className="text-right">{t('payments.amount')}</TableHead>
+                          <TableHead>{t('general.actions')}</TableHead>
                         </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {deletedPayments.length > 0 ? (
+                          deletedPayments.map((payment) => {
+                            const sale = payment.sale;
+                            return (
+                              <TableRow key={payment.id}>
+                                <TableCell>{formatDate(payment.date)}</TableCell>
+                                <TableCell>
+                                  {sale && (
+                                    <div>
+                                      <div className="font-medium">
+                                        {formatDate(sale.date)}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC)}
+                                      </div>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {formatCurrency(payment.amount)}
+                                </TableCell>
+                                <TableCell>
+                                  <Button size="sm" onClick={async () => {
+                                    await restorePayment(payment.id);
+                                    toast.success(t('payments.restored') || 'Payment restored');
+                                    setDeletedPayments((prev) => prev.filter((p) => p.id !== payment.id));
+                                  }}>{t('general.restore') || 'Restore'}</Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                              {t('general.noData')}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('payments.date')}</TableHead>
+                          <TableHead>{t('sales.title')}</TableHead>
+                          <TableHead>{t('payments.method')}</TableHead>
+                          <TableHead className="text-right">{t('payments.amount')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {clientPayments.length > 0 ? (
+                          clientPayments.map((payment) => {
+                            const sale = payment.sale;
+                            return (
+                              <TableRow key={payment.id}>
+                                <TableCell>{formatDate(payment.date)}</TableCell>
+                                <TableCell>
+                                  {sale && (
+                                    <div>
+                                      <div className="font-medium">
+                                        {formatDate(sale.date)}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC)}
+                                      </div>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {formatCurrency(payment.amount)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                              {t('general.noData')}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

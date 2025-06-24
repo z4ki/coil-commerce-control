@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Payment, PaymentMethodType } from '@/types'; // Ensure PaymentMethodType is imported or use the full union
+import { Payment, PaymentMethodType } from '@/types/index';
+import { core } from '@tauri-apps/api';
+import { tauriApi } from '@/lib/tauri-api';
 
 // Interface for what Supabase returns in the database for payments
 interface DbPaymentResponse {
@@ -13,6 +15,8 @@ interface DbPaymentResponse {
   notes: string | null;
   created_at: string;
   updated_at: string | null;
+  is_deleted?: boolean | number | null;
+  deleted_at?: string | null;
   // Ensure no 'credit_amount' or 'generates_credit' here unless they are truly in your DB table
 }
 
@@ -39,90 +43,71 @@ const mapDbPaymentToPayment = (dbPayment: DbPaymentResponse): Payment => ({
   notes: dbPayment.notes || undefined,
   createdAt: new Date(dbPayment.created_at),
   updatedAt: dbPayment.updated_at ? new Date(dbPayment.updated_at) : undefined,
+  isDeleted: !!dbPayment.is_deleted,
+  deletedAt: dbPayment.deleted_at ? new Date(dbPayment.deleted_at) : undefined,
 });
 
+export const getPayments = async (): Promise<Payment[]> => {
+  const backendPayments = await tauriApi.payments.getAll() as any[];
+  if (!Array.isArray(backendPayments)) return [];
+  return backendPayments.map((p: any) => ({
+    id: p.id,
+    saleId: p.sale_id,
+    clientId: p.client_id,
+    bulkPaymentId: p.bulk_payment_id,
+    date: new Date(p.date),
+    amount: Number(p.amount),
+    method: p.method,
+    notes: p.notes || undefined,
+    createdAt: new Date(p.created_at),
+    updatedAt: p.updated_at ? new Date(p.updated_at) : undefined,
+    invoiceId: p.invoice_id,
+    isDeleted: !!p.is_deleted,
+    deletedAt: p.deleted_at ? new Date(p.deleted_at) : undefined,
+  }));
+};
+
 export const getPaymentsBySale = async (saleId: string): Promise<Payment[]> => {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('sale_id', saleId)
-    .order('date', { ascending: false });
-    
-  if (error) {
-    console.error('Error fetching payments by sale:', error);
-    throw error;
-  }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
+  const payments = await getPayments();
+  return payments.filter(p => p.saleId === saleId);
 };
 
 export const getPaymentsByClient = async (clientId: string): Promise<Payment[]> => {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('date', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching payments by client:', error);
-    throw error;
-  }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
+  const payments = await getPayments();
+  return payments.filter(p => p.clientId === clientId);
 };
 
-export const getPayments = async (): Promise<Payment[]> => {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .order('date', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching all payments:', error);
-    throw error;
-  }
-  return (data || []).map(p => mapDbPaymentToPayment(p as DbPaymentResponse));
-};
-
-export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'bulkPaymentId'> & { bulkPaymentId?: string }): Promise<Payment> => {
-  // The 'payment' object coming from PaymentForm will have:
-  // saleId, clientId, date (Date object), amount (number), method (PaymentMethodType), notes (string | undefined)
-
-  const insertData: DbPaymentInsert = {
+export const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
+  const req = {
     sale_id: payment.saleId,
     client_id: payment.clientId,
-    date: payment.date.toISOString(),
     amount: payment.amount,
-    method: payment.method, // This should be 'cash', 'bank_transfer', 'check', 'term', or 'deferred'
+    date: payment.date.toISOString(),
+    method: payment.method,
     notes: payment.notes || null,
-    // Removed generates_credit and credit_amount as they are not in the DB schema
   };
-
-  // Only add bulk_payment_id if it exists on the input 'payment' object
-  if (payment.bulkPaymentId) {
-    insertData.bulk_payment_id = payment.bulkPaymentId;
-  }
-  
-  console.log("[paymentService] Attempting to insert payment with data:", insertData);
-
-
-  const { data, error } = await supabase
-    .from('payments')
-    .insert([insertData]) 
-    .select()
-    .single();
-    
-  if (error) {
-    console.error('Error adding payment to Supabase in service:', error); 
-    throw error;
-  }
-  if (!data) {
-      console.error("[paymentService] No data returned from Supabase after payment insert.");
-      throw new Error("No data returned from Supabase after payment insert.");
-  }
-  return mapDbPaymentToPayment(data as DbPaymentResponse);
+  const result = await core.invoke<any>('create_payment', { payment: req });
+  return mapTauriPaymentToPayment(result);
 };
 
+function mapTauriPaymentToPayment(p: any): Payment {
+  return {
+    id: p.id,
+    saleId: p.sale_id || p.saleId,
+    invoiceId: p.invoice_id || p.invoiceId,
+    clientId: p.client_id || p.clientId,
+    amount: p.amount,
+    date: new Date(p.date),
+    method: p.method,
+    notes: p.notes || undefined,
+    createdAt: new Date(p.created_at),
+    updatedAt: p.updated_at ? new Date(p.updated_at) : undefined,
+    isDeleted: !!p.is_deleted,
+    deletedAt: p.deleted_at ? new Date(p.deleted_at) : undefined,
+  };
+}
+
 export const addBulkPayment = async (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'saleId' | 'amount'> & { totalAmount: number; distribution?: { saleId: string; amount: number }[] }): Promise<Payment[]> => {
-  const bulkPaymentIdToUse = uuidv4(); // Generate a UUID for bulk_payment_id
   const paymentsToInsert: DbPaymentInsert[] = [];
   
   if (!payment.distribution || payment.distribution.length === 0) {
@@ -139,7 +124,7 @@ export const addBulkPayment = async (payment: Omit<Payment, 'id' | 'createdAt' |
     paymentsToInsert.push({
       sale_id: dist.saleId, // This is required by your schema
       client_id: payment.clientId,
-      bulk_payment_id: bulkPaymentIdToUse,
+      bulk_payment_id: undefined,
       date: payment.date.toISOString(),
       amount: dist.amount,
       method: payment.method,
@@ -194,14 +179,30 @@ export const updatePayment = async (id: string, paymentUpdate: Partial<Omit<Paym
   return mapDbPaymentToPayment(data as DbPaymentResponse);
 };
 
+export const getDeletedPayments = async (): Promise<Payment[]> => {
+  const backendPayments = await tauriApi.payments.getDeleted() as any[];
+  if (!Array.isArray(backendPayments)) return [];
+  return backendPayments.map((p: any) => ({
+    id: p.id,
+    saleId: p.sale_id,
+    clientId: p.client_id,
+    bulkPaymentId: p.bulk_payment_id,
+    date: new Date(p.date),
+    amount: Number(p.amount),
+    method: p.method,
+    notes: p.notes || undefined,
+    createdAt: new Date(p.created_at),
+    updatedAt: p.updated_at ? new Date(p.updated_at) : undefined,
+    invoiceId: p.invoice_id,
+    isDeleted: !!p.is_deleted,
+    deletedAt: p.deleted_at ? new Date(p.deleted_at) : undefined,
+  }));
+};
+
+export const restorePayment = async (id: string): Promise<void> => {
+  await tauriApi.payments.restore(id);
+};
+
 export const deletePayment = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('payments')
-    .delete()
-    .eq('id', id);
-    
-  if (error) {
-    console.error('Error deleting payment from Supabase:', error);
-    throw error;
-  }
+  await tauriApi.payments.delete(id);
 };

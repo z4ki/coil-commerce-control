@@ -52,6 +52,8 @@ export interface Sale {
   taxRate: number;
   createdAt: Date;
   updatedAt?: Date;
+  isDeleted: boolean;
+  deletedAt?: Date;
 }
 
 // Update Invoice interface
@@ -67,12 +69,14 @@ export interface Invoice {
   taxRate: number;
   isPaid: boolean;
   paidAt?: Date;
-  paymentMethod?: PaymentMethodType; // USE THE SHARED TYPE
+  paymentMethod?: PaymentMethodType;
   transportationFee?: number;
   transportationFeeTTC?: number;
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
+  isDeleted: boolean;
+  deletedAt?: Date;
 }
 /// Also, consider if the Payment interface needs 'term'
 // For now, we are focusing on Sale and Invoice context for this specific issue.
@@ -84,10 +88,13 @@ export interface Payment {
   bulkPaymentId?: string;
   amount: number;
   date: Date;
-  method: 'cash' | 'bank_transfer' | 'check' | 'deferred' | 'term'; // Added 'term'
+  method: 'cash' | 'bank_transfer' | 'check' | 'deferred' | 'term';
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
+  invoiceId?: string;
+  isDeleted: boolean;
+  deletedAt?: Date;
 }
 
 // Define the type for bulk payments

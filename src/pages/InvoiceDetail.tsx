@@ -53,8 +53,9 @@ const InvoiceDetail = () => {
     updateInvoice,
     deletePayment,
     addPayment,
-    getInvoicePaymentStatus,
+    getPaymentsByInvoice,
     getSalePaymentStatus,
+    getPaymentsBySale,
   } = useAppContext();
 
   const { settings } = useAppSettings();
@@ -63,10 +64,9 @@ const InvoiceDetail = () => {
   const invoice = getInvoiceById(invoiceId || '');
   const client = invoice ? getClientById(invoice.clientId) : undefined;
   const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
-  const paymentStatus = invoice ? getInvoicePaymentStatus(invoice.id) : null;
-  const payments = paymentStatus?.payments || [];
-  const totalPaid = paymentStatus?.totalPaid || 0;
-  const remainingAmount = paymentStatus?.remainingAmount || 0;
+  const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
+  const totalPaid = payments.reduce((total, payment) => total + payment.amount, 0);
+  const remainingAmount = invoice ? invoice.totalAmountTTC - totalPaid : 0;
   const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter(Boolean) : [];
   
   const handleDeleteInvoice = () => {
@@ -82,11 +82,14 @@ const InvoiceDetail = () => {
     
     if (!invoice.isPaid) {
       // When marking as paid, create a payment record
-      await addPayment(invoice.id, {
-        date: new Date(),
+      await addPayment({
+        saleId: '', // No specific sale, or set to a saleId if needed
+        clientId: invoice.clientId,
         amount: invoice.totalAmountTTC,
+        date: new Date(),
         method: 'bank_transfer',
-        notes: 'Payment marked as completed'
+        notes: 'Payment marked as completed',
+        invoiceId: invoice.id,
       });
     }
     
@@ -199,6 +202,11 @@ const InvoiceDetail = () => {
       setIsGeneratingPDF(false);
     }
   };
+
+  // fallback for t('payments.forSale') and t('payments.noneForSale')
+  const paymentsForSaleLabel = t('payments.forSale') || 'Payments for this sale:';
+  const paymentsNoneForSaleLabel = t('payments.noneForSale') || 'No payments for this sale.';
+
   console.log(invoice,client,invoiceId);
   if (!invoice || !client) {
     return (
@@ -301,30 +309,35 @@ const InvoiceDetail = () => {
                   const sale = getSaleById(saleId);
                   if (!sale) return null;
                   const saleStatus = getSalePaymentStatus(saleId);
+                  const salePayments = getPaymentsBySale(saleId);
                   return (
-                    <TableRow key={saleId}>
-                      <TableCell>{formatDate(sale.date)}</TableCell>
-                      <TableCell>{sale.items.length} {t('sales.items')}</TableCell>
-                      <TableCell>{formatCurrency(sale.totalAmountTTC)}</TableCell>
-                      <TableCell>
-                        {formatCurrency(saleStatus?.totalPaid || 0)}
-                        {saleStatus?.isFullyPaid && (
-                          <Badge className="ml-2" variant="default">
-                            {t('sales.paid')}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAddPayment(saleId)}
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          {t('payments.add')}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <React.Fragment key={saleId}>
+                      <TableRow>
+                        <TableCell>{formatDate(sale.date)}</TableCell>
+                        <TableCell>{sale.items.length} {t('sales.items')}</TableCell>
+                        <TableCell>{formatCurrency(sale.totalAmountTTC)}</TableCell>
+                        <TableCell>
+                          {formatCurrency(saleStatus?.totalPaid || 0)}
+                          {saleStatus?.isFullyPaid && (
+                            <Badge className="ml-2" variant="default">
+                              {t('sales.paid')}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddPayment(saleId)}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            {t('payments.add')}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {/* Payments for this sale */}
+                      
+                    </React.Fragment>
                   );
                 })}
               </TableBody>

@@ -6,21 +6,26 @@ mod commands;
 use sqlx::SqlitePool;
 use std::fs;
 use std::path::PathBuf;
+use std::path::Path;
+use std::env;
+use dotenv::dotenv;
 
 #[tokio::main]
 async fn main() {
-    // Create database directory
-    let app_dir = dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("coil-commerce-control");
-    fs::create_dir_all(&app_dir).expect("Failed to create app directory");
-    
-    // Fix path for SQLite URI (use forward slashes)
-    let db_path = app_dir.join("database.db");
-    let db_path_str = db_path.display().to_string().replace('\\', "/");
-    let database_url = format!("sqlite:{}", db_path_str);
-    println!("[DEBUG] Using database path: {}", database_url);
-    let pool = SqlitePool::connect(&database_url).await
+    dotenv().ok(); // Loads .env file
+
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
+
+    // Optionally, extract the directory and create it if needed
+    if let Some(path) = db_url.strip_prefix("sqlite://") {
+        if let Some(parent) = Path::new(path).parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent).expect("Failed to create database directory");
+            }
+        }
+    }
+
+    let pool = SqlitePool::connect(&db_url).await
         .expect("Failed to connect to database");
     
     // Run migrations
@@ -63,6 +68,17 @@ async fn main() {
             commands::create_corrugated_sheet_item,
             commands::get_steel_slitting_strip_items,
             commands::create_steel_slitting_strip_item,
+            // Payment commands
+            commands::create_payment,
+            commands::get_payments,
+            // Soft-delete and restore commands
+            commands::delete_payment,
+            commands::restore_invoice,
+            commands::restore_sale,
+            commands::restore_payment,
+            commands::get_deleted_invoices,
+            commands::get_deleted_sales,
+            commands::get_deleted_payments,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

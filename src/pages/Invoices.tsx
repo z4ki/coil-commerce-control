@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAppSettings } from '@/context/AppSettingsContext';
@@ -41,6 +41,7 @@ import { toast } from 'sonner';
 import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { Link } from 'react-router-dom';
 import { saveInvoicePDF } from '@/utils/pdfService.tsx';
+import { getDeletedInvoices, restoreInvoice } from '@/services/invoiceService';
 
 const Invoices = () => {
   const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useAppContext();
@@ -49,6 +50,14 @@ const Invoices = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [deletedInvoices, setDeletedInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    if (showArchive) {
+      getDeletedInvoices().then(setDeletedInvoices);
+    }
+  }, [showArchive]);
 
   const handleDeleteInvoice = (invoice: Invoice) => {
     if (window.confirm(t('invoices.deleteConfirm'))) {
@@ -77,6 +86,12 @@ const Invoices = () => {
     }
   };
 
+  const handleRestoreInvoice = async (id: string) => {
+    await restoreInvoice(id);
+    toast.success(t('invoices.restored') || 'Invoice restored');
+    setDeletedInvoices(prev => prev.filter(inv => inv.id !== id));
+  };
+
   const filteredInvoices = invoices
     .filter((invoice) => {
       const client = getClientById(invoice.clientId);
@@ -101,6 +116,9 @@ const Invoices = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <Button onClick={() => setShowArchive(a => !a)} variant="outline">
+            {showArchive ? t('invoices.showActive') || 'Show Active' : t('invoices.showArchive') || 'Show Archive'}
+          </Button>
           <Button onClick={() => {
             setSelectedInvoice(null);
             setShowAddDialog(true);
@@ -109,119 +127,153 @@ const Invoices = () => {
           </Button>
         </div>
 
-        {/* Invoices Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('invoices.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-              <TableHeader className="bg-gray-100">
-                  <TableRow>
-                    <TableHead>{t('invoices.invoiceNumber')}</TableHead>
-                    <TableHead>{t('invoices.client')}</TableHead>
-                    <TableHead>{t('invoices.date')}</TableHead>
-                    <TableHead>{t('invoices.dueDate')}</TableHead>
-                    <TableHead className="text-right">{t('invoices.amount')}</TableHead>
-                    <TableHead>{t('invoices.status')}</TableHead>
-                    <TableHead className="w-[80px]">{t('invoices.actions')}</TableHead>
+        {showArchive ? (
+          <div>
+            <h2 className="text-lg font-semibold mb-2">{t('invoices.archive') || 'Deleted Invoices'}</h2>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('invoices.number')}</TableHead>
+                  <TableHead>{t('invoices.client')}</TableHead>
+                  <TableHead>{t('invoices.date')}</TableHead>
+                  <TableHead>{t('invoices.deletedAt') || 'Deleted At'}</TableHead>
+                  <TableHead>{t('invoices.actions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deletedInvoices.map(invoice => (
+                  <TableRow key={invoice.id}>
+                    <TableCell>{invoice.invoiceNumber}</TableCell>
+                    <TableCell>{getClientById(invoice.clientId)?.name || ''}</TableCell>
+                    <TableCell>{formatDate(invoice.date)}</TableCell>
+                    <TableCell>{invoice.deletedAt ? formatDate(invoice.deletedAt) : ''}</TableCell>
+                    <TableCell>
+                      <Button size="sm" onClick={() => handleRestoreInvoice(invoice.id)}>
+                        {t('invoices.restore') || 'Restore'}
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInvoices.length > 0 ? (
-                    filteredInvoices.map((invoice) => {
-                      const client = getClientById(invoice.clientId);
-                      const paymentStatus = getInvoicePaymentStatus(invoice.id);
-                      const isOverdue = !invoice.isPaid && new Date() > invoice.dueDate;
-                      
-                      return (
-                        <TableRow key={invoice.id}>
-                          <TableCell className="font-medium">
-                            <Link 
-                              to={`/invoices/${invoice.id}`}
-                              className="text-primary hover:underline"
-                            >
-                              {invoice.invoiceNumber}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              {client && (
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <>
+            {/* Invoices Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('invoices.title')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                  <TableHeader className="bg-gray-100">
+                      <TableRow>
+                        <TableHead>{t('invoices.invoiceNumber')}</TableHead>
+                        <TableHead>{t('invoices.client')}</TableHead>
+                        <TableHead>{t('invoices.date')}</TableHead>
+                        <TableHead>{t('invoices.dueDate')}</TableHead>
+                        <TableHead className="text-right">{t('invoices.amount')}</TableHead>
+                        <TableHead>{t('invoices.status')}</TableHead>
+                        <TableHead className="w-[80px]">{t('invoices.actions')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredInvoices.length > 0 ? (
+                        filteredInvoices.map((invoice) => {
+                          const client = getClientById(invoice.clientId);
+                          const paymentStatus = getInvoicePaymentStatus(invoice.id);
+                          const isOverdue = !invoice.isPaid && new Date() > invoice.dueDate;
+                          
+                          return (
+                            <TableRow key={invoice.id}>
+                              <TableCell className="font-medium">
                                 <Link 
-                                  to={`/clients/${client.id}`}
-                                  className="text-primary hover:underline hover:text-primary/80"
+                                  to={`/invoices/${invoice.id}`}
+                                  className="text-primary hover:underline"
                                 >
-                                  {client.name}
+                                  {invoice.invoiceNumber}
                                 </Link>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">{client?.company}</div>
-                          </TableCell>
-                          <TableCell>{formatDate(invoice.date)}</TableCell>
-                          <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(invoice.totalAmountTTC)}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge 
-                              status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">{t('invoices.actions')}</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>{t('invoices.actions')}</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedInvoice(invoice);
-                                    setShowAddDialog(true);
-                                  }}
-                                >
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  <span>{t('invoices.edit')}</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDeleteInvoice(invoice)}>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  <span>{t('invoices.delete')}</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                  <Link to={`/invoices/${invoice.id}`}>
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    <span>{t('invoices.viewDetails')}</span>
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleExportPDF(invoice)}>
-                                  <Download className="mr-2 h-4 w-4" />
-                                  <span>{t('general.export')}</span>
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  {client && (
+                                    <Link 
+                                      to={`/clients/${client.id}`}
+                                      className="text-primary hover:underline hover:text-primary/80"
+                                    >
+                                      {client.name}
+                                    </Link>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">{client?.company}</div>
+                              </TableCell>
+                              <TableCell>{formatDate(invoice.date)}</TableCell>
+                              <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(invoice.totalAmountTTC)}
+                              </TableCell>
+                              <TableCell>
+                                <StatusBadge 
+                                  status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreVertical className="h-4 w-4" />
+                                      <span className="sr-only">{t('invoices.actions')}</span>
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>{t('invoices.actions')}</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedInvoice(invoice);
+                                        setShowAddDialog(true);
+                                      }}
+                                    >
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      <span>{t('invoices.edit')}</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDeleteInvoice(invoice)}>
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      <span>{t('invoices.delete')}</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                      <Link to={`/invoices/${invoice.id}`}>
+                                        <FileText className="mr-2 h-4 w-4" />
+                                        <span>{t('invoices.viewDetails')}</span>
+                                      </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExportPDF(invoice)}>
+                                      <Download className="mr-2 h-4 w-4" />
+                                      <span>{t('general.export')}</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-24 text-center">
+                            {searchTerm
+                              ? t('invoices.noMatch')
+                              : t('invoices.noInvoices')}
                           </TableCell>
                         </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        {searchTerm
-                          ? t('invoices.noMatch')
-                          : t('invoices.noInvoices')}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Add/Edit Invoice Dialog */}

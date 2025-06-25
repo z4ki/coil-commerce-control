@@ -32,6 +32,8 @@ async fn main() {
     sqlx::migrate!("./migrations").run(&pool).await
         .expect("Failed to run migrations");
 
+    ensure_settings_row(&pool).await.expect("Failed to ensure settings row");
+
     tauri::Builder::default()
         .manage(pool)
         .setup(|app| {
@@ -79,7 +81,53 @@ async fn main() {
             commands::get_deleted_invoices,
             commands::get_deleted_sales,
             commands::get_deleted_payments,
+            // settings commands
+            commands::get_settings,
+            commands::update_settings,
+            commands::export_db,
+            commands::import_db,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+async fn ensure_settings_row(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let row = sqlx::query("SELECT id FROM settings LIMIT 1")
+        .fetch_optional(pool)
+        .await?;
+    if row.is_none() {
+        sqlx::query(
+            r#"
+            INSERT INTO settings (
+                id, company_name, company_address, company_phone, company_email, company_logo,
+                tax_rate, currency, nif, nis, rc, ai, rib, language, theme,
+                notifications, dark_mode, user_id, created_at, updated_at
+            ) VALUES (
+                lower(hex(randomblob(16))),
+                'Dummy Company',
+                '123 Main St',
+                '+213000000000',
+                'dummy@email.com',
+                '',
+                0.19,
+                'DZD',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'en',
+                'light',
+                1,
+                0,
+                '',
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+            "#
+        )
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
 }

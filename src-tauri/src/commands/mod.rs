@@ -4,6 +4,14 @@
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
     use serde_json;
+    use serde_json::Value;
+    use chrono::NaiveDateTime;
+    use std::env;
+    use std::fs;
+    use std::path::Path;
+    use sqlx::Connection;
+    use dirs;
+    use tokio::sync::oneshot;
 
     // Client structs
     #[derive(Debug, Serialize, Deserialize)]
@@ -1303,4 +1311,203 @@
             deleted_at: row.get("deleted_at"),
         }).collect();
         Ok(payments)
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct Settings {
+        pub id: Option<String>,
+        pub company_name: Option<String>,
+        pub company_address: Option<String>,
+        pub company_phone: Option<String>,
+        pub company_email: Option<String>,
+        pub company_logo: Option<String>,
+        pub tax_rate: Option<f64>,
+        pub currency: Option<String>,
+        pub nif: Option<String>,
+        pub nis: Option<String>,
+        pub rc: Option<String>,
+        pub ai: Option<String>,
+        pub rib: Option<String>,
+        pub language: Option<String>,
+        pub theme: Option<String>,
+        pub notifications: Option<bool>,
+        pub dark_mode: Option<bool>,
+        pub user_id: Option<String>,
+        pub created_at: Option<NaiveDateTime>,
+        pub updated_at: Option<NaiveDateTime>,
+    }
+
+    #[tauri::command]
+    pub async fn get_settings(pool: tauri::State<'_, SqlitePool>) -> Result<Settings, String> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+                id, company_name, company_address, company_phone, company_email, company_logo,
+                tax_rate, currency, nif, nis, rc, ai, rib, language, theme, notifications, dark_mode,
+                user_id, created_at, updated_at
+            FROM settings
+            LIMIT 1
+            "#
+        )
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        if let Some(row) = row {
+            Ok(Settings {
+                id: row.get("id"),
+                company_name: row.get("company_name"),
+                company_address: row.get("company_address"),
+                company_phone: row.get("company_phone"),
+                company_email: row.get("company_email"),
+                company_logo: row.get("company_logo"),
+                tax_rate: row.get("tax_rate"),
+                currency: row.get("currency"),
+                nif: row.get("nif"),
+                nis: row.get("nis"),
+                rc: row.get("rc"),
+                ai: row.get("ai"),
+                rib: row.get("rib"),
+                language: row.get("language"),
+                theme: row.get("theme"),
+                notifications: row.get("notifications"),
+                dark_mode: row.get("dark_mode"),
+                user_id: row.get("user_id"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+        } else {
+            Err("No settings found".to_string())
+        }
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct UpdateSettingsRequest {
+        pub company_name: Option<String>,
+        pub company_address: Option<String>,
+        pub company_phone: Option<String>,
+        pub company_email: Option<String>,
+        pub company_logo: Option<String>,
+        pub tax_rate: Option<f64>,
+        pub currency: Option<String>,
+        pub nif: Option<String>,
+        pub nis: Option<String>,
+        pub rc: Option<String>,
+        pub ai: Option<String>,
+        pub rib: Option<String>,
+        pub language: Option<String>,
+        pub theme: Option<String>,
+        pub notifications: Option<bool>,
+        pub dark_mode: Option<bool>,
+        pub user_id: Option<String>,
+    }
+
+    #[tauri::command]
+    pub async fn update_settings(
+        updates: UpdateSettingsRequest,
+        pool: tauri::State<'_, SqlitePool>,
+    ) -> Result<(), String> {
+        let mut set_clauses = Vec::new();
+
+        if let Some(ref v) = updates.company_name { set_clauses.push("company_name = ?"); }
+        if let Some(ref v) = updates.company_address { set_clauses.push("company_address = ?"); }
+        if let Some(ref v) = updates.company_phone { set_clauses.push("company_phone = ?"); }
+        if let Some(ref v) = updates.company_email { set_clauses.push("company_email = ?"); }
+        if let Some(ref v) = updates.company_logo { set_clauses.push("company_logo = ?"); }
+        if let Some(_) = updates.tax_rate { set_clauses.push("tax_rate = ?"); }
+        if let Some(ref v) = updates.currency { set_clauses.push("currency = ?"); }
+        if let Some(ref v) = updates.nif { set_clauses.push("nif = ?"); }
+        if let Some(ref v) = updates.nis { set_clauses.push("nis = ?"); }
+        if let Some(ref v) = updates.rc { set_clauses.push("rc = ?"); }
+        if let Some(ref v) = updates.ai { set_clauses.push("ai = ?"); }
+        if let Some(ref v) = updates.rib { set_clauses.push("rib = ?"); }
+        if let Some(ref v) = updates.language { set_clauses.push("language = ?"); }
+        if let Some(ref v) = updates.theme { set_clauses.push("theme = ?"); }
+        if let Some(_) = updates.notifications { set_clauses.push("notifications = ?"); }
+        if let Some(_) = updates.dark_mode { set_clauses.push("dark_mode = ?"); }
+        if let Some(ref v) = updates.user_id { set_clauses.push("user_id = ?"); }
+
+        if set_clauses.is_empty() {
+            return Err("No fields to update".to_string());
+        }
+
+        let query = format!("UPDATE settings SET {}", set_clauses.join(", "));
+        let mut q = sqlx::query(&query);
+
+        // Bind values in the same order as set_clauses
+        if let Some(ref v) = updates.company_name { q = q.bind(v); }
+        if let Some(ref v) = updates.company_address { q = q.bind(v); }
+        if let Some(ref v) = updates.company_phone { q = q.bind(v); }
+        if let Some(ref v) = updates.company_email { q = q.bind(v); }
+        if let Some(ref v) = updates.company_logo { q = q.bind(v); }
+        if let Some(v) = updates.tax_rate { q = q.bind(v); }
+        if let Some(ref v) = updates.currency { q = q.bind(v); }
+        if let Some(ref v) = updates.nif { q = q.bind(v); }
+        if let Some(ref v) = updates.nis { q = q.bind(v); }
+        if let Some(ref v) = updates.rc { q = q.bind(v); }
+        if let Some(ref v) = updates.ai { q = q.bind(v); }
+        if let Some(ref v) = updates.rib { q = q.bind(v); }
+        if let Some(ref v) = updates.language { q = q.bind(v); }
+        if let Some(ref v) = updates.theme { q = q.bind(v); }
+        if let Some(v) = updates.notifications { q = q.bind(v); }
+        if let Some(v) = updates.dark_mode { q = q.bind(v); }
+        if let Some(ref v) = updates.user_id { q = q.bind(v); }
+
+        q.execute(&*pool).await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub async fn export_db(_export_path: Option<String>) -> Result<String, String> {
+        use std::fs;
+        use std::path::Path;
+        use dirs;
+
+        let db_url = std::env::var("DATABASE_URL").map_err(|e| {
+            eprintln!("DATABASE_URL error: {}", e);
+            e.to_string()
+        })?;
+
+        // Always use the user's Downloads folder
+        let downloads_dir = dirs::download_dir().ok_or("Could not find Downloads directory")?;
+        let export_path = downloads_dir.join("coil_commerce_export.sqlite");
+
+        // Ensure parent directory exists
+        if let Some(parent) = export_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                eprintln!("Failed to create directory: {}", e);
+                e.to_string()
+            })?;
+        }
+
+        // Remove existing file
+        if export_path.exists() {
+            fs::remove_file(&export_path).map_err(|e| {
+                eprintln!("Failed to remove existing file: {}", e);
+                e.to_string()
+            })?;
+        }
+
+        let mut conn = sqlx::sqlite::SqliteConnection::connect(&db_url).await
+            .map_err(|e| {
+                eprintln!("Failed to connect to DB: {}", e);
+                e.to_string()
+            })?;
+
+        let sql = format!("VACUUM INTO '{}'", export_path.to_string_lossy().replace("'", "''"));
+        sqlx::query(&sql).execute(&mut conn).await
+            .map_err(|e| {
+                eprintln!("VACUUM INTO failed: {}", e);
+                e.to_string()
+            })?;
+
+        Ok(format!("Database exported to {}", export_path.to_string_lossy()))
+    }
+
+    #[tauri::command]
+    pub async fn import_db(import_path: String) -> Result<String, String> {
+        let db_url = env::var("DATABASE_URL").map_err(|e| e.to_string())?;
+        let db_path = db_url.strip_prefix("sqlite://").ok_or("Invalid DATABASE_URL")?;
+        fs::copy(&import_path, db_path).map_err(|e| e.to_string())?;
+        Ok("Database imported successfully".to_string())
     }

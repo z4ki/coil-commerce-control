@@ -80,7 +80,8 @@ const translations: { [key in Language]: Translations } = {
       'invoices': 'Invoices',
       'reports': 'Reports',
       'adminUser': 'Admin User',
-      'quantity': 'Quantity'
+      'quantity': 'Quantity',
+      'restore': 'Restore'
     },
 
     // Dashboard
@@ -151,7 +152,12 @@ const translations: { [key in Language]: Translations } = {
       'amountPaid': 'Amount Paid',
       'actions': 'Actions',
       'pdfError': 'Error generating quotation',
-      'quantity': 'Quantity'
+      'quantity': 'Quantity',
+      'showArchive': 'Show Archive',
+      'showActive': 'Show Active',
+      'archive': 'Deleted Sales',
+      'number': 'Sale Number',
+      'deletedAt': 'Deleted At'
     },
 
     // Clients
@@ -514,7 +520,10 @@ const translations: { [key in Language]: Translations } = {
       'pdfGenerated': 'Invoice generated successfully',
       'pdfError': 'Error generating invoice',
       'invoice': 'Invoice',
-      'quantity': 'Quantity'
+      'quantity': 'Quantity',
+      'showArchive': 'Show Archive',
+      'showActive': 'Show Active',
+      'restore': 'Restore'
     },
 
     // Payments
@@ -543,7 +552,9 @@ const translations: { [key in Language]: Translations } = {
         'term': 'Term Payment',
         'credit_card': 'Credit Card'
       },
-      'quantity': 'Quantity'
+      'quantity': 'Quantity',
+      'showDeleted': 'Show Deleted Payments',
+      'showActive': 'Show Active Payments'
     },
 
     // Client Details
@@ -651,7 +662,8 @@ const translations: { [key in Language]: Translations } = {
       'invoices': 'Factures',
       'reports': 'Rapports',
       'adminUser': 'Administrateur',
-      'quantity': 'Quantité'
+      'quantity': 'Quantité',
+      'restore': 'Restaurer'
     },
 
     // Dashboard
@@ -722,7 +734,12 @@ const translations: { [key in Language]: Translations } = {
       'amountPaid': 'Montant payé',
       'actions': 'Actions',
       'pdfError': 'Erreur lors de la génération du devis',
-      'quantity': 'Quantité'
+      'quantity': 'Quantité',
+      'showArchive': "Afficher l'archive",
+      'showActive': 'Afficher les actifs',
+      'archive': 'Ventes supprimées',
+      'number': 'Numéro de vente',
+      'deletedAt': 'Supprimé le'
     },
 
     // Clients
@@ -760,8 +777,8 @@ const translations: { [key in Language]: Translations } = {
         'address': 'Adresse',
         'nif': 'NIF',
         'nis': 'NIS ',
-        'rc': 'RC ',
-        'ai': 'AI ',
+        "rc": "RC ",
+        "ai": "AI ",
         'rib': 'RIB (Relevé d\'Identité Bancaire)',
         'placeholders': {
           'name': 'John Doe',
@@ -977,7 +994,7 @@ const translations: { [key in Language]: Translations } = {
         'nif': 'NIF (Numéro d\'Identification Fiscale)',
         'nis': 'NIS (Numéro d\'Identification Statistique)',
         'rc': 'RC (Registre de Commerce)',
-        'ai': 'AI (Article d\'Imposition)',
+        'ai': "AI (Article d'Imposition)",
         'placeholders': {
           'name': 'John Doe',
           'company': 'ACME Corp',
@@ -987,7 +1004,7 @@ const translations: { [key in Language]: Translations } = {
           'nif': 'Numéro d\'Identification Fiscale',
           'nis': 'Numéro d\'Identification Statistique',
           'rc': 'Numéro du Registre de Commerce',
-          'ai': 'Numéro d\'Article d\'Imposition'
+          'ai': "Numéro d'Article d'Imposition"
         },
         'actions': {
           'cancel': 'Annuler',
@@ -1025,7 +1042,6 @@ const translations: { [key in Language]: Translations } = {
       'invoiceStatus': 'Statut de facturation',
       'createInvoice': 'Créer une facture',
       'success': 'Vente enregistrée avec succès',
-      
       'error': 'Erreur lors de l\'enregistrement de la vente',
       'quantity': 'Quantité'
     },
@@ -1085,7 +1101,10 @@ const translations: { [key in Language]: Translations } = {
       'pdfGenerated': 'Facture générée avec succès',
       'pdfError': 'Erreur lors de la génération de la facture',
       'invoice': 'Facture',
-      'quantity': 'Quantité'
+      'quantity': 'Quantité',
+      'showArchive': "Afficher l'archive",
+      'showActive': 'Afficher les actifs',
+      'restore': 'Restaurer'
     },
 
     // Payments
@@ -1113,7 +1132,9 @@ const translations: { [key in Language]: Translations } = {
         'check': 'Chèque',
         'term': 'À terme',
       },
-      'quantity': 'Quantité'
+      'quantity': 'Quantité',
+      'showDeleted': 'Afficher les paiements supprimés',
+      'showActive': 'Afficher les paiements actifs'
     },
 
     // Client Details

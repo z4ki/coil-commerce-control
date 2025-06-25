@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
-import { AppSettings, CompanySettings } from '@/types';
+import type { AppSettings, CompanyProfile } from '@/types/index';
+import { tauriApi } from '@/lib/tauri-api';
 
 interface DbSettings {
   id: string;
@@ -35,7 +36,7 @@ interface UpdateSettingsInput {
 }
 
 // Default settings
-const defaultCompanySettings: CompanySettings = {
+const defaultCompanySettings: CompanyProfile = {
   name: 'My Company',
   address: 'Company Address',
   phone: 'Phone Number',
@@ -56,92 +57,79 @@ const defaultSettings: AppSettings = {
 
 export const getSettings = async (): Promise<AppSettings> => {
   try {
-    // Fetch settings
-    const { data, error } = await supabase
-      .from('settings')
-      .select('*')
-      .single();
-    
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No settings found, create default settings
-        return createDefaultSettings();
-      }
-      console.error('Error fetching settings:', error);
-      return defaultSettings;
-    }
-    
-    const mappedSettings = mapSettingsFromDb(data);
-    
-    // Ensure all required company settings fields exist
+    const data = await tauriApi.settings.get();
+    const d = data as any;
+    // Defensive mapping: always return a complete AppSettings object
     return {
-      ...mappedSettings,
       company: {
-        ...defaultCompanySettings,
-        ...mappedSettings.company
-      }
+        name: d.company_name || '',
+        address: d.company_address || '',
+        phone: d.company_phone || '',
+        email: d.company_email || '',
+        nif: d.nif || '',
+        nis: d.nis || '',
+        rc: d.rc || '',
+        ai: d.ai || '',
+        rib: d.rib || '',
+        taxId: d.nif || '',
+        logo: d.company_logo || ''
+      },
+      language: d.language || 'fr',
+      theme: d.theme || 'light',
+      currency: d.currency || 'DZD',
+      notifications: d.notifications ?? true,
+      darkMode: d.dark_mode ?? false,
+      user_id: d.user_id || '',
+      id: d.id || ''
     };
   } catch (error) {
     console.error('Error in getSettings:', error);
-    return defaultSettings;
+    // Always return a complete default object
+    return {
+      company: {
+        name: '',
+        address: '',
+        phone: '',
+        email: '',
+        nif: '',
+        nis: '',
+        rc: '',
+        ai: '',
+        rib: '',
+        taxId: '',
+        logo: ''
+      },
+      language: 'fr',
+      theme: 'light',
+      currency: 'DZD',
+      notifications: true,
+      darkMode: false,
+      user_id: '',
+      id: ''
+    };
   }
 };
 
 export const updateSettings = async (settings: UpdateSettingsInput): Promise<AppSettings> => {
   try {
-    // First get the current settings to get the ID
-    const { data: existingSettings, error: getError } = await supabase
-      .from('settings')
-      .select('id')
-      .single();
-
-    if (getError) {
-      console.error('Error fetching settings ID:', getError);
-      throw getError;
-    }
-
-    if (!existingSettings?.id) {
-      throw new Error('No settings record found to update');
-    }
-
-    const updateData = {
-      company_name: settings.company?.name,
-      company_address: settings.company?.address,
-      company_phone: settings.company?.phone,
-      company_email: settings.company?.email,
-      company_logo: settings.company?.logo,
+    // Flatten company fields for backend
+    const updates: any = {
       currency: settings.currency,
-      nif: settings.company?.nif,
-      nis: settings.company?.nis,
-      rc: settings.company?.rc,
-      ai: settings.company?.ai,
-      rib: settings.company?.rib,
-      updated_at: new Date().toISOString()
     };
-
-    // Try update with the existing settings ID
-    const { error: updateError } = await supabase
-      .from('settings')
-      .update(updateData)
-      .eq('id', existingSettings.id);
-
-    if (updateError) {
-      console.error('Error updating settings:', updateError);
-      throw updateError;
+    if (settings.company) {
+      if (settings.company.name !== undefined) updates.company_name = settings.company.name;
+      if (settings.company.address !== undefined) updates.company_address = settings.company.address;
+      if (settings.company.phone !== undefined) updates.company_phone = settings.company.phone;
+      if (settings.company.email !== undefined) updates.company_email = settings.company.email;
+      if (settings.company.logo !== undefined) updates.company_logo = settings.company.logo;
+      if (settings.company.nif !== undefined) updates.nif = settings.company.nif;
+      if (settings.company.nis !== undefined) updates.nis = settings.company.nis;
+      if (settings.company.rc !== undefined) updates.rc = settings.company.rc;
+      if (settings.company.ai !== undefined) updates.ai = settings.company.ai;
+      if (settings.company.rib !== undefined) updates.rib = settings.company.rib;
     }
-
-    // If update succeeded, fetch the latest data
-    const { data: freshData, error: fetchLatestError } = await supabase
-      .from('settings')
-      .select('*')
-      .single();
-
-    if (fetchLatestError) {
-      console.error('Error fetching updated settings:', fetchLatestError);
-      throw fetchLatestError;
-    }
-
-    return mapSettingsFromDb(freshData);
+    const updated = await tauriApi.settings.update(updates);
+    return updated as AppSettings;
   } catch (error) {
     console.error('Error in updateSettings:', error);
     throw error;
@@ -202,5 +190,25 @@ const createDefaultSettings = async (): Promise<AppSettings> => {
   } catch (error) {
     console.error('Error in createDefaultSettings:', error);
     return defaultSettings;
+  }
+};
+
+export const exportDb = async (exportPath?: string): Promise<string> => {
+  try {
+    // Call the Tauri command for exporting the database
+    return await (tauriApi as any).settings.export_db(exportPath);
+  } catch (error) {
+    console.error('Error exporting database:', error);
+    throw error;
+  }
+};
+
+export const importDb = async (importPath: string): Promise<string> => {
+  try {
+    // Call the Tauri command for importing the database
+    return await (tauriApi as any).settings.import_db(importPath);
+  } catch (error) {
+    console.error('Error importing database:', error);
+    throw error;
   }
 };

@@ -24,14 +24,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import * as settingsService from '@/services/settingsService';
-import type { AppSettings, CompanyProfile } from '@/types';
+import type { AppSettings, CompanyProfile } from '@/types/index';
 import { useInvoiceSettings } from '@/context/InvoiceSettingsContext';
+import { exportDb, importDb } from '@/services/settingsService';
+import { core } from '@tauri-apps/api';
 
 const Settings = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const { theme, setTheme } = useTheme();
   const { settings: invoiceSettings, addPrefix, removePrefix, setDefaultPrefix } = useInvoiceSettings();
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -87,7 +90,74 @@ const Settings = () => {
     toast.info('Data export feature will be available in the next update');
   };
 
-  if (loading) {
+  const handleExportDb = async () => {
+    try {
+      let exportPath: string | undefined = undefined;
+      // Only show dialog if running in Tauri
+      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        exportPath = await core.invoke('plugin:dialog|save', {
+          title: 'Exporter la base de données',
+          defaultPath: 'exported_db.sqlite',
+          filters: [
+            { name: 'SQLite Database', extensions: ['sqlite', 'db'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        }) as string;
+        if (!exportPath) {
+          toast.info('Export annulé');
+          return;
+        }
+      }
+      const result = await exportDb(exportPath);
+      toast.success(result);
+    } catch (error) {
+      toast.error('Export failed');
+    }
+  };
+
+  const handleExportDbWithDialog = async () => {
+    try {
+      let exportPath: string | undefined = undefined;
+      // Only show dialog if running in Tauri
+      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        exportPath = await core.invoke('plugin:dialog|save', {
+          title: 'Exporter la base de données',
+          defaultPath: 'exported_db.sqlite',
+          filters: [
+            { name: 'SQLite Database', extensions: ['sqlite', 'db'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        }) as string;
+        if (!exportPath) {
+          toast.info('Export annulé');
+          return;
+        }
+      }
+      const result = await exportDb(exportPath);
+      toast.success(result);
+    } catch (error) {
+      toast.error('Export failed');
+    }
+  };
+
+  const handleImportDb = async () => {
+    if (!importFile) {
+      toast.error('Please select a file to import');
+      return;
+    }
+    try {
+      // Read the file path (Tauri only allows file path, not File object)
+      // @ts-ignore
+      const filePath = importFile.path || importFile.name;
+      const result = await importDb(filePath);
+      toast.success(result);
+      await loadSettings();
+    } catch (error) {
+      toast.error('Import failed');
+    }
+  };
+
+  if (loading || !settings || !settings.company) {
     return (
       <MainLayout title="Settings">
         <div className="flex items-center justify-center p-8">
@@ -349,19 +419,21 @@ const Settings = () => {
           <TabsContent value="import-export" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Importation et Exportation</CardTitle>
+                <CardTitle>Import/Export Base de Données</CardTitle>
                 <CardDescription>
-                  Gérez l'importation et l'exportation de données
+                  Sauvegardez ou restaurez la base de données SQLite de l'application.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Button onClick={handleImportData}>
-                    Importer des données
-                  </Button>
-                  <Button onClick={handleExportData}>
-                    Exporter des données
-                  </Button>
+                <Button onClick={handleExportDb}>Exporter la base de données</Button>
+                <Button onClick={handleExportDbWithDialog} variant="outline">Exporter la base de données (dialogue)</Button>
+                <div className="flex items-center gap-2 mt-4">
+                  <input
+                    type="file"
+                    accept=".sqlite,.db"
+                    onChange={e => setImportFile(e.target.files?.[0] || null)}
+                  />
+                  <Button onClick={handleImportDb} variant="secondary">Importer la base de données</Button>
                 </div>
               </CardContent>
             </Card>

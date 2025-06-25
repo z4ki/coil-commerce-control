@@ -3,61 +3,56 @@ import { getSettings, updateSettings } from '@/services/settingsService';
 
 interface CompanyProfile {
   name: string;
-  email: string;
-  phone: string;
   address: string;
-  taxId: string;
-  nis: string;
-  rc: string;
-  ai: string;
-  rib: string;
-}
-
-interface InvoiceSettings {
-  nextNumber: number;
-  paymentTerms: number;
-  defaultNotes: string;
-  autoPdfGeneration: boolean;
+  phone: string;
+  email: string;
+  nif?: string;
+  nis?: string;
+  rc?: string;
+  ai?: string;
+  rib?: string;
+  taxId?: string;
+  logo?: string;
 }
 
 interface AppSettings {
-  language: 'en' | 'fr';
-  currency: 'DZD';
-  darkMode: boolean;
-  notifications: boolean;
+  id?: string;
   company: CompanyProfile;
-  invoice: InvoiceSettings;
+  language: 'en' | 'fr';
+  theme: 'light' | 'dark';
+  currency: string;
+  notifications?: boolean;
+  darkMode?: boolean;
+  user_id?: string;
 }
 
 interface AppSettingsContextType {
   settings: AppSettings;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   updateCompanyProfile: (profile: Partial<CompanyProfile>) => void;
-  updateInvoiceSettings: (settings: Partial<InvoiceSettings>) => void;
 }
 
 const defaultSettings: AppSettings = {
+  id: '',
   language: 'fr',
+  theme: 'light',
   currency: 'DZD',
-  darkMode: false,
   notifications: true,
+  darkMode: false,
   company: {
     name: 'Groupe HA',
     email: 'contact@groupeha.com',
     phone: '+213 XX XX XX XX',
     address: '123 Zone Industrielle, Alger, Algérie',
-    taxId: '12345678901234',
-    nis: '98765432109876',
-    rc: 'RC-XXXX-XXXX',
-    ai: 'AI-XXXX-XXXX',
-    rib: 'RIB-XXXX-XXXX'
+    nif: '',
+    nis: '',
+    rc: '',
+    ai: '',
+    rib: '',
+    taxId: '',
+    logo: ''
   },
-  invoice: {
-    nextNumber: 10001,
-    paymentTerms: 30,
-    defaultNotes: 'Merci pour votre confiance. Veuillez effectuer le paiement dans les délais spécifiés.',
-    autoPdfGeneration: true
-  }
+  user_id: ''
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -73,16 +68,25 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const loadSettings = async () => {
       try {
         const dbSettings = await getSettings();
+        // Defensive merge: always provide all fields, fallback to defaults
         setSettings(prev => ({
-          ...prev,
+          ...defaultSettings,
+          ...dbSettings,
           company: {
-            ...dbSettings.company,
-            taxId: dbSettings.company.nif || '', // Map NIF to taxId
+            ...defaultSettings.company,
+            ...(dbSettings.company || {}),
+            taxId: dbSettings.company?.nif ?? '', // Map NIF to taxId, fallback to empty string
+            nif: dbSettings.company?.nif ?? '',
+            nis: dbSettings.company?.nis ?? '',
+            rc: dbSettings.company?.rc ?? '',
+            ai: dbSettings.company?.ai ?? '',
+            rib: dbSettings.company?.rib ?? '',
+            logo: dbSettings.company?.logo ?? '',
           },
-          currency: 'DZD'
         }));
       } catch (error) {
         console.error('Error loading settings:', error);
+        setSettings(defaultSettings); // fallback to defaults
       }
     };
     loadSettings();
@@ -126,22 +130,11 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const updateInvoiceSettings = (invoiceSettings: Partial<InvoiceSettings>) => {
-    setSettings(prev => ({
-      ...prev,
-      invoice: {
-        ...prev.invoice,
-        ...invoiceSettings
-      }
-    }));
-  };
-
   return (
     <AppSettingsContext.Provider value={{
       settings,
       updateSettings: updateAppSettings,
       updateCompanyProfile,
-      updateInvoiceSettings,
     }}>
       {children}
     </AppSettingsContext.Provider>

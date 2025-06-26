@@ -101,10 +101,14 @@ const translations: { [key in Language]: Translations } = {
       'month': 'Month: {0}',
       'topClients': 'Top Clients',
       'recentSales': 'Recent Activity',
+      'recentActivity': 'Recent Activity',
       'noRecentActivity': 'Activity data will appear here as you add sales and invoices',
       'bankAccountBalance': 'Bank Account Balance',
       'bankAndCheck': 'Bank transfers and checks',
-      'quantity': 'Quantity'
+      'quantity': 'Quantity',
+      'invoiceIssued': 'Invoice issued #{invoiceNumber} ({amount})',
+      'paymentFrom': 'Payment from {client} ({amount})',
+      'saleTo': 'Sale to {client} ({amount})'
     },
 
     // Sales
@@ -683,10 +687,14 @@ const translations: { [key in Language]: Translations } = {
       'month': 'Mois: {0}',
       'topClients': 'Meilleurs clients',
       'recentSales': 'Activité récente',
+      'recentActivity': 'Activité récente',
       'noRecentActivity': 'Les données d\'activité apparaîtront ici au fur et à mesure que vous ajoutez des ventes et des factures',
       'bankAccountBalance': 'Solde Compte Bancaire',
       'bankAndCheck': 'Virements Bancaires et Chèques',
-      'quantity': 'Quantité'
+      'quantity': 'Quantité',
+      'invoiceIssued': 'Facture émise n°{invoiceNumber} ({amount})',
+      'paymentFrom': 'Paiement de {client} ({amount})',
+      'saleTo': 'Vente à {client} ({amount})'
     },
 
     // Sales

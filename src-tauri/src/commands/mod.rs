@@ -12,7 +12,9 @@
     use sqlx::Connection;
     use dirs;
     use tokio::sync::oneshot;
-
+    use tauri_plugin_dialog::DialogExt;
+    use std::path::PathBuf;
+    
     // Client structs
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Client {
@@ -1409,23 +1411,23 @@
     ) -> Result<(), String> {
         let mut set_clauses = Vec::new();
 
-        if let Some(ref v) = updates.company_name { set_clauses.push("company_name = ?"); }
-        if let Some(ref v) = updates.company_address { set_clauses.push("company_address = ?"); }
-        if let Some(ref v) = updates.company_phone { set_clauses.push("company_phone = ?"); }
-        if let Some(ref v) = updates.company_email { set_clauses.push("company_email = ?"); }
-        if let Some(ref v) = updates.company_logo { set_clauses.push("company_logo = ?"); }
+        if let Some(_) = updates.company_name { set_clauses.push("company_name = ?"); }
+        if let Some(_) = updates.company_address { set_clauses.push("company_address = ?"); }
+        if let Some(_) = updates.company_phone { set_clauses.push("company_phone = ?"); }
+        if let Some(_) = updates.company_email { set_clauses.push("company_email = ?"); }
+        if let Some(_) = updates.company_logo { set_clauses.push("company_logo = ?"); }
         if let Some(_) = updates.tax_rate { set_clauses.push("tax_rate = ?"); }
-        if let Some(ref v) = updates.currency { set_clauses.push("currency = ?"); }
-        if let Some(ref v) = updates.nif { set_clauses.push("nif = ?"); }
-        if let Some(ref v) = updates.nis { set_clauses.push("nis = ?"); }
-        if let Some(ref v) = updates.rc { set_clauses.push("rc = ?"); }
-        if let Some(ref v) = updates.ai { set_clauses.push("ai = ?"); }
-        if let Some(ref v) = updates.rib { set_clauses.push("rib = ?"); }
-        if let Some(ref v) = updates.language { set_clauses.push("language = ?"); }
-        if let Some(ref v) = updates.theme { set_clauses.push("theme = ?"); }
+        if let Some(_) = updates.currency { set_clauses.push("currency = ?"); }
+        if let Some(_) = updates.nif { set_clauses.push("nif = ?"); }
+        if let Some(_) = updates.nis { set_clauses.push("nis = ?"); }
+        if let Some(_) = updates.rc { set_clauses.push("rc = ?"); }
+        if let Some(_) = updates.ai { set_clauses.push("ai = ?"); }
+        if let Some(_) = updates.rib { set_clauses.push("rib = ?"); }
+        if let Some(_) = updates.language { set_clauses.push("language = ?"); }
+        if let Some(_) = updates.theme { set_clauses.push("theme = ?"); }
         if let Some(_) = updates.notifications { set_clauses.push("notifications = ?"); }
         if let Some(_) = updates.dark_mode { set_clauses.push("dark_mode = ?"); }
-        if let Some(ref v) = updates.user_id { set_clauses.push("user_id = ?"); }
+        if let Some(_) = updates.user_id { set_clauses.push("user_id = ?"); }
 
         if set_clauses.is_empty() {
             return Err("No fields to update".to_string());
@@ -1458,56 +1460,62 @@
     }
 
     #[tauri::command]
-    pub async fn export_db(_export_path: Option<String>) -> Result<String, String> {
-        use std::fs;
-        use std::path::Path;
-        use dirs;
+    pub async fn export_db(app: tauri::AppHandle, export_path: Option<String>) -> Result<String, String> {
+        let db_url = std::env::var("DATABASE_URL").map_err(|e| e.to_string())?;
+        let db_path = db_url.strip_prefix("sqlite://").ok_or("Invalid DATABASE_URL")?;
 
-        let db_url = std::env::var("DATABASE_URL").map_err(|e| {
-            eprintln!("DATABASE_URL error: {}", e);
-            e.to_string()
-        })?;
+        let export_path = if let Some(path) = export_path {
+            std::path::PathBuf::from(path)
+        } else {
+            app.dialog()
+                .file()
+                .add_filter("SQLite Database", &["sqlite", "db"])
+                .blocking_save_file()
+                .ok_or("Export cancelled by user")?
+                .as_path()
+                .expect("Dialog returned a FilePath with no path")
+                .to_path_buf()
+        };
 
-        // Always use the user's Downloads folder
-        let downloads_dir = dirs::download_dir().ok_or("Could not find Downloads directory")?;
-        let export_path = downloads_dir.join("coil_commerce_export.sqlite");
-
-        // Ensure parent directory exists
         if let Some(parent) = export_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                eprintln!("Failed to create directory: {}", e);
-                e.to_string()
-            })?;
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
-        // Remove existing file
-        if export_path.exists() {
-            fs::remove_file(&export_path).map_err(|e| {
-                eprintln!("Failed to remove existing file: {}", e);
-                e.to_string()
-            })?;
-        }
-
-        let mut conn = sqlx::sqlite::SqliteConnection::connect(&db_url).await
-            .map_err(|e| {
-                eprintln!("Failed to connect to DB: {}", e);
-                e.to_string()
-            })?;
-
-        let sql = format!("VACUUM INTO '{}'", export_path.to_string_lossy().replace("'", "''"));
-        sqlx::query(&sql).execute(&mut conn).await
-            .map_err(|e| {
-                eprintln!("VACUUM INTO failed: {}", e);
-                e.to_string()
-            })?;
-
-        Ok(format!("Database exported to {}", export_path.to_string_lossy()))
+        std::fs::copy(db_path, &export_path).map_err(|e| e.to_string())?;
+        Ok(format!("Database exported to {}", export_path.display()))
     }
 
     #[tauri::command]
-    pub async fn import_db(import_path: String) -> Result<String, String> {
-        let db_url = env::var("DATABASE_URL").map_err(|e| e.to_string())?;
+    pub async fn import_db(app: tauri::AppHandle, import_path: Option<String>) -> Result<String, String> {
+        let db_url = std::env::var("DATABASE_URL").map_err(|e| e.to_string())?;
         let db_path = db_url.strip_prefix("sqlite://").ok_or("Invalid DATABASE_URL")?;
-        fs::copy(&import_path, db_path).map_err(|e| e.to_string())?;
-        Ok("Database imported successfully".to_string())
+        let db_path = std::path::PathBuf::from(db_path);
+
+        let import_path = if let Some(path) = import_path {
+            std::path::PathBuf::from(path)
+        } else {
+            app.dialog()
+                .file()
+                .add_filter("SQLite Database", &["sqlite", "db"])
+                .blocking_pick_file()
+                .ok_or("Import cancelled by user")?
+                .as_path()
+                .expect("Dialog returned a FilePath with no path")
+                .to_path_buf()
+        };
+
+        if !import_path.exists() {
+            return Err("Selected import file does not exist".to_string());
+        }
+
+        let backup_path = db_path.with_extension("backup");
+        std::fs::copy(&db_path, &backup_path).map_err(|e| format!("Failed to create backup: {}", e))?;
+        std::fs::copy(&import_path, &db_path).map_err(|e| e.to_string())?;
+
+        Ok(format!(
+            "Database imported successfully from {}. Backup created at {}",
+            import_path.display(),
+            backup_path.display()
+        ))
     }
+    

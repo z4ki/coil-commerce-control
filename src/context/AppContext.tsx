@@ -133,6 +133,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   const deleteClient = async (id: string) => {
     await clientService.deleteClient(id);
+    setClients(prev => prev.filter(client => client.id !== id));
   };
 
   const getSalesByClient = (clientId: string) => {

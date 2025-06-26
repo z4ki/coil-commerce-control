@@ -209,12 +209,77 @@ const Dashboard = () => {
         {/* Recent Activity */}
         <Card className="hoverable-card">
           <CardHeader>
-            <CardTitle>{t('dashboard.recentSales')}</CardTitle>
+            <CardTitle>{t('dashboard.recentActivity') || 'Recent Activity'}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-center py-8">
-              {t('dashboard.noRecentActivity')}
-            </p>
+            {(() => {
+              // Merge and sort activities
+              const activities = [
+                ...sales.map(sale => ({
+                  type: 'sale',
+                  id: sale.id,
+                  date: new Date(sale.createdAt),
+                  client: clients.find(c => c.id === sale.clientId)?.name || sale.clientId,
+                  amount: formatCurrency(sale.totalAmountTTC)
+                })),
+                ...payments.map(payment => ({
+                  type: 'payment',
+                  id: payment.id,
+                  date: new Date(payment.createdAt),
+                  client: clients.find(c => c.id === payment.clientId)?.name || payment.clientId,
+                  amount: formatCurrency(payment.amount)
+                })),
+                ...invoices.map(invoice => ({
+                  type: 'invoice',
+                  id: invoice.id,
+                  date: new Date(invoice.createdAt),
+                  invoiceNumber: invoice.invoiceNumber,
+                  amount: formatCurrency(invoice.totalAmountTTC)
+                }))
+              ];
+              const sortedActivities = activities
+                .sort((a, b) => b.date.getTime() - a.date.getTime())
+                .slice(0, 10);
+              if (sortedActivities.length === 0) {
+                return (
+                  <p className="text-muted-foreground text-center py-8">
+                    {t('dashboard.noRecentActivity')}
+                  </p>
+                );
+              }
+              const renderActivityDescription = (activity: any) => {
+                if (activity.type === 'invoice') {
+                  return t('dashboard.invoiceIssued')
+                    .replace('{invoiceNumber}', activity.invoiceNumber)
+                    .replace('{amount}', activity.amount);
+                }
+                if (activity.type === 'payment') {
+                  return t('dashboard.paymentFrom')
+                    .replace('{client}', activity.client)
+                    .replace('{amount}', activity.amount);
+                }
+                if (activity.type === 'sale') {
+                  return t('dashboard.saleTo')
+                    .replace('{client}', activity.client)
+                    .replace('{amount}', activity.amount);
+                }
+                return '';
+              };
+              return (
+                <ul>
+                  {sortedActivities.map(activity => (
+                    <li key={activity.type + activity.id} className="py-2 border-b last:border-b-0 flex justify-between items-center">
+                      <span>
+                        <span className="font-semibold capitalize">{activity.type}:</span> {renderActivityDescription(activity)}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                        {activity.date.toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>

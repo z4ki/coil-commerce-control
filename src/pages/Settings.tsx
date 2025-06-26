@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '../components/layout/MainLayout';
 import { useTheme } from 'next-themes';
 import { PlusCircle, Check, X } from 'lucide-react';
@@ -35,6 +35,8 @@ const Settings = () => {
   const { theme, setTheme } = useTheme();
   const { settings: invoiceSettings, addPrefix, removePrefix, setDefaultPrefix } = useInvoiceSettings();
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadSettings();
@@ -95,9 +97,15 @@ const Settings = () => {
       let exportPath: string | undefined = undefined;
       // Only show dialog if running in Tauri
       if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}${mm}${dd}`;
+        const defaultFileName = `salesmanager-db-${dateStr}.sqlite`;
         exportPath = await core.invoke('plugin:dialog|save', {
           title: 'Exporter la base de données',
-          defaultPath: 'exported_db.sqlite',
+          defaultPath: defaultFileName,
           filters: [
             { name: 'SQLite Database', extensions: ['sqlite', 'db'] },
             { name: 'All Files', extensions: ['*'] },
@@ -149,11 +157,29 @@ const Settings = () => {
       // Read the file path (Tauri only allows file path, not File object)
       // @ts-ignore
       const filePath = importFile.path || importFile.name;
-      const result = await importDb(filePath);
+      const result = await importDb({ import_path: filePath });
       toast.success(result);
       await loadSettings();
     } catch (error) {
       toast.error('Import failed');
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setImportFile(e.dataTransfer.files[0]);
+      handleImportDb();
     }
   };
 
@@ -426,14 +452,25 @@ const Settings = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button onClick={handleExportDb}>Exporter la base de données</Button>
-                <Button onClick={handleExportDbWithDialog} variant="outline">Exporter la base de données (dialogue)</Button>
-                <div className="flex items-center gap-2 mt-4">
-                  <input
-                    type="file"
-                    accept=".sqlite,.db"
-                    onChange={e => setImportFile(e.target.files?.[0] || null)}
-                  />
-                  <Button onClick={handleImportDb} variant="secondary">Importer la base de données</Button>
+                {/* <Button onClick={handleExportDbWithDialog} variant="outline">Exporter la base de données (dialogue)</Button> */}
+                <div
+                  ref={dropRef}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md p-6 mt-4 transition-colors ${isDragOver ? 'border-primary bg-primary/10' : 'border-muted'}`}
+                  style={{ minHeight: 120 }}
+                >
+                  <span className="mb-2 text-muted-foreground">Glissez-déposez un fichier .sqlite ou .db ici pour l'importer</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept=".sqlite,.db"
+                      onChange={e => setImportFile(e.target.files?.[0] || null)}
+                    />
+                    <Button onClick={handleImportDb} variant="secondary">Importer la base de données</Button>
+                  </div>
+                  {importFile && <span className="mt-2 text-xs text-primary">Fichier sélectionné : {importFile.name}</span>}
                 </div>
               </CardContent>
             </Card>

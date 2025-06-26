@@ -1,5 +1,5 @@
 import { tauriApi } from '@/lib/tauri-api';
-import { Invoice } from '@/types/sales';
+import { Invoice } from '@/types/index';
 import { formatDateInput } from '@/utils/format';
 
 // Interface for data being inserted into Supabase
@@ -52,7 +52,7 @@ const mapResponseToDbInvoice = (response: DbInvoiceResponse): DbInvoice => ({
 });
 
 // Helper to convert database invoice to our application Invoice type
-const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = []): Invoice => ({
+const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = [], extra: any = {}): Invoice => ({
   id: dbInvoice.id,
   invoiceNumber: dbInvoice.invoice_number,
   clientId: dbInvoice.client_id,
@@ -60,34 +60,37 @@ const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = []): I
   dueDate: new Date(dbInvoice.due_date),
   salesIds,
   totalAmountHT: Number(dbInvoice.total_amount_ht),
-  totalAmountTTC: Number(dbInvoice.total_amount_ttc), // fix: use snake_case
+  totalAmountTTC: Number(dbInvoice.total_amount_ttc),
+  taxRate: typeof extra.tax_rate === 'number' ? extra.tax_rate : 0.19,
   isPaid: dbInvoice.is_paid,
   paidAt: dbInvoice.paid_at ? new Date(dbInvoice.paid_at) : undefined,
+  paymentMethod: extra.payment_method,
+  transportationFee: extra.transportation_fee,
+  transportationFeeTTC: extra.transportation_fee_ttc,
+  notes: extra.notes,
   createdAt: new Date(dbInvoice.created_at),
   updatedAt: dbInvoice.updated_at ? new Date(dbInvoice.updated_at) : undefined,
+  isDeleted: !!extra.is_deleted,
+  deletedAt: extra.deleted_at ? new Date(extra.deleted_at) : undefined,
 });
 
 export const getInvoices = async (): Promise<Invoice[]> => {
   try {
     const backendInvoices = await tauriApi.invoices.getAll() as any[];
     if (!Array.isArray(backendInvoices)) return [];
-    // Map backend fields to frontend Invoice type
-    return backendInvoices.map((inv: any) => ({
+    return backendInvoices.map((inv: any) => mapDbInvoiceToInvoice({
       id: inv.id,
-      invoiceNumber: inv.invoice_number,
-      clientId: inv.client_id,
-      date: new Date(inv.date),
-      dueDate: new Date(inv.due_date),
-      salesIds: inv.sales_ids || [],
-      totalAmountHT: Number(inv.total_amount_ht),
-      totalAmountTTC: Number(inv.total_amount_ttc),
-      isPaid: inv.is_paid,
-      paidAt: inv.paid_at ? new Date(inv.paid_at) : undefined,
-      createdAt: new Date(inv.created_at),
-      updatedAt: inv.updated_at ? new Date(inv.updated_at) : undefined,
-      isDeleted: !!inv.is_deleted,
-      deletedAt: inv.deleted_at ? new Date(inv.deleted_at) : undefined,
-    }));
+      invoice_number: inv.invoice_number,
+      client_id: inv.client_id,
+      date: inv.date,
+      due_date: inv.due_date,
+      total_amount_ht: inv.total_amount_ht,
+      total_amount_ttc: inv.total_amount_ttc,
+      is_paid: inv.is_paid,
+      paid_at: inv.paid_at,
+      created_at: inv.created_at,
+      updated_at: inv.updated_at,
+    }, inv.sales_ids || [], inv));
   } catch (error) {
     console.error('Error fetching invoices:', error);
     throw error;
@@ -98,22 +101,19 @@ export const getDeletedInvoices = async (): Promise<Invoice[]> => {
   try {
     const backendInvoices = await tauriApi.invoices.getDeleted() as any[];
     if (!Array.isArray(backendInvoices)) return [];
-    return backendInvoices.map((inv: any) => ({
+    return backendInvoices.map((inv: any) => mapDbInvoiceToInvoice({
       id: inv.id,
-      invoiceNumber: inv.invoice_number,
-      clientId: inv.client_id,
-      date: new Date(inv.date),
-      dueDate: new Date(inv.due_date),
-      salesIds: inv.sales_ids || [],
-      totalAmountHT: Number(inv.total_amount_ht),
-      totalAmountTTC: Number(inv.total_amount_ttc),
-      isPaid: inv.is_paid,
-      paidAt: inv.paid_at ? new Date(inv.paid_at) : undefined,
-      createdAt: new Date(inv.created_at),
-      updatedAt: inv.updated_at ? new Date(inv.updated_at) : undefined,
-      isDeleted: !!inv.is_deleted,
-      deletedAt: inv.deleted_at ? new Date(inv.deleted_at) : undefined,
-    }));
+      invoice_number: inv.invoice_number,
+      client_id: inv.client_id,
+      date: inv.date,
+      due_date: inv.due_date,
+      total_amount_ht: inv.total_amount_ht,
+      total_amount_ttc: inv.total_amount_ttc,
+      is_paid: inv.is_paid,
+      paid_at: inv.paid_at,
+      created_at: inv.created_at,
+      updated_at: inv.updated_at,
+    }, inv.sales_ids || [], inv));
   } catch (error) {
     console.error('Error fetching deleted invoices:', error);
     throw error;
@@ -154,7 +154,7 @@ export const createInvoice = async (
       is_paid: invoice.isPaid,
       paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null,
     };
-    return await tauriApi.invoices.create(backendInvoice);
+    return await tauriApi.invoices.create(backendInvoice) as Invoice;
   } catch (error) {
     console.error('Error creating invoice:', error);
     throw error;

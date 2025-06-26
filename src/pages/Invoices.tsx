@@ -116,7 +116,7 @@ const Invoices = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button onClick={() => setShowArchive(a => !a)} variant="outline">
+          <Button className="mr-0" onClick={() => setShowArchive(a => !a)} variant="outline">
             {showArchive ? t('invoices.showActive') || 'Show Active' : t('invoices.showArchive') || 'Show Archive'}
           </Button>
           <Button onClick={() => {

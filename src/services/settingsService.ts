@@ -1,6 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AppSettings, CompanyProfile } from '@/types/index';
 import { tauriApi } from '@/lib/tauri-api';
+import { core } from '@tauri-apps/api';
+
 
 interface DbSettings {
   id: string;
@@ -203,10 +205,9 @@ export const exportDb = async (exportPath?: string): Promise<string> => {
   }
 };
 
-export const importDb = async (importPath: string): Promise<string> => {
+export const importDb = async ({ import_path }: { import_path: string }): Promise<string> => {
   try {
-    // Call the Tauri command for importing the database
-    return await (tauriApi as any).settings.import_db(importPath);
+    return await core.invoke('import_db', { import_path });
   } catch (error) {
     console.error('Error importing database:', error);
     throw error;

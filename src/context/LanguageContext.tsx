@@ -59,7 +59,6 @@ const translations: { [key in Language]: Translations } = {
       'noData': 'No Data',
       'items': 'Items',
       'actions': 'Actions',
-      'delete': 'Delete',
       'edit': 'Edit',
       'view': 'View',
       'confirm': 'Confirm',
@@ -81,7 +80,7 @@ const translations: { [key in Language]: Translations } = {
       'reports': 'Reports',
       'adminUser': 'Admin User',
       'quantity': 'Quantity',
-      'restore': 'Restore'
+      'restore': 'Restore',
     },
 
     // Dashboard
@@ -161,7 +160,9 @@ const translations: { [key in Language]: Translations } = {
       'showActive': 'Show Active',
       'archive': 'Deleted Sales',
       'number': 'Sale Number',
-      'deletedAt': 'Deleted At'
+      'deletedAt': 'Deleted At',
+      'deleteBlocked': 'Cannot delete sale: related invoice is paid.',
+      'blockedByInvoice': 'Blocked by invoice'
     },
 
     // Clients
@@ -645,7 +646,6 @@ const translations: { [key in Language]: Translations } = {
       'noData': 'Aucune donnée',
       'items': 'Éléments',
       'actions': 'Actions',
-      'delete': 'Supprimer',
       'edit': 'Modifier',
       'view': 'Voir',
       'confirm': 'Confirmer',
@@ -667,7 +667,7 @@ const translations: { [key in Language]: Translations } = {
       'reports': 'Rapports',
       'adminUser': 'Administrateur',
       'quantity': 'Quantité',
-      'restore': 'Restaurer'
+      'restore': 'Restaurer',
     },
 
     // Dashboard
@@ -747,7 +747,9 @@ const translations: { [key in Language]: Translations } = {
       'showActive': 'Afficher les actifs',
       'archive': 'Ventes supprimées',
       'number': 'Numéro de vente',
-      'deletedAt': 'Supprimé le'
+      'deletedAt': 'Supprimé le',
+      'deleteBlocked': 'Suppression impossible : la facture liée est payée.',
+      'blockedByInvoice': 'Bloqué par la facture'
     },
 
     // Clients

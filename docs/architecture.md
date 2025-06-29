@@ -16,6 +16,35 @@
 - **Migrations:**
   - All schema changes tracked and applied via sqlx migrations
 
+## Settings Table Schema
+
+The `settings` table stores global application configuration, company info, and user preferences. It is created in the initial migration and always present in the database.
+
+| Column           | Type     | Description                                 |
+|------------------|----------|---------------------------------------------|
+| id               | TEXT     | Primary key (UUID, auto-generated)          |
+| company_name     | TEXT     | Company name (required)                     |
+| company_address  | TEXT     | Company address (required)                  |
+| company_phone    | TEXT     | Company phone (required)                    |
+| company_email    | TEXT     | Company email (optional)                    |
+| company_logo     | TEXT     | Path or URL to company logo (optional)      |
+| tax_rate         | REAL     | Default tax rate (default: 0.19)            |
+| currency         | TEXT     | Currency code (default: 'DZD')              |
+| nif              | TEXT     | NIF (optional)                              |
+| nis              | TEXT     | NIS (optional)                              |
+| rc               | TEXT     | RC (optional)                               |
+| ai               | TEXT     | AI (optional)                               |
+| rib              | TEXT     | RIB (optional)                              |
+| language         | TEXT     | Language code (default: 'en')               |
+| theme            | TEXT     | Theme (default: 'light')                    |
+| notifications    | BOOLEAN  | Enable notifications (default: true)        |
+| dark_mode        | BOOLEAN  | Enable dark mode (default: false)           |
+| user_id          | TEXT     | User ID (optional)                          |
+| created_at       | DATETIME | Row creation timestamp                      |
+| updated_at       | DATETIME | Row last update timestamp                   |
+
+This table is used by the backend to ensure a single row always exists for application-wide settings, and is managed via the `get_settings` and `update_settings` Tauri commands.
+
 ## Rust Backend (Tauri)
 - **Command Structure:**
   - All CRUD for clients, sales, invoices, payments, sale items, product templates

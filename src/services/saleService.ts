@@ -595,7 +595,12 @@ export const restoreSale = async (id: string): Promise<void> => {
 };
 
 export const deleteSale = async (id: string): Promise<void> => {
-  await tauriApi.sales.delete(id);
+  try {
+    await tauriApi.sales.delete(id);
+  } catch (error: any) {
+    // Rethrow error so UI can display a warning
+    throw error;
+  }
 };
 
 export const getSaleById = async (id: string): Promise<Sale | null> => {

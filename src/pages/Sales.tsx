@@ -93,10 +93,21 @@ const Sales = () => {
     }
   }, [showArchive]);
 
-  const handleDeleteSale = (sale: Sale) => {
+  const handleDeleteSale = async (sale: Sale) => {
     if (window.confirm(t('sales.deleteConfirm'))) {
-      deleteSale(sale.id);
-      toast.success(t('sales.deleted'));
+      try {
+        await deleteSale(sale.id);
+        toast.success(t('sales.deleted'));
+      } catch (error: any) {
+        // Show a warning if deletion is blocked (e.g., due to a paid invoice)
+        let message = error?.message || error?.toString() || t('sales.deleteBlocked') || 'Deletion blocked.';
+        // Try to extract invoice ID(s) from the error message
+        const match = message.match(/invoice ([^ ]+)/i);
+        if (match && match[1]) {
+          message += `\n${t('sales.blockedByInvoice') || 'Blocked by invoice'}: ${match[1]}`;
+        }
+        toast.error(message);
+      }
     }
   };
 

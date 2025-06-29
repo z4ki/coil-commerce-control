@@ -120,13 +120,12 @@ CREATE TABLE credit_transactions (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES clients(id)
 );
-
 CREATE TABLE settings (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     company_name TEXT NOT NULL,
     company_address TEXT NOT NULL,
     company_phone TEXT NOT NULL,
-    company_email TEXT NOT NULL,
+    company_email TEXT,
     company_logo TEXT,
     tax_rate REAL DEFAULT 0.19,
     currency TEXT DEFAULT 'DZD',
@@ -142,8 +141,7 @@ CREATE TABLE settings (
     user_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
+); 
 -- Add indexes for better performance
 CREATE INDEX idx_sales_client_id ON sales(client_id);
 CREATE INDEX idx_sales_date ON sales(date);

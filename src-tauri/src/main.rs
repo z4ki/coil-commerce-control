@@ -9,31 +9,101 @@ use std::path::PathBuf;
 use std::path::Path;
 use std::env;
 use dotenv::dotenv;
+use shellexpand;
+
+
 
 #[tokio::main]
 async fn main() {
+    println!("[DEBUG] main.rs: main() started");
     dotenv().ok(); // Loads .env file
-
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
-
-    // Optionally, extract the directory and create it if needed
+    
+    let db_url_raw = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
+    println!("[DEBUG] Raw DATABASE_URL from env: {}", db_url_raw);
+    let db_url = shellexpand::env(&db_url_raw).unwrap().to_string();
+    println!("[DEBUG] Expanded DATABASE_URL: {}", db_url);
+    println!("[DEBUG] HOME: {:?}", std::env::var("HOME"));
+    println!("[DEBUG] USERPROFILE: {:?}", std::env::var("USERPROFILE"));
+    // std::process::exit(1);
+    // Ensure database file and directory exist
     if let Some(path) = db_url.strip_prefix("sqlite://") {
-        if let Some(parent) = Path::new(path).parent() {
+        let db_path = Path::new(path);
+        println!("[DEBUG] Parsed DB file path: {:?}", db_path);
+        
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = db_path.parent() {
+            println!("[DEBUG] Parent directory: {:?}", parent);
+            println!("[DEBUG] Parent exists before: {}", parent.exists());
             if !parent.exists() {
-                fs::create_dir_all(parent).expect("Failed to create database directory");
+                match fs::create_dir_all(parent) {
+                    Ok(_) => println!("[DEBUG] Created database directory: {:?}", parent),
+                    Err(e) => println!("[ERROR] Failed to create database directory: {:?} - {}", parent, e),
+                }
+            }
+            println!("[DEBUG] Parent exists after: {}", parent.exists());
+            // List directory contents
+            match fs::read_dir(parent) {
+                Ok(entries) => {
+                    println!("[DEBUG] Directory contents after creation:");
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            println!("    - {:?}", entry.path());
+                        }
+                    }
+                },
+                Err(e) => println!("[ERROR] Could not read directory: {}", e),
             }
         }
+        
+        // Create database file if it doesn't exist
+        // Using touch-like approach instead of opening connection
+        println!("[DEBUG] DB file exists before: {}", db_path.exists());
+        if !db_path.exists() {
+            match fs::File::create(db_path) {
+                Ok(_) => println!("[DEBUG] Created database file: {:?}", db_path),
+                Err(e) => println!("[ERROR] Failed to create database file: {:?} - {}", db_path, e),
+            }
+        }
+        println!("[DEBUG] DB file exists after: {}", db_path.exists());
+        
+        // Check if the file is writable
+        match fs::metadata(db_path) {
+            Ok(metadata) => {
+                println!("[DEBUG] DB file permissions: {:?}", metadata.permissions());
+                if metadata.permissions().readonly() {
+                    println!("[ERROR] Database file is read-only: {:?}", db_path);
+                }
+            },
+            Err(e) => println!("[ERROR] Failed to get database file metadata: {}", e),
+        }
     }
-
-    let pool = SqlitePool::connect(&db_url).await
-        .expect("Failed to connect to database");
+    
+    // Connect to database with retry logic
+    let pool = match SqlitePool::connect(&db_url).await {
+        Ok(pool) => {
+            println!("Successfully connected to database");
+            pool
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to database: {}", e);
+            eprintln!("Database URL: {}", db_url);
+            panic!("Database connection failed");
+        }
+    };
     
     // Run migrations
-    sqlx::migrate!("./migrations").run(&pool).await
-        .expect("Failed to run migrations");
-
-    ensure_settings_row(&pool).await.expect("Failed to ensure settings row");
-
+    match sqlx::migrate!("./migrations").run(&pool).await {
+        Ok(_) => println!("Migrations completed successfully"),
+        Err(e) => {
+            eprintln!("Migration failed: {}", e);
+            panic!("Failed to run migrations");
+        }
+    }
+    
+    // Ensure settings row exists
+    ensure_settings_row(&pool).await
+        .expect("Failed to ensure settings row");
+    
     tauri::Builder::default()
         .manage(pool)
         .setup(|app| {
@@ -81,7 +151,7 @@ async fn main() {
             commands::get_deleted_invoices,
             commands::get_deleted_sales,
             commands::get_deleted_payments,
-            // settings commands
+            // Settings commands
             commands::get_settings,
             commands::update_settings,
             commands::export_db,

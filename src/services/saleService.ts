@@ -547,11 +547,35 @@ export const mockData = {
 export const getSales = async (): Promise<Sale[]> => {
   const backendSales = await tauriApi.sales.getAll() as any[];
   if (!Array.isArray(backendSales)) return [];
+  
   return backendSales.map((sale: any) => ({
     id: sale.id,
     clientId: sale.client_id,
     date: new Date(sale.date),
-    items: sale.items || [],
+    items: (sale.items || []).map((item: any) => ({
+      id: item.id,
+      saleId: sale.id,
+      description: item.description,
+      coilRef: item.coil_ref,
+      coilThickness: item.coil_thickness,
+      coilWidth: item.coil_width,
+      topCoatRAL: item.top_coat_ral,
+      backCoatRAL: item.back_coat_ral,
+      coilWeight: item.coil_weight,
+      quantity: Number(item.quantity),
+      pricePerTon: Number(item.price_per_ton),
+      totalAmountHT: Number(item.total_amount_ht ?? item.total_amount),
+      totalAmountTTC: Number(item.total_amount_ttc),
+      createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
+      productType:
+        item.productType ||
+        item.product_type ||
+        (item.description?.toLowerCase().includes('slitting') ? 'steel_slitting'
+        : item.description?.toLowerCase().includes('coil') ? 'coil'
+        : item.description?.toLowerCase().includes('corrugated') ? 'corrugated_sheet'
+        : undefined),
+    })),
     totalAmountHT: Number(sale.total_amount_ht ?? sale.total_amount),
     totalAmountTTC: Number(sale.total_amount_ttc),
     isInvoiced: !!sale.is_invoiced,
@@ -570,19 +594,43 @@ export const getSales = async (): Promise<Sale[]> => {
 export const getDeletedSales = async (): Promise<Sale[]> => {
   const backendSales = await tauriApi.sales.getDeleted() as any[];
   if (!Array.isArray(backendSales)) return [];
-    return backendSales.map((sale: any) => ({
+  
+  return backendSales.map((sale: any) => ({
     id: sale.id,
-      clientId: sale.client_id,
+    clientId: sale.client_id,
     date: new Date(sale.date),
-    items: sale.items || [],
+    items: (sale.items || []).map((item: any) => ({
+      id: item.id,
+      saleId: sale.id,
+      description: item.description,
+      coilRef: item.coil_ref,
+      coilThickness: item.coil_thickness,
+      coilWidth: item.coil_width,
+      topCoatRAL: item.top_coat_ral,
+      backCoatRAL: item.back_coat_ral,
+      coilWeight: item.coil_weight,
+      quantity: Number(item.quantity),
+      pricePerTon: Number(item.price_per_ton),
+      totalAmountHT: Number(item.total_amount_ht ?? item.total_amount),
+      totalAmountTTC: Number(item.total_amount_ttc),
+      createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
+      productType:
+        item.productType ||
+        item.product_type ||
+        (item.description?.toLowerCase().includes('slitting') ? 'steel_slitting'
+        : item.description?.toLowerCase().includes('coil') ? 'coil'
+        : item.description?.toLowerCase().includes('corrugated') ? 'corrugated_sheet'
+        : undefined),
+    })),
     totalAmountHT: Number(sale.total_amount_ht ?? sale.total_amount),
     totalAmountTTC: Number(sale.total_amount_ttc),
     isInvoiced: !!sale.is_invoiced,
-      invoiceId: sale.invoice_id,
+    invoiceId: sale.invoice_id,
     notes: sale.notes,
-      paymentMethod: sale.payment_method,
-      transportationFee: sale.transportation_fee,
-      taxRate: sale.tax_rate,
+    paymentMethod: sale.payment_method,
+    transportationFee: sale.transportation_fee,
+    taxRate: sale.tax_rate,
     createdAt: new Date(sale.created_at),
     updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
     isDeleted: !!sale.is_deleted,
@@ -626,27 +674,67 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
   const existing = await getSaleById(id);
   if (!existing) throw new Error('Sale not found');
   const merged = { ...existing, ...sale };
-  // Ensure all items have pricePerTon
+
+  // Validate required fields
+  if (!merged.clientId) throw new Error('clientId is required');
+  if (!merged.date) throw new Error('date is required');
+  if (!merged.totalAmountHT && merged.totalAmountHT !== 0) throw new Error('totalAmountHT is required');
+  if (!merged.totalAmountTTC && merged.totalAmountTTC !== 0) throw new Error('totalAmountTTC is required');
+  if (typeof merged.isInvoiced !== 'boolean') throw new Error('isInvoiced is required');
+  if (!Array.isArray(merged.items) || merged.items.length === 0) throw new Error('At least one sale item is required');
+  if (typeof merged.taxRate !== 'number') throw new Error('taxRate is required');
+
+  // Ensure all items have pricePerTon and required fields
   const items = (merged.items || []).map((item: any, idx: number) => {
     if (item.pricePerTon == null) {
       throw new Error(`Sale item at index ${idx} is missing pricePerTon`);
     }
+    if (!item.description) {
+      throw new Error(`Sale item at index ${idx} is missing description`);
+    }
+    if (typeof item.quantity !== 'number') {
+      throw new Error(`Sale item at index ${idx} is missing quantity`);
+    }
+    if (typeof item.totalAmountHT !== 'number') {
+      throw new Error(`Sale item at index ${idx} is missing totalAmountHT`);
+    }
+    if (typeof item.totalAmountTTC !== 'number') {
+      throw new Error(`Sale item at index ${idx} is missing totalAmountTTC`);
+    }
+    if (!item.productType) {
+      throw new Error(`Sale item at index ${idx} is missing productType`);
+    }
     return {
       description: item.description,
-      coil_ref: item.coilRef,
-      coil_thickness: item.coilThickness,
-      coil_width: item.coilWidth,
-      top_coat_ral: item.topCoatRAL,
-      back_coat_ral: item.backCoatRAL,
-      coil_weight: item.coilWeight,
+      coil_ref: item.coilRef ?? null,
+      coil_thickness: item.coilThickness ?? null,
+      coil_width: item.coilWidth ?? null,
+      top_coat_ral: item.topCoatRAL ?? null,
+      back_coat_ral: item.backCoatRAL ?? null,
+      coil_weight: item.coilWeight ?? null,
       quantity: item.quantity,
       price_per_ton: item.pricePerTon,
       total_amount: item.totalAmountHT,
+      product_type: item.productType,
     };
   });
-  const backendSale: any = {
+
+  // Only include fields that are present and required
+  function flattenAndClean(obj: Record<string, any>) {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, v]) => v !== undefined && v !== null)
+    );
+  }
+
+  const backendSale: any = flattenAndClean({
     client_id: merged.clientId,
-    date: merged.date instanceof Date ? merged.date.toISOString() : merged.date,
+    date:
+      merged.date instanceof Date
+        ? merged.date.toISOString()
+        : (typeof merged.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(merged.date))
+          ? new Date(merged.date).toISOString()
+          : merged.date,
     total_amount: merged.totalAmountHT,
     total_amount_ttc: merged.totalAmountTTC,
     is_invoiced: merged.isInvoiced,
@@ -656,11 +744,27 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
     transportation_fee: merged.transportationFee,
     tax_rate: merged.taxRate,
     items,
-  };
+  });
+
+  // Final check for undefined or NaN fields
+  Object.entries(backendSale).forEach(([k, v]) => {
+    if (v === undefined) {
+      throw new Error(`Field ${k} is undefined`);
+    }
+    if (typeof v === 'number' && isNaN(v)) {
+      throw new Error(`Field ${k} is NaN`);
+    }
+  });
+
+  // Log the payload for debugging
+  console.log('[updateSale] Payload to backend:', JSON.stringify(backendSale, null, 2));
+
   try {
-    return await tauriApi.sales.update(id, backendSale);
+    const result = await tauriApi.sales.update(id, backendSale);
+    console.log('[updateSale] Backend result:', result);
+    return result;
   } catch (error) {
-    console.error('Error updating sale:', error);
+    console.error('[updateSale] Error updating sale:', error, '\nPayload:', backendSale);
     throw error;
   }
 };

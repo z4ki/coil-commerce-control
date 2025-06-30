@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import SaleForm from "./components/sales/SaleForm";
 import ClientForm from "./components/clients/ClientForm";
 import InvoiceForm from "./components/invoices/InvoiceForm";
+import SaleDetail from "./pages/SaleDetail";
 
 const queryClient = new QueryClient();
 
@@ -76,7 +77,7 @@ const App = () => {
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/sales" element={<Sales />} />
                       <Route path="/sales/new" element={<SaleForm />} />
-                      <Route path="/sales/:id" element={<SaleForm />} />
+                      <Route path="/sales/:id" element={<SaleDetail />} />
                       <Route path="/invoices" element={<Invoices />} />
                       <Route path="/invoices/new" element={<InvoiceFormWrapper />} />
                       <Route path="/invoices/:invoiceId" element={<InvoiceDetail />} />

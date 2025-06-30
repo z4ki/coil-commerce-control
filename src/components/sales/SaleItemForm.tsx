@@ -69,26 +69,44 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
 
   // Automatically generate description when relevant fields change
   useEffect(() => {
-    if (thickness && width) {
-      let description = t('form.sale.coilDescription')
-        .replace('{0}', thickness.toString())
-        .replace('{1}', width.toString());
-      
-      if (topRal || backRal) {
-        description = t('form.sale.coilDescriptionWithRAL')
+    let description = '';
+    const currentDescription = watch(`items.${index}.description`);
+    if (currentDescription && currentDescription.trim() !== '') return; // Only auto-generate if empty
+
+    if (productType === 'coil') {
+      if (thickness && width) {
+        if (topRal || backRal) {
+          description = t('form.sale.coilDescriptionWithRAL')
+            .replace('{0}', thickness.toString())
+            .replace('{1}', width.toString())
+            .replace('{2}', topRal || 'X')
+            .replace('{3}', backRal || 'Y');
+        } else {
+          description = t('form.sale.coilDescription')
+            .replace('{0}', thickness.toString())
+            .replace('{1}', width.toString());
+        }
+      }
+    } else if (productType === 'corrugated_sheet') {
+      if (thickness && width && quantity) {
+        description = t('form.sale.corrugatedSheetDescription')
           .replace('{0}', thickness.toString())
           .replace('{1}', width.toString())
-          .replace('{2}', topRal || 'X')
-          .replace('{3}', backRal || 'Y');
+          .replace('{2}', quantity.toString())
+          .replace('{3}', topRal || 'X')
+          .replace('{4}', backRal || 'Y');
       }
-      
-      if (weight) {
-        description += ` - ${weight}kg`;
+    } else if (productType === 'steel_slitting') {
+      if (thickness && width) {
+        description = t('form.sale.steelSlittingDescription')
+          .replace('{0}', thickness.toString())
+          .replace('{1}', width.toString());
       }
-      
+    }
+    if (description) {
       setValue(`items.${index}.description`, description);
     }
-  }, [thickness, width, weight, topRal, backRal, index, setValue, t]);
+  }, [productType, thickness, width, weight, quantity, topRal, backRal, index, setValue, t, watch]);
 
   // Handle numeric input changes with immediate total updates
   const handleNumericInput = (value: string, setter: (value: string) => void, field: { onChange: (value: number) => void }) => {
@@ -121,8 +139,21 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
   const showCorrugatedSheetFields = productType === 'corrugated_sheet';
   const showSteelSlittingFields = productType === 'steel_slitting';
 
-  // Debug log for calculation values
-  // (Removed to avoid console spam)
+  // Debug: Log the full item state on any change
+  useEffect(() => {
+    const item = {
+      thickness,
+      width,
+      weight,
+      quantity,
+      pricePerTon,
+      topRal,
+      backRal,
+      productType,
+      description: watch(`items.${index}.description`),
+    };
+    console.log(`SaleItemForm [index ${index}] item:`, item);
+  }, [thickness, width, weight, quantity, pricePerTon, topRal, backRal, productType, watch, index]);
 
   return (
     <div className="space-y-4 p-4 border rounded-md relative">
@@ -302,6 +333,34 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
                       value={widthInput}
                       onChange={(e) => handleNumericInput(e.target.value, setWidthInput, field)}
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              control={control}
+              name={`items.${index}.topCoatRAL`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.topCoatRAL')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="9010" {...field} value={field.value || ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`items.${index}.backCoatRAL`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('form.sale.backCoatRAL')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="9002" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

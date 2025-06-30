@@ -1,5 +1,3 @@
-
-
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use sqlx::Row;
@@ -557,6 +555,11 @@ pub async fn update_sale(
     sale: CreateSaleRequest,
     pool: tauri::State<'_, SqlitePool>
 ) -> Result<Sale, String> {
+    // Log the received sale for debugging
+    match serde_json::to_string(&sale) {
+        Ok(json) => println!("[update_sale] Received sale JSON: {}", json),
+        Err(e) => println!("[update_sale] Failed to serialize received sale: {}", e),
+    }
     let now = Utc::now();
     sqlx::query(
         r#"UPDATE sales SET client_id = ?, date = ?, total_amount = ?, total_amount_ttc = ?, is_invoiced = ?, invoice_id = ?, notes = ?, payment_method = ?, transportation_fee = ?, tax_rate = ?, updated_at = ? WHERE id = ?"#
@@ -575,16 +578,25 @@ pub async fn update_sale(
     .bind(&id)
     .execute(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        println!("[update_sale] SQL error: {}", e);
+        e.to_string()
+    })?;
     // Delete old items
     sqlx::query("DELETE FROM sale_items WHERE sale_id = ?")
         .bind(&id)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            println!("[update_sale] SQL error (delete items): {}", e);
+            e.to_string()
+        })?;
     // Insert new items
     for item in &sale.items {
-        validate_sale_item(item)?;
+        if let Err(e) = validate_sale_item(item) {
+            println!("[update_sale] Invalid sale item: {}", e);
+            return Err(format!("Invalid sale item: {}", e));
+        }
         let item_id = Uuid::new_v4().to_string();
         let total_amount = calculate_total_amount(item);
         sqlx::query(
@@ -609,7 +621,10 @@ pub async fn update_sale(
         .bind(now)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            println!("[update_sale] SQL error (insert item): {}", e);
+            e.to_string()
+        })?;
     }
     // Fetch and return the updated sale
     get_sale_by_id(id, pool).await.and_then(|opt| opt.ok_or_else(|| "Failed to retrieve updated sale".to_string()))
@@ -1151,6 +1166,7 @@ pub struct Payment {
     pub date: String,
     pub method: String,
     pub notes: Option<String>,
+    pub check_number: Option<String>,
     pub created_at: String,
     pub updated_at: Option<String>,
     pub is_deleted: Option<bool>,
@@ -1166,6 +1182,7 @@ pub struct CreatePaymentRequest {
     pub date: String,
     pub method: String,
     pub notes: Option<String>,
+    pub check_number: Option<String>,
 }
 
 #[tauri::command]
@@ -1174,25 +1191,18 @@ pub async fn create_payment(
     pool: tauri::State<'_, SqlitePool>
 ) -> Result<Payment, String> {
     let id = Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = Utc::now().to_rfc3339();
 
-    // If sale_id is provided and no invoice_id, check if the sale is invoiced
-    if let (Some(sale_id), None) = (&payment.sale_id, &payment.invoice_id) {
-        let row = sqlx::query!("SELECT invoice_id FROM sales WHERE id = ?", sale_id)
-            .fetch_optional(&*pool)
-            .await
-            .map_err(|e| e.to_string())?;
-        if let Some(r) = row {
-            if let Some(inv_id) = r.invoice_id {
-                payment.invoice_id = Some(inv_id);
-            }
-        }
+    // Ensure check_number is None if method is not 'check'
+    if payment.method != "check" {
+        payment.check_number = None;
     }
 
     sqlx::query(
-        r#"INSERT INTO payments (
-            id, sale_id, invoice_id, client_id, amount, date, method, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+        r#"
+        INSERT INTO payments (id, sale_id, invoice_id, client_id, amount, date, method, notes, check_number, created_at, updated_at, is_deleted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        "#,
     )
     .bind(&id)
     .bind(&payment.sale_id)
@@ -1202,13 +1212,14 @@ pub async fn create_payment(
     .bind(&payment.date)
     .bind(&payment.method)
     .bind(&payment.notes)
+    .bind(&payment.check_number)
     .bind(&now)
     .bind(&now)
     .execute(&*pool)
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(Payment {
+    let new_payment = Payment {
         id,
         sale_id: payment.sale_id,
         invoice_id: payment.invoice_id,
@@ -1217,11 +1228,14 @@ pub async fn create_payment(
         date: payment.date,
         method: payment.method,
         notes: payment.notes,
+        check_number: payment.check_number,
         created_at: now.clone(),
         updated_at: Some(now),
         is_deleted: Some(false),
         deleted_at: None,
-    })
+    };
+
+    Ok(new_payment)
 }
 
 #[tauri::command]
@@ -1244,6 +1258,7 @@ pub async fn get_payments(
         date: row.get("date"),
         method: row.get("method"),
         notes: row.get("notes"),
+        check_number: row.get("check_number"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
         is_deleted: row.get("is_deleted"),
@@ -1393,6 +1408,7 @@ pub async fn get_deleted_payments(pool: tauri::State<'_, SqlitePool>) -> Result<
         date: row.get("date"),
         method: row.get("method"),
         notes: row.get("notes"),
+        check_number: row.get("check_number"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
         is_deleted: row.get("is_deleted"),

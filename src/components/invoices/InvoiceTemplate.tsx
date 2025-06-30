@@ -49,13 +49,42 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
   const remainingAmount = totalTTC - totalPaid;
 
   const items = sales.flatMap(sale =>
-    (sale?.items || []).map(item => ({
-      code: item?.coilRef || '-',
-      description: item ? `BOBINES D'ACIER PRELAQUE ${item.coilThickness || ''}*${item.coilWidth || ''} RAL ${item.topCoatRAL || ''}` : '-',
-      weight: item?.quantity || 0,
-      unitPrice: item?.pricePerTon || 0,
-      total: item?.totalAmountHT || 0
-    }))
+    (sale?.items || []).map(item => {
+      const description = item?.description || 'Product';
+      
+      let detailedDescription = description;
+      
+      if (item?.coilThickness || item?.coilWidth) {
+        const specs = [];
+        if (item.coilThickness) specs.push(`${item.coilThickness}mm`);
+        if (item.coilWidth) specs.push(`${item.coilWidth}mm`);
+        detailedDescription += ` - ${specs.join(' x ')}`;
+      }
+      
+      if (item?.topCoatRAL) {
+        detailedDescription += ` - RAL ${item.topCoatRAL}`;
+      }
+      
+      // Ensure we have valid numbers for calculation
+      const quantity = Number(item?.quantity) || 0;
+      const pricePerTon = Number(item?.pricePerTon) || 0;
+      
+      // Calculate total: weight × unit price
+      const calculatedTotal = quantity * pricePerTon;
+      
+      // Use the calculated total if totalAmountHT is 0 or undefined
+      const total = item?.totalAmountHT && item.totalAmountHT > 0 
+        ? item.totalAmountHT 
+        : calculatedTotal;
+      
+      return {
+        code: item?.coilRef || '-',
+        description: detailedDescription,
+        weight: quantity,
+        unitPrice: pricePerTon,
+        total: total
+      };
+    })
   );
 
   if (invoice.transportationFee && invoice.transportationFee > 0) {

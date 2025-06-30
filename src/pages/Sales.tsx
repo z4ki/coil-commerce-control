@@ -41,6 +41,7 @@ import {
 import { Link } from 'react-router-dom';
 import { saveSalePDF } from '@/utils/pdfService.tsx';
 import { getDeletedSales, restoreSale } from '@/services/saleService';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface SaleDialogProps {
   open: boolean;
@@ -81,6 +82,8 @@ const Sales = () => {
   const [expandedSales, setExpandedSales] = useState<{[key: string]: boolean}>({});
   const [showArchive, setShowArchive] = useState(false);
   const [deletedSales, setDeletedSales] = useState<Sale[]>([]);
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
 
   // Debug log to check what sales are loaded
   React.useEffect(() => {
@@ -90,6 +93,7 @@ const Sales = () => {
   useEffect(() => {
     if (showArchive) {
       getDeletedSales().then(setDeletedSales);
+      { console.log("xxSale items: ", sales)}
     }
   }, [showArchive]);
 
@@ -138,14 +142,29 @@ const Sales = () => {
     setShowPaymentDialog(true);
   };
 
-  // Only filter by search, do not sort (backend already sorts by date DESC)
+  // Only filter by search, product type, and payment status
   const filteredSales = sales
     .filter((sale) => {
       const client = getClientById(sale.clientId);
       if (!client) return false;
       const clientNameMatches = client.name.toLowerCase().includes(searchTerm.toLowerCase());
       const clientCompanyMatches = client.company?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-      return clientNameMatches || clientCompanyMatches;
+      if (!(clientNameMatches || clientCompanyMatches)) return false;
+
+      // Product Type filter
+      if (productTypeFilter !== 'all') {
+        // At least one item in the sale must match the product type
+        if (!sale.items.some(item => (item as any).productType === productTypeFilter)) return false;
+      }
+
+      // Payment Status filter
+      if (paymentStatusFilter !== 'all') {
+        const paymentStatus = getSalePaymentStatus(sale.id);
+        if (paymentStatusFilter === 'paid' && !paymentStatus?.isFullyPaid) return false;
+        if (paymentStatusFilter === 'unpaid' && paymentStatus?.isFullyPaid) return false;
+      }
+
+      return true;
     });
 
   const handleExportInvoice = (sale: Sale) => {
@@ -204,7 +223,6 @@ const Sales = () => {
                 <TableRow key={sale.id}>
                   <TableCell>{sale.id}</TableCell>
                   <TableCell>{getClientById(sale.clientId)?.name || ''}</TableCell>
-                  <TableCell>{formatDate(sale.date)}</TableCell>
                   <TableCell>{sale.deletedAt ? formatDate(sale.deletedAt) : ''}</TableCell>
                   <TableCell>
                     <Button size="sm" onClick={() => handleRestoreSale(sale.id)}>
@@ -220,13 +238,36 @@ const Sales = () => {
         <div className="space-y-6">
           {/* Header Actions */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex-1 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row gap-2 flex-1">
               <Input
                 placeholder={t('general.search')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-[300px]"
+                className="w-full sm:w-[200px]"
               />
+              {/* Product Type Filter */}
+              <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder={t('form.sale.productType') || "Product Type"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('general.all') || "All Types"}</SelectItem>
+                  <SelectItem value="coil">Coil</SelectItem>
+                  <SelectItem value="steel_slitting">Steel Slitting</SelectItem>
+                  <SelectItem value="corrugated_sheet">Corrugated Sheet</SelectItem>
+                </SelectContent>
+              </Select>
+              {/* Payment Status Filter */}
+              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder={t('sales.status') || "Status"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('general.all') || "All"}</SelectItem>
+                  <SelectItem value="paid">{t('sales.paid') || "Paid"}</SelectItem>
+                  <SelectItem value="unpaid">{t('sales.unpaid') || "Unpaid"}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={() => setShowAddDialog(true)}>
               <Plus className="mr-2 h-4 w-4" />
@@ -270,7 +311,11 @@ const Sales = () => {
                               )}
                             </Button>
                           </TableCell>
-                          <TableCell>{formatDate(sale.date)}</TableCell>
+                          <TableCell>
+                            <Link to={`/sales/${sale.id}`} className="text-primary hover:underline">
+                              {formatDate(sale.date)}
+                            </Link>
+                          </TableCell>
                           <TableCell>
                             <div className="font-medium">
                               {client && (
@@ -361,6 +406,7 @@ const Sales = () => {
                                   <div>
                                     <h4 className="font-medium mb-2">{t('sales.items')}</h4>
                                     <div className="space-y-2">
+                                      
                                       {sale.items.map((item, index) => (
                                         <div key={item.id} className="bg-background rounded-md p-3">
                                           <div className="flex justify-between items-start">
@@ -370,18 +416,45 @@ const Sales = () => {
                                                 {item.coilRef && `${t('form.sale.coilRef')}: ${item.coilRef}`}
                                                 {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
                                                 {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
+                                                {/* Add more attributes if needed */}
                                               </div>
-                                              {/* {(item.topCoatRAL || item.backCoatRAL) && (
-                                                <div className="text-sm text-muted-foreground">
-                                                  {item.topCoatRAL && `${t('form.sale.topCoatRAL')}: ${item.topCoatRAL}`}
-                                                  {item.backCoatRAL && ` • ${t('form.sale.backCoatRAL')}: ${item.backCoatRAL}`}
-                                                </div>
-                                              )} */}
                                             </div>
-                                            <div className="text-right">
-                                              <div>{formatCurrency(item.totalAmountTTC)}</div>
+                                            <div className="text-right text-red-600">
                                               <div className="text-sm text-muted-foreground">
-                                                {item.quantity} {t('form.sale.quantity')} × {formatCurrency(item.pricePerTon)}/{t('form.sale.quantity')}
+                                            
+                                                {item.productType === 'coil' && (
+                                                  <>
+                                                    
+                                                    {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                  </>
+                                                )}
+                                                {item.productType === 'steel_slitting' && (
+                                                  <>
+                                                    {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                  </>
+                                                )}
+                                                {item.productType === 'corrugated_sheet' && (
+                                                  <>
+                                                    {item.quantity} (u) × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                  </>
+                                                )}
+                                                {/* Fallback for unknown type */}
+                                                {!item.productType && (
+                                                  <>
+                                                    {item.quantity} U × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                  </>
+                                                )}
+                                              </div>
+                                              <div className='text-sm font-medium'>
+                                                {formatCurrency(
+                                                  item.productType === 'coil'
+                                                    ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
+                                                    : item.productType === 'steel_slitting'
+                                                      ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
+                                                      : item.productType === 'corrugated_sheet'
+                                                        ? (item.quantity ?? 0) * (item.pricePerTon ?? 0)
+                                                        : (item.quantity ?? 0) * (item.pricePerTon ?? 0)
+                                                )}
                                               </div>
                                             </div>
                                           </div>

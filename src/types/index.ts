@@ -34,6 +34,7 @@ export interface SaleItem {
   pricePerTon: number;
   totalAmountHT: number;
   totalAmountTTC: number;
+  productType?: string;
 }
 
 // Define the type for a sale
@@ -95,6 +96,7 @@ export interface Payment {
   invoiceId?: string;
   isDeleted: boolean;
   deletedAt?: Date;
+  checkNumber?: string;
 }
 
 // Define the type for bulk payments

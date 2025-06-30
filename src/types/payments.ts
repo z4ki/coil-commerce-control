@@ -9,4 +9,5 @@ export interface Payment {
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
+  checkNumber?: string;
 }

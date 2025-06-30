@@ -124,7 +124,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       pricePerTon: 0,
       totalAmountHT: 0,
       totalAmountTTC: 0,
-      productType: '',
+      productType: 'coil',
     }]
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -266,55 +266,25 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   };
   
   const onSubmit = async (data: FormValues) => {
-    if (!data.clientId) {
-      toast.error(t('form.required')); return;
-    }
-    if (!data.items || data.items.length === 0) {
-      toast.error(t('form.sale.itemRequired')); return;
-    }
-    
+    // Ensure pricePerTon is always included and a number
+    const items = data.items.map((item, i) => ({
+      ...item,
+      pricePerTon: Number(item.pricePerTon),
+    }));
+    console.log('Submitting sale:', { ...data, items });
+    items.forEach((item, i) => console.log(`Submit item ${i}:`, item));
     try {
-      const finalCalculatedTotals = calculateFinalTotal();
-      // Map items to snake_case for backend
-      const itemsWithTotal = data.items.map(item => ({
-        description: item.description,
-        coil_ref: item.coilRef || '',
-        coil_thickness: Number(item.coilThickness || 0),
-        coil_width: Number(item.coilWidth || 0),
-        top_coat_ral: item.topCoatRAL || '',
-        back_coat_ral: item.backCoatRAL || '',
-        coil_weight: Number(item.coilWeight || 0),
-        quantity: Number(item.quantity || 0),
-        price_per_ton: Number(item.pricePerTon || 0),
-        total_amount: Number(item.totalAmountHT || 0),
-        product_type: item.productType || '',
-      }));
-      console.log('itemsWithTotal', itemsWithTotal);
-      // Map sale fields to snake_case for backend
-      const saleData = {
-        client_id: data.clientId,
-        date: parseDateInput(data.date),
-        items: itemsWithTotal,
-        notes: data.notes || '',
-        is_invoiced: sale?.isInvoiced || false,
-        invoice_id: sale?.invoiceId,
-        transportation_fee: Number(data.transportationFee || 0),
-        tax_rate: TAX_RATE,
-        total_amount: finalCalculatedTotals.totalHT,
-        total_amount_ttc: finalCalculatedTotals.totalTTC,
-        payment_method: data.paymentMethod ? data.paymentMethod : undefined,
-      };
-
       if (sale) {
-        await updateSale(sale.id, saleData as any); // Cast as any for now
+        await updateSale(sale.id, { ...sale, ...data, items });
+        toast.success(t('sales.updated'));
       } else {
-        await addSale(saleData as any); // Cast as any for now
+        await addSale({ ...data, items });
+        toast.success(t('sales.added'));
       }
-      toast.success(t('form.success'));
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch (error: any) {
+      toast.error(t('sales.saveError') + ': ' + (error?.message || error?.toString()));
       console.error('Error saving sale:', error);
-      toast.error(t('form.error'));
     }
   };
 

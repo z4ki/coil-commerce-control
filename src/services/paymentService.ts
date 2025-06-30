@@ -17,6 +17,7 @@ interface DbPaymentResponse {
   updated_at: string | null;
   is_deleted?: boolean | number | null;
   deleted_at?: string | null;
+  check_number?: string | null;
   // Ensure no 'credit_amount' or 'generates_credit' here unless they are truly in your DB table
 }
 
@@ -45,6 +46,7 @@ const mapDbPaymentToPayment = (dbPayment: DbPaymentResponse): Payment => ({
   updatedAt: dbPayment.updated_at ? new Date(dbPayment.updated_at) : undefined,
   isDeleted: !!dbPayment.is_deleted,
   deletedAt: dbPayment.deleted_at ? new Date(dbPayment.deleted_at) : undefined,
+  checkNumber: dbPayment.check_number || undefined,
 });
 
 export const getPayments = async (): Promise<Payment[]> => {
@@ -64,6 +66,7 @@ export const getPayments = async (): Promise<Payment[]> => {
     invoiceId: p.invoice_id,
     isDeleted: !!p.is_deleted,
     deletedAt: p.deleted_at ? new Date(p.deleted_at) : undefined,
+    checkNumber: p.check_number || undefined,
   }));
 };
 
@@ -104,6 +107,7 @@ function mapTauriPaymentToPayment(p: any): Payment {
     updatedAt: p.updated_at ? new Date(p.updated_at) : undefined,
     isDeleted: !!p.is_deleted,
     deletedAt: p.deleted_at ? new Date(p.deleted_at) : undefined,
+    checkNumber: p.check_number || undefined,
   };
 }
 
@@ -196,6 +200,7 @@ export const getDeletedPayments = async (): Promise<Payment[]> => {
     invoiceId: p.invoice_id,
     isDeleted: !!p.is_deleted,
     deletedAt: p.deleted_at ? new Date(p.deleted_at) : undefined,
+    checkNumber: p.check_number || undefined,
   }));
 };
 

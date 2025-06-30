@@ -383,6 +383,8 @@ const ClientDetail = () => {
                           <TableHead>{t('payments.date')}</TableHead>
                           <TableHead>{t('sales.title')}</TableHead>
                           <TableHead>{t('payments.method')}</TableHead>
+                          <TableHead>{t('payments.notes')}</TableHead>
+                          <TableHead>{t('payments.checkNumber') || 'Check Number'}</TableHead>
                           <TableHead className="text-right">{t('payments.amount')}</TableHead>
                           <TableHead>{t('general.actions')}</TableHead>
                         </TableRow>
@@ -401,12 +403,16 @@ const ClientDetail = () => {
                                         {formatDate(sale.date)}
                                       </div>
                                       <div className="text-sm text-muted-foreground">
-                                        {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC)}
+                                        {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC) }
                                       </div>
                                     </div>
                                   )}
                                 </TableCell>
                                 <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
+                                <TableCell>{payment.notes}</TableCell>
+                                <TableCell>
+                                  {payment.method === 'check' ? payment.checkNumber : 'N/A'}
+                                </TableCell>
                                 <TableCell className="text-right font-medium">
                                   {formatCurrency(payment.amount)}
                                 </TableCell>
@@ -438,38 +444,32 @@ const ClientDetail = () => {
                           <TableHead>{t('payments.date')}</TableHead>
                           <TableHead>{t('sales.title')}</TableHead>
                           <TableHead>{t('payments.method')}</TableHead>
+                          <TableHead>{t('payments.notes')}</TableHead>
+                          <TableHead>{t('payments.checkNumber') || 'Check Number'}</TableHead>
                           <TableHead className="text-right">{t('payments.amount')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {clientPayments.length > 0 ? (
-                          clientPayments.map((payment) => {
-                            const sale = payment.sale;
-                            return (
-                              <TableRow key={payment.id}>
-                                <TableCell>{formatDate(payment.date)}</TableCell>
-                                <TableCell>
-                                  {sale && (
-                                    <div>
-                                      <div className="font-medium">
-                                        {formatDate(sale.date)}
-                                      </div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC)}
-                                      </div>
-                                    </div>
-                                  )}
-                                </TableCell>
-                                <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {formatCurrency(payment.amount)}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
+                          clientPayments.map((payment: any) => (
+                            <TableRow key={payment.id}>
+                              <TableCell>{formatDate(payment.date)}</TableCell>
+                              <TableCell>
+                                <Link to={`/sales/${payment.saleId}`} className="text-primary hover:underline">
+                                  {payment.sale?.id?.substring(0, 8) || payment.saleId?.substring(0, 8)}...
+                                </Link>
+                              </TableCell>
+                              <TableCell>{t(`payments.methods.${payment.method}`) || payment.method}</TableCell>
+                              <TableCell>{payment.notes || '—'}</TableCell>
+                              <TableCell>{payment.method === 'check' && payment.checkNumber ? payment.checkNumber : '—'}</TableCell>
+                              <TableCell className="text-right font-bold">
+                                {formatCurrency(payment.amount)}
+                              </TableCell>
+                            </TableRow>
+                          ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={4} className="h-24 text-center">
+                            <TableCell colSpan={6} className="h-24 text-center">
                               {t('general.noData')}
                             </TableCell>
                           </TableRow>

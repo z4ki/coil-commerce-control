@@ -15,6 +15,7 @@ export interface SaleItem {
   totalAmountTTC: number;
   createdAt: Date;
   updatedAt?: Date;
+  productType?: string;
 }
 
 // Sale type

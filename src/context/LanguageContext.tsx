@@ -87,6 +87,19 @@ const translations: { [key in Language]: Translations } = {
       'delete': 'Delete',
     },
 
+    auditLog: {
+      title: 'Audit Log',
+      description: 'All critical actions in the system are recorded here for accountability and compliance.',
+      searchPlaceholder: 'Search audit log...',
+      empty: 'No audit log entries found.',
+      id: 'ID',
+      action: 'Action',
+      entityType: 'Entity Type',
+      entityId: 'Entity ID',
+      timestamp: 'Timestamp',
+      details: 'Details'
+    },
+
     // Dashboard
     'dashboard': {
       'title': 'Dashboard',
@@ -143,8 +156,8 @@ const translations: { [key in Language]: Translations } = {
       'exportPending': 'Exporting {0}...',
       'noSales': 'No sales found',
       'history': 'Sales History',
-      'invoiced': 'Invoiced Sales',
-      'uninvoiced': 'Uninvoiced Sales',
+      'invoiced': 'Invoiced',
+      'notInvoiced': 'Not Invoiced',
       'totalPaid': 'Total Paid',
       'paid': 'Amount Paid',
       'remaining': 'Remaining Amount',
@@ -166,7 +179,8 @@ const translations: { [key in Language]: Translations } = {
       'number': 'Sale Number',
       'deletedAt': 'Deleted At',
       'deleteBlocked': 'Cannot delete sale: related invoice is paid.',
-      'blockedByInvoice': 'Blocked by invoice'
+      'blockedByInvoice': 'Blocked by invoice',
+      'invoicedFilter': 'Invoiced Status'
     },
 
     // Clients
@@ -259,7 +273,15 @@ const translations: { [key in Language]: Translations } = {
       'paymentTerms': 'Payment Terms',
       'notes': 'Default Notes',
       'autoPdf': 'Auto-generate PDF',
-      'quantity': 'Quantity'
+      'quantity': 'Quantity',
+      'deleteDraftTitle': 'Delete Draft Invoice',
+      'deleteConfirmTitle': 'Delete Invoice?',
+      'deleteDraftConfirm': 'This invoice is a draft and has no payments. It will be permanently deleted. This action cannot be undone.',
+      'deleteWarning': 'This invoice has payments or is finalized. It will be soft deleted (archived), and all data will be preserved for audit and compliance.',
+      'salesCount': '{count} sales linked',
+      'paymentsCount': '{count} payments linked',
+      'deleteDraftAction': 'Delete Permanently',
+      'deleteAction': 'Archive Invoice'
     },
 
     // Import/Export
@@ -534,7 +556,15 @@ const translations: { [key in Language]: Translations } = {
       'quantity': 'Quantity',
       'showArchive': 'Show Archive',
       'showActive': 'Show Active',
-      'restore': 'Restore'
+      'restore': 'Restore',
+      'deleteDraftTitle': 'Delete Draft Invoice',
+      'deleteConfirmTitle': 'Delete Invoice?',
+      'deleteDraftConfirm': 'This invoice is a draft and has no payments. It will be permanently deleted. This action cannot be undone.',
+      'deleteWarning': 'This invoice has payments or is finalized. It will be soft deleted (archived), and all data will be preserved for audit and compliance.',
+      'salesCount': '{count} sales linked',
+      'paymentsCount': '{count} payments linked',
+      'deleteDraftAction': 'Delete Permanently',
+      'deleteAction': 'Archive Invoice'
     },
 
     // Payments
@@ -613,6 +643,12 @@ const translations: { [key in Language]: Translations } = {
       'saleNotFound': 'Sale not found',
       'quantity': 'Quantity'
     },
+
+    'productTypes': {
+      'coil': 'Coil',
+      'steelSlitting': 'Steel Slitting',
+      'corrugatedSheet': 'Corrugated Sheet',
+    },
   },
   fr: {
     // Common
@@ -625,7 +661,7 @@ const translations: { [key in Language]: Translations } = {
     // Status
     'status': {
       'invoiced': 'Facturé',
-      'notInvoiced': 'Non Facturé',
+      'notInvoiced': 'Non facturé',
       'paid': 'Payé',
       'unpaid': 'Non Payé',
       'overdue': 'En Retard',
@@ -635,6 +671,7 @@ const translations: { [key in Language]: Translations } = {
 
     // General
     'general': {
+      'auditLog': 'Journal d\'audit',
       'settings': 'Paramètres',
       'save': 'Enregistrer',
       'language': 'Langue',
@@ -679,6 +716,19 @@ const translations: { [key in Language]: Translations } = {
       'allTypes': 'All Types',
       'allStatuses': 'All Statuses',
       'delete': 'Supprimer',
+    },
+
+    auditLog: {
+      title: "Journal d'audit",
+      description: "Toutes les actions critiques du système sont enregistrées ici pour la conformité et la traçabilité.",
+      searchPlaceholder: "Rechercher dans le journal...",
+      empty: "Aucune entrée trouvée dans le journal d'audit.",
+      id: 'ID',
+      action: 'Action',
+      entityType: "Type d'entité",
+      entityId: "ID de l'entité",
+      timestamp: 'Horodatage',
+      details: 'Détails'
     },
 
     // Dashboard
@@ -737,8 +787,8 @@ const translations: { [key in Language]: Translations } = {
       'exportPending': 'Export de {0} en cours...',
       'noSales': 'Aucune vente trouvée',
       'history': 'Historique des ventes',
-      'invoiced': 'Ventes facturées',
-      'uninvoiced': 'Ventes non facturées',
+      'invoiced': 'Facturé',
+      'notInvoiced': 'Non facturé',
       'totalPaid': 'Total payé',
       'paid': 'Payé',
       'remaining': 'Montant restant',
@@ -760,7 +810,8 @@ const translations: { [key in Language]: Translations } = {
       'number': 'Numéro de vente',
       'deletedAt': 'Supprimé le',
       'deleteBlocked': 'Suppression impossible : la facture liée est payée.',
-      'blockedByInvoice': 'Bloqué par la facture'
+      'blockedByInvoice': 'Bloqué par la facture',
+      'invoicedFilter': 'Statut de facturation'
     },
 
     // Clients
@@ -852,7 +903,15 @@ const translations: { [key in Language]: Translations } = {
       'paymentTerms': 'Conditions de paiement',
       'notes': 'Notes par défaut',
       'autoPdf': 'Générer automatiquement le PDF',
-      'quantity': 'Quantité'
+      'quantity': 'Quantité',
+      'deleteDraftTitle': 'Supprimer le brouillon de facture',
+      'deleteConfirmTitle': 'Supprimer la facture ?',
+      'deleteDraftConfirm': 'Cette facture est un brouillon et n\'a aucun paiement. Elle sera supprimée définitivement. Cette action est irréversible.',
+      'deleteWarning': 'Cette facture a des paiements ou est finalisée. Elle sera archivée (suppression douce), et toutes les données seront conservées pour la conformité.',
+      'salesCount': '{count} ventes liées',
+      'paymentsCount': '{count} paiements liés',
+      'deleteDraftAction': 'Supprimer définitivement',
+      'deleteAction': 'Archiver la facture'
     },
 
     // Import/Export
@@ -1127,7 +1186,15 @@ const translations: { [key in Language]: Translations } = {
       'quantity': 'Quantity',
       'showArchive': "Afficher l'archive",
       'showActive': 'Afficher les actifs',
-      'restore': 'Restaurer'
+      'restore': 'Restaurer',
+      'deleteDraftTitle': 'Supprimer le brouillon de facture',
+      'deleteConfirmTitle': 'Supprimer la facture ?',
+      'deleteDraftConfirm': 'Cette facture est un brouillon et n\'a aucun paiement. Elle sera supprimée définitivement. Cette action est irréversible.',
+      'deleteWarning': 'Cette facture a des paiements ou est finalisée. Elle sera archivée (suppression douce), et toutes les données seront conservées pour la conformité.',
+      'salesCount': '{count} ventes liées',
+      'paymentsCount': '{count} paiements liés',
+      'deleteDraftAction': 'Supprimer définitivement',
+      'deleteAction': 'Archiver la facture'
     },
 
     // Payments
@@ -1204,6 +1271,12 @@ const translations: { [key in Language]: Translations } = {
       'clientNotFound': 'Client introuvable',
       'saleNotFound': 'Vente introuvable',
       'quantity': 'Quantity'
+    },
+
+    'productTypes': {
+      'coil': 'Bobine',
+      'steelSlitting': 'Refendage acier',
+      'corrugatedSheet': 'Tôle ondulée',
     },
   }
 };

@@ -84,6 +84,7 @@ const Sales = () => {
   const [deletedSales, setDeletedSales] = useState<Sale[]>([]);
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
+  const [invoicedFilter, setInvoicedFilter] = useState<string>('all');
 
   // Debug log to check what sales are loaded
   React.useEffect(() => {
@@ -142,7 +143,7 @@ const Sales = () => {
     setShowPaymentDialog(true);
   };
 
-  // Only filter by search, product type, and payment status
+  // Only filter by search, product type, payment status, and invoiced status
   const filteredSales = sales
     .filter((sale) => {
       const client = getClientById(sale.clientId);
@@ -153,8 +154,11 @@ const Sales = () => {
 
       // Product Type filter
       if (productTypeFilter !== 'all') {
-        // At least one item in the sale must match the product type
-        if (!sale.items.some(item => (item as any).productType === productTypeFilter)) return false;
+        // At least one item in the sale must match the product type (fuzzy match)
+        const normalizedFilter = productTypeFilter.replace(/_/g, '').toLowerCase();
+        if (!sale.items.some(item =>
+          (item.productType || '').replace(/_/g, '').toLowerCase().includes(normalizedFilter)
+        )) return false;
       }
 
       // Payment Status filter
@@ -162,6 +166,12 @@ const Sales = () => {
         const paymentStatus = getSalePaymentStatus(sale.id);
         if (paymentStatusFilter === 'paid' && !paymentStatus?.isFullyPaid) return false;
         if (paymentStatusFilter === 'unpaid' && paymentStatus?.isFullyPaid) return false;
+      }
+
+      // Invoiced filter
+      if (invoicedFilter !== 'all') {
+        if (invoicedFilter === 'invoiced' && !sale.isInvoiced) return false;
+        if (invoicedFilter === 'notInvoiced' && sale.isInvoiced) return false;
       }
 
       return true;
@@ -199,67 +209,38 @@ const Sales = () => {
 
   return (
     <MainLayout title={t('sales.title')}>
-      <div className="flex justify-between items-center mb-4">
-        <Button onClick={() => setShowArchive(a => !a)} variant="outline">
-          {showArchive ? t('sales.showActive') || 'Show Active' : t('sales.showArchive') || 'Show Archive'}
-        </Button>
-        
-      </div>
-      {showArchive ? (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">{t('sales.archive') || 'Deleted Sales'}</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('sales.number') || 'Sale ID'}</TableHead>
-                <TableHead>{t('sales.client')}</TableHead>
-                <TableHead>{t('sales.date')}</TableHead>
-                <TableHead>{t('sales.deletedAt') || 'Deleted At'}</TableHead>
-                <TableHead>{t('sales.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deletedSales.map(sale => (
-                <TableRow key={sale.id}>
-                  <TableCell>{sale.id}</TableCell>
-                  <TableCell>{getClientById(sale.clientId)?.name || ''}</TableCell>
-                  <TableCell>{sale.deletedAt ? formatDate(sale.deletedAt) : ''}</TableCell>
-                  <TableCell>
-                    <Button size="sm" onClick={() => handleRestoreSale(sale.id)}>
-                      {t('sales.restore') || 'Restore'}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Header Actions */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex flex-col sm:flex-row gap-2 flex-1">
+      <div className="space-y-6">
+        {/* Header Actions */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-col sm:flex-row gap-2 flex-1">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="search" className="text-xs font-medium text-muted-foreground">{t('general.search')}</label>
               <Input
+                id="search"
                 placeholder={t('general.search')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full sm:w-[200px]"
               />
-              {/* Product Type Filter */}
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="product-type-filter">{t('form.sale.productType')}</label>
               <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger id="product-type-filter" className="w-[140px]">
                   <SelectValue placeholder={t('form.sale.productType') || "Product Type"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t('general.all') || "All Types"}</SelectItem>
-                  <SelectItem value="coil">Coil</SelectItem>
-                  <SelectItem value="steel_slitting">Steel Slitting</SelectItem>
-                  <SelectItem value="corrugated_sheet">Corrugated Sheet</SelectItem>
+                  <SelectItem value="coil">{t('productTypes.coil')}</SelectItem>
+                  <SelectItem value="steel_slitting">{t('productTypes.steelSlitting')}</SelectItem>
+                  <SelectItem value="corrugated_sheet">{t('productTypes.corrugatedSheet')}</SelectItem>
                 </SelectContent>
               </Select>
-              {/* Payment Status Filter */}
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="payment-status-filter">{t('sales.paymentStatus') || t('sales.status')}</label>
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger id="payment-status-filter" className="w-[120px]">
                   <SelectValue placeholder={t('sales.status') || "Status"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -269,255 +250,268 @@ const Sales = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => setShowAddDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              {t('sales.add')}
-            </Button>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="invoiced-status-filter">{t('sales.invoicedFilter')}</label>
+              <Select value={invoicedFilter} onValueChange={setInvoicedFilter}>
+                <SelectTrigger id="invoiced-status-filter" className="w-[140px]">
+                  <SelectValue placeholder={t('sales.invoiced') + ' / ' + t('sales.notInvoiced')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('general.all')}</SelectItem>
+                  <SelectItem value="invoiced">{t('sales.invoiced')}</SelectItem>
+                  <SelectItem value="notInvoiced">{t('sales.notInvoiced')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          <Button onClick={() => setShowAddDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('sales.add')}
+          </Button>
+        </div>
 
-          {/* Sales Table */}
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader className="bg-gray-100">
-                <TableRow>
-                  <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>{t('sales.date')}</TableHead>
-                  <TableHead>{t('sales.client')}</TableHead>
-                  <TableHead>{t('sales.items')}</TableHead>
-                  <TableHead className="text-right">{t('sales.total')}</TableHead>
-                  <TableHead>{t('sales.status')}</TableHead>
-                  <TableHead className="text-right">{t('general.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSales.length > 0 ? (
-                  filteredSales.map((sale) => {
-                    const client = getClientById(sale.clientId);
-                    const isExpanded = expandedSales[sale.id] || false;
-                    const paymentStatus = getSalePaymentStatus(sale.id);
-                    return (
-                      <React.Fragment key={sale.id}>
-                        <TableRow>
-                          <TableCell className="p-0 pl-4">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => toggleSaleExpansion(sale.id)}
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </TableCell>
-                          <TableCell>
-                            <Link to={`/sales/${sale.id}`} className="text-primary hover:underline">
-                              {formatDate(sale.date)}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">
-                              {client && (
-                                <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
-                                  {client.name}
-                                </Link>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">{client?.company || ''}</div>
-                          </TableCell>
-                          <TableCell>{sale.items.length} {t('general.items')}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="font-medium">{formatCurrency(sale.totalAmountTTC)}</div>
-                            {paymentStatus && (
-                              <div className="text-xs text-muted-foreground">
-                                {t('sales.paid')}: {formatCurrency(paymentStatus.totalPaid)}
-                                {paymentStatus.remainingAmount > 0 && (
-                                  <div>
-                                    {t('sales.remaining')}: {formatCurrency(paymentStatus.remainingAmount)}
-                                  </div>
-                                )}
-                              </div>
+        {/* Sales Table */}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader className="bg-gray-100">
+              <TableRow>
+                <TableHead className="w-[50px]"></TableHead>
+                <TableHead>{t('sales.date')}</TableHead>
+                <TableHead>{t('sales.client')}</TableHead>
+                <TableHead>{t('sales.items')}</TableHead>
+                <TableHead className="text-right">{t('sales.total')}</TableHead>
+                <TableHead>{t('sales.status')}</TableHead>
+                <TableHead className="text-right">{t('general.actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredSales.length > 0 ? (
+                filteredSales.map((sale) => {
+                  const client = getClientById(sale.clientId);
+                  const isExpanded = expandedSales[sale.id] || false;
+                  const paymentStatus = getSalePaymentStatus(sale.id);
+                  return (
+                    <React.Fragment key={sale.id}>
+                      <TableRow>
+                        <TableCell className="p-0 pl-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleSaleExpansion(sale.id)}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <StatusBadge 
-                                status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
-                              />
-                              {paymentStatus && (
-                                <StatusBadge 
-                                  status={
-                                    paymentStatus.isFullyPaid ? 'paid' :
-                                    paymentStatus.totalPaid > 0 ? 'partial' : 'unpaid'
-                                  } 
-                                />
-                              )}
-                              {sale.isInvoiced && sale.invoiceId && (
-                                <Link 
-                                  to={`/invoices/${sale.invoiceId}`}
-                                  className="text-xs text-primary hover:underline hover:text-primary/80"
-                                >
-                                  {t('sales.viewInvoice')}
-                                </Link>
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <Link to={`/sales/${sale.id}`} className="text-primary hover:underline">
+                            {formatDate(sale.date)}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {client && (
+                              <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
+                                {client.name}
+                              </Link>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{client?.company || ''}</div>
+                        </TableCell>
+                        <TableCell>{sale.items.length} {t('general.items')}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-medium">{formatCurrency(sale.totalAmountTTC)}</div>
+                          {paymentStatus && (
+                            <div className="text-xs text-muted-foreground">
+                              {t('sales.paid')}: {formatCurrency(paymentStatus.totalPaid)}
+                              {paymentStatus.remainingAmount > 0 && (
+                                <div>
+                                  {t('sales.remaining')}: {formatCurrency(paymentStatus.remainingAmount)}
+                                </div>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleExportPDF(sale)}>
-                                  <FileText className="mr-2 h-4 w-4" />
-                                  {t('general.export')}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddPayment(sale.id)}>
-                                  <DollarSign className="mr-2 h-4 w-4" />
-                                  {t('payments.add')}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {
-                                  setSelectedSale(sale);
-                                  setShowAddDialog(true);
-                                }}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  {t('general.edit')}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
-                                  <Trash className="mr-2 h-4 w-4" />
-                                  {t('general.delete')}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                        
-                        {/* Expanded Sale Details */}
-                        {isExpanded && (
-                          <TableRow>
-                            <TableCell colSpan={7} className="p-0">
-                              <div className="bg-muted/50 p-4">
-                                <div className="space-y-4">
-                                  {/* Items List */}
-                                  <div>
-                                    <h4 className="font-medium mb-2">{t('sales.items')}</h4>
-                                    <div className="space-y-2">
-                                      
-                                      {sale.items.map((item, index) => (
-                                        <div key={item.id} className="bg-background rounded-md p-3">
-                                          <div className="flex justify-between items-start">
-                                            <div>
-                                              <div className="font-medium">{item.description}</div>
-                                              <div className="text-sm text-muted-foreground">
-                                                {item.coilRef && `${t('form.sale.coilRef')}: ${item.coilRef}`}
-                                                {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
-                                                {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
-                                                {/* Add more attributes if needed */}
-                                              </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <StatusBadge 
+                              status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
+                            />
+                            {paymentStatus && (
+                              <StatusBadge 
+                                status={
+                                  paymentStatus.isFullyPaid ? 'paid' :
+                                  paymentStatus.totalPaid > 0 ? 'partial' : 'unpaid'
+                                } 
+                              />
+                            )}
+                            {sale.isInvoiced && sale.invoiceId && (
+                              <Link 
+                                to={`/invoices/${sale.invoiceId}`}
+                                className="text-xs text-primary hover:underline hover:text-primary/80"
+                              >
+                                {t('sales.viewInvoice')}
+                              </Link>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleExportPDF(sale)}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                {t('general.export')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleAddPayment(sale.id)}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                {t('payments.add')}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedSale(sale);
+                                setShowAddDialog(true);
+                              }}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                {t('general.edit')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
+                                <Trash className="mr-2 h-4 w-4" />
+                                {t('general.delete')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Expanded Sale Details */}
+                      {isExpanded && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="p-0">
+                            <div className="bg-muted/50 p-4">
+                              <div className="space-y-4">
+                                {/* Items List */}
+                                <div>
+                                  <h4 className="font-medium mb-2">{t('sales.items')}</h4>
+                                  <div className="space-y-2">
+                                    
+                                    {sale.items.map((item, index) => (
+                                      <div key={item.id} className="bg-background rounded-md p-3">
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <div className="font-medium">{item.description}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                              {item.coilRef && `${t('form.sale.coilRef')}: ${item.coilRef}`}
+                                              {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
+                                              {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
+                                              {/* Add more attributes if needed */}
                                             </div>
-                                            <div className="text-right text-red-600">
-                                              <div className="text-sm text-muted-foreground">
-                                            
-                                                {item.productType === 'coil' && (
-                                                  <>
-                                                    
-                                                    {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                  </>
-                                                )}
-                                                {item.productType === 'steel_slitting' && (
-                                                  <>
-                                                    {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                  </>
-                                                )}
-                                                {item.productType === 'corrugated_sheet' && (
-                                                  <>
-                                                    {item.quantity} (u) × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                  </>
-                                                )}
-                                                {/* Fallback for unknown type */}
-                                                {!item.productType && (
-                                                  <>
-                                                    {item.quantity} U × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                  </>
-                                                )}
-                                              </div>
-                                              <div className='text-sm font-medium'>
-                                                {formatCurrency(
-                                                  item.productType === 'coil'
+                                          </div>
+                                          <div className="text-right text-red-600">
+                                            <div className="text-sm text-muted-foreground">
+                                          
+                                              {item.productType === 'coil' && (
+                                                <>
+                                                  
+                                                  {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                </>
+                                              )}
+                                              {item.productType === 'steel_slitting' && (
+                                                <>
+                                                  {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                </>
+                                              )}
+                                              {item.productType === 'corrugated_sheet' && (
+                                                <>
+                                                  {item.quantity} (u) × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                </>
+                                              )}
+                                              {/* Fallback for unknown type */}
+                                              {!item.productType && (
+                                                <>
+                                                  {item.quantity} U × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                </>
+                                              )}
+                                            </div>
+                                            <div className='text-sm font-medium'>
+                                              {formatCurrency(
+                                                item.productType === 'coil'
+                                                  ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
+                                                  : item.productType === 'steel_slitting'
                                                     ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
-                                                    : item.productType === 'steel_slitting'
-                                                      ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
-                                                      : item.productType === 'corrugated_sheet'
-                                                        ? (item.quantity ?? 0) * (item.pricePerTon ?? 0)
-                                                        : (item.quantity ?? 0) * (item.pricePerTon ?? 0)
-                                                )}
-                                              </div>
+                                                    : item.productType === 'corrugated_sheet'
+                                                      ? (item.quantity ?? 0) * (item.pricePerTon ?? 0)
+                                                      : (item.quantity ?? 0) * (item.pricePerTon ?? 0)
+                                              )}
                                             </div>
                                           </div>
                                         </div>
-                                      ))}
-                                    </div>
+                                      </div>
+                                    ))}
                                   </div>
-
-                                  {/* Summary */}
-                                  <div className="flex justify-end">
-                                    <div className="w-72 space-y-1">
-                                      <div className="flex justify-between text-sm">
-                                        <span>{t('form.sale.subtotalHT')}:</span>
-                                        <span>{formatCurrency(sale.totalAmountHT ?? 0 - (sale.transportationFee ?? 0))}</span>
-                                      </div>
-                                      {(sale.transportationFee ?? 0) > 0 && (
-                                        <div className="flex justify-between text-sm">
-                                          <span>{t('form.sale.transportationFee')}:</span>
-                                          <span>{formatCurrency(sale.transportationFee ?? 0)}</span>
-                                        </div>
-                                      )}
-                                      <div className="flex justify-between text-sm pt-1 border-t">
-                                        <span>{t('form.sale.totalHT')}:</span>
-                                        <span>{formatCurrency(sale.totalAmountHT ?? 0)}</span>
-                                      </div>
-                                      <div className="flex justify-between text-sm">
-                                        <span>{t('form.sale.tva')} (19%):</span>
-                                        <span>{formatCurrency((sale.totalAmountTTC ?? 0) - (sale.totalAmountHT ?? 0))}</span>
-                                      </div>
-                                      <div className="flex justify-between font-medium pt-1 border-t">
-                                        <span>{t('form.sale.totalTTC')}:</span>
-                                        <span>{formatCurrency(sale.totalAmountTTC ?? 0)}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Notes if any */}
-                                  {sale.notes && (
-                                    <div>
-                                      <h4 className="font-medium mb-2">{t('form.sale.notes')}</h4>
-                                      <p className="text-sm text-muted-foreground">{sale.notes}</p>
-                                    </div>
-                                  )}
                                 </div>
+
+                                {/* Summary */}
+                                <div className="flex justify-end">
+                                  <div className="w-72 space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                      <span>{t('form.sale.subtotalHT')}:</span>
+                                      <span>{formatCurrency(sale.totalAmountHT ?? 0 - (sale.transportationFee ?? 0))}</span>
+                                    </div>
+                                    {(sale.transportationFee ?? 0) > 0 && (
+                                      <div className="flex justify-between text-sm">
+                                        <span>{t('form.sale.transportationFee')}:</span>
+                                        <span>{formatCurrency(sale.transportationFee ?? 0)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between text-sm pt-1 border-t">
+                                      <span>{t('form.sale.totalHT')}:</span>
+                                      <span>{formatCurrency(sale.totalAmountHT ?? 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span>{t('form.sale.tva')} (19%):</span>
+                                      <span>{formatCurrency((sale.totalAmountTTC ?? 0) - (sale.totalAmountHT ?? 0))}</span>
+                                    </div>
+                                    <div className="flex justify-between font-medium pt-1 border-t">
+                                      <span>{t('form.sale.totalTTC')}:</span>
+                                      <span>{formatCurrency(sale.totalAmountTTC ?? 0)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Notes if any */}
+                                {sale.notes && (
+                                  <div>
+                                    <h4 className="font-medium mb-2">{t('form.sale.notes')}</h4>
+                                    <p className="text-sm text-muted-foreground">{sale.notes}</p>
+                                  </div>
+                                )}
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
-                      {searchTerm ? t('sales.noSales') : t('general.noData')}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    {searchTerm ? t('sales.noSales') : t('general.noData')}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
-      )}
+      </div>
 
       {/* Add/Edit Sale Dialog */}
       {showAddDialog && (

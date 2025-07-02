@@ -5,6 +5,7 @@ import { numberToWords } from './numberToWords';
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/invoice/InvoicePDF';
+import { CompanyProfile } from '../types/index';
 
 interface PDFGenerationData {
   documentType: 'invoice' | 'sale';
@@ -125,7 +126,7 @@ export const generateInvoicePDF = async (
 export const generateSalePDF = async (
   sale: Sale,
   client: Client,
-  companySettings: CompanySettings
+  company: CompanyProfile
 ): Promise<Blob> => {
   // Prepare the data for our PDF template
   const items = sale.items.map((item: SaleItem) => ({
@@ -170,12 +171,12 @@ export const generateSalePDF = async (
     paymentMethod: sale.paymentMethod ? formatPaymentMethod(sale.paymentMethod) : 'Non spécifié',
     paymentTerms: sale.paymentMethod === 'term' ? 'À terme' : '-',
     companyInfo: {
-      name: companySettings.name,
-      rc: companySettings.rc,
-      ai: companySettings.ai,
-      nif: companySettings.nif,
-      nis: companySettings.nis,
-      address: companySettings.address,
+      name: company.name,
+      rc: company.rc,
+      ai: company.ai,
+      nif: company.nif,
+      nis: company.nis,
+      address: company.address,
     },
     clientInfo: {
       name: client.company || client.name,
@@ -191,9 +192,9 @@ export const generateSalePDF = async (
     totalTTC: sale.totalAmountTTC,
     totalInWords,
     contactInfo: {
-      phone: companySettings.phone,
-      email: companySettings.email,
-      companyName: companySettings.name,
+      phone: company.phone,
+      email: company.email,
+      companyName: company.name,
     },
     slogan: 'Colors that lasts,Quality that endures',
   };

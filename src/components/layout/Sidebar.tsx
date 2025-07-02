@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
-  BarChart2, Users, FileText, CircleDollarSign, ShoppingBag, Home, Settings 
+  BarChart2, Users, FileText, CircleDollarSign, ShoppingBag, Home, Settings, Shield 
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -14,6 +14,7 @@ const Sidebar = () => {
     { name: t('sales.title'), path: '/sales', icon: ShoppingBag },
     { name: t('general.invoices'), path: '/invoices', icon: FileText },
     { name: t('general.reports'), path: '/reports', icon: BarChart2 },
+    { name: t('general.auditLog'), path: '/audit-log', icon: Shield },
     { name: t('general.settings'), path: '/settings', icon: Settings },
   ];
 

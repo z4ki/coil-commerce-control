@@ -156,6 +156,12 @@ async fn main() {
             commands::update_settings,
             commands::export_db,
             commands::import_db,
+            // Audit log commands
+            commands::get_audit_log,
+            // commands::create_audit_log,
+            // commands::delete_audit_log,
+            // commands::restore_audit_log,
+            // commands::get_deleted_audit_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -14,6 +14,7 @@ use dirs;
 use tokio::sync::oneshot;
 use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
+use sqlx::Executor;
 
 
 
@@ -311,10 +312,12 @@ pub async fn delete_client(
     pool: tauri::State<'_, SqlitePool>
 ) -> Result<(), String> {
     sqlx::query("DELETE FROM clients WHERE id = ?")
-        .bind(id)
+        .bind(&id)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+    // Insert audit log entry for client deletion
+    insert_audit_log(&*pool, "delete", "client", &id, None, Some("Client deleted")).await?;
     Ok(())
 }
 
@@ -718,6 +721,8 @@ pub async fn delete_sale(
                 .map_err(|e| e.to_string())?;
         }
     }
+    // Insert audit log entry for sale soft delete
+    insert_audit_log(&*pool, "soft_delete", "sale", &id, None, Some("Sale soft-deleted")).await?;
     Ok(())
 }
 
@@ -765,6 +770,8 @@ pub async fn restore_sale(
                 .map_err(|e| e.to_string())?;
         }
     }
+    // Insert audit log entry for sale restore
+    insert_audit_log(&*pool, "restore", "sale", &id, None, Some("Sale restored")).await?;
     Ok(())
 }
 
@@ -914,6 +921,18 @@ pub async fn create_invoice(
         created_at: now.clone(),
         updated_at: Some(now),
     })
+}
+
+#[tauri::command]
+pub async fn restore_invoice(id: String, pool: tauri::State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("UPDATE invoices SET is_deleted = 0, deleted_at = NULL WHERE id = ?")
+        .bind(&id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Insert audit log entry for invoice restore
+    insert_audit_log(&*pool, "restore", "invoice", &id, None, Some("Invoice restored")).await?;
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1161,32 +1180,101 @@ pub async fn unmark_sale_invoiced(
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditLog {
+    pub id: i64,
+    pub action: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub user_id: Option<String>,
+    pub timestamp: String,
+    pub details: Option<String>,
+}
+
+async fn insert_audit_log(
+    pool: &SqlitePool,
+    action: &str,
+    entity_type: &str,
+    entity_id: &str,
+    user_id: Option<&str>,
+    details: Option<&str>,
+) -> Result<(), String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "INSERT INTO audit_log (action, entity_type, entity_id, user_id, timestamp, details) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .bind(action)
+    .bind(entity_type)
+    .bind(entity_id)
+    .bind(user_id)
+    .bind(&now)
+    .bind(details)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn delete_invoice(
     id: String,
     pool: tauri::State<'_, SqlitePool>
 ) -> Result<(), String> {
-    // Unmark all related sales as invoiced
-    let sales = sqlx::query!("SELECT id FROM sales WHERE invoice_id = ?", id)
-    .fetch_all(&*pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    for sale in &sales {
-        sqlx::query!(
-            "UPDATE sales SET is_invoiced = 0, invoice_id = NULL WHERE id = ?",
-            sale.id
-        )
-        .execute(&*pool)
+    // Check if invoice is a draft and has no payments
+    let invoice_row = sqlx::query!("SELECT is_paid FROM invoices WHERE id = ?", id)
+        .fetch_one(&*pool)
         .await
         .map_err(|e| e.to_string())?;
-    }
-    let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query("UPDATE invoices SET is_deleted = 1, deleted_at = ? WHERE id = ?")
-        .bind(&now)
+    let is_paid = invoice_row.is_paid;
+    // Treat NULL as false (unpaid) for draft logic
+    let is_paid = is_paid.unwrap_or(false);
+    let payment_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE invoice_id = ? AND (is_deleted = 0 OR is_deleted IS NULL)")
         .bind(&id)
-        .execute(&*pool)
+        .fetch_one(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+    if !is_paid && payment_count == 0 {
+        // Hard delete: remove invoice, invoice_sales, and unmark sales
+        sqlx::query("DELETE FROM invoice_sales WHERE invoice_id = ?")
+            .bind(&id)
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE sales SET is_invoiced = 0, invoice_id = NULL WHERE invoice_id = ?")
+            .bind(&id)
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        sqlx::query("DELETE FROM invoices WHERE id = ?")
+            .bind(&id)
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        insert_audit_log(&*pool, "hard_delete", "invoice", &id, None, Some("Invoice hard-deleted (draft, no payments)")).await?;
+    } else {
+        // Soft delete as before
+        let sales = sqlx::query!("SELECT id FROM sales WHERE invoice_id = ?", id)
+            .fetch_all(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        for sale in &sales {
+            sqlx::query!(
+                "UPDATE sales SET is_invoiced = 0, invoice_id = NULL WHERE id = ?",
+                sale.id
+            )
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query("UPDATE invoices SET is_deleted = 1, deleted_at = ? WHERE id = ?")
+            .bind(&now)
+            .bind(&id)
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        insert_audit_log(&*pool, "soft_delete", "invoice", &id, None, Some("Invoice soft-deleted")).await?;
+    }
     Ok(())
 }
 
@@ -1313,16 +1401,20 @@ pub async fn delete_payment(
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+    // Insert audit log entry for payment soft delete
+    insert_audit_log(&*pool, "soft_delete", "payment", &id, None, Some("Payment soft-deleted")).await?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn restore_invoice(id: String, pool: tauri::State<'_, SqlitePool>) -> Result<(), String> {
-    sqlx::query("UPDATE invoices SET is_deleted = 0, deleted_at = NULL WHERE id = ?")
+pub async fn restore_payment(id: String, pool: tauri::State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("UPDATE payments SET is_deleted = 0, deleted_at = NULL WHERE id = ?")
         .bind(&id)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+    // Insert audit log entry for payment restore
+    insert_audit_log(&*pool, "restore", "payment", &id, None, Some("Payment restored")).await?;
     Ok(())
 }
 
@@ -1658,12 +1750,23 @@ pub async fn import_db(app: tauri::AppHandle, import_path: Option<String>) -> Re
 }
 
 #[tauri::command]
-pub async fn restore_payment(id: String, pool: tauri::State<'_, SqlitePool>) -> Result<(), String> {
-    sqlx::query("UPDATE payments SET is_deleted = 0, deleted_at = NULL WHERE id = ?")
-        .bind(&id)
-        .execute(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+pub async fn get_audit_log(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<AuditLog>, String> {
+    let rows = sqlx::query(
+        "SELECT id, action, entity_type, entity_id, user_id, timestamp, details FROM audit_log ORDER BY timestamp DESC"
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let logs = rows.into_iter().map(|row| AuditLog {
+        id: row.get("id"),
+        action: row.get("action"),
+        entity_type: row.get("entity_type"),
+        entity_id: row.get("entity_id"),
+        user_id: row.get("user_id"),
+        timestamp: row.get("timestamp"),
+        details: row.get("details"),
+    }).collect();
+    Ok(logs)
 }
     

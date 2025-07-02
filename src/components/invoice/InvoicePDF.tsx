@@ -11,8 +11,6 @@ import {
 } from '@react-pdf/renderer';
 import { formatCurrency } from '@/utils/format';
 
-
-
 // Define your data interface
 export interface InvoicePDFProps {
   documentType: 'invoice' | 'sale';
@@ -27,6 +25,7 @@ export interface InvoicePDFProps {
     nif: string;
     nis: string;
     address: string;
+    rib?: string;
   };
   clientInfo: {
     name: string;
@@ -35,6 +34,7 @@ export interface InvoicePDFProps {
     nif: string;
     nis: string;
     address: string;
+    rib?: string;
   };
   items: Array<{
     description: string;
@@ -315,28 +315,27 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
           <Text style={styles.companyName}>{companyInfo.name}</Text>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>RC: </Text>
-            <Text style={styles.normalText}>{companyInfo.rc}</Text>
+            <Text style={styles.normalText}>{companyInfo.rc || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>A.I: </Text>
-            <Text style={styles.normalText}>{companyInfo.ai}</Text>
+            <Text style={styles.normalText}>{companyInfo.ai || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>NIF: </Text>
-            <Text style={styles.normalText}>{companyInfo.nif}</Text>
+            <Text style={styles.normalText}>{companyInfo.nif || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>NIS: </Text>
-            <Text style={styles.normalText}>{companyInfo.nis}</Text>
+            <Text style={styles.normalText}>{companyInfo.nis || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>RIB (Badr Teleghma) :</Text>
-            <Text style={styles.normalText}>{companyInfo.rib}</Text>
-            {/* <Text style={styles.normalText}>00300841000264039071</Text> */}
+            <Text style={styles.normalText}>{companyInfo.rib ? companyInfo.rib : ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>Adresse: </Text>
-            <Text style={styles.normalText}>{companyInfo.address}</Text>
+            <Text style={styles.normalText}>{companyInfo.address || ''}</Text>
           </View>
         </View>
         
@@ -344,23 +343,27 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({
           <Text style={styles.companyName}>{clientInfo.name}</Text>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>RC: </Text>
-            <Text style={styles.normalText}>{clientInfo.rc}</Text>
+            <Text style={styles.normalText}>{clientInfo.rc || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>A.I: </Text>
-            <Text style={styles.normalText}>{clientInfo.ai}</Text>
+            <Text style={styles.normalText}>{clientInfo.ai || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>NIF: </Text>
-            <Text style={styles.normalText}>{clientInfo.nif}</Text>
+            <Text style={styles.normalText}>{clientInfo.nif || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>NIS: </Text>
-            <Text style={styles.normalText}>{clientInfo.nis}</Text>
+            <Text style={styles.normalText}>{clientInfo.nis || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.boldText}>Adresse: </Text>
-            <Text style={styles.normalText}>{clientInfo.address}</Text>
+            <Text style={styles.normalText}>{clientInfo.address || ''}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.boldText}>RIB (Badr Teleghma) :</Text>
+            <Text style={styles.normalText}>{clientInfo.rib ? clientInfo.rib : ''}</Text>
           </View>
         </View>
       </View>

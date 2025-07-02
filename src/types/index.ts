@@ -132,20 +132,7 @@ export interface DashboardStats {
   };
 }
 
-// Define the type for company settings
-export interface CompanySettings {
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  nif: string;
-  nis: string;
-  rc: string;
-  ai: string;
-  rib: string;
-}
-
-// Define the type for app settings
+// CompanyProfile is the canonical type for company info
 export interface CompanyProfile {
   name: string;
   address: string;

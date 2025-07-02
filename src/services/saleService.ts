@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Sale, Invoice } from '@/types/sales';
+import type { Sale, Invoice } from '@/types/index';
 import type { Client, Payment, BulkPayment, CreditTransaction, AppSettings } from '@/types/index';
 import { tauriApi } from '@/lib/tauri-api';
 
@@ -49,7 +49,6 @@ let mockSales: Sale[] = [
     items: [
       {
         id: '1',
-        saleId: '1',
         description: 'Corrugated Steel Sheets',
         coilRef: 'CR001',
         coilThickness: 0.5,
@@ -61,7 +60,7 @@ let mockSales: Sale[] = [
         pricePerTon: 1200,
         totalAmountHT: 30000,
         totalAmountTTC: 35700,
-        createdAt: new Date('2024-01-15'),
+        createdAt: undefined,
         productType: undefined,
         updatedAt: undefined
       }
@@ -86,7 +85,6 @@ let mockSales: Sale[] = [
     items: [
       {
         id: '2',
-        saleId: '2',
         description: 'Steel Slitting Strips',
         coilRef: 'SS002',
         coilThickness: 0.8,
@@ -98,7 +96,7 @@ let mockSales: Sale[] = [
         pricePerTon: 1400,
         totalAmountHT: 22400,
         totalAmountTTC: 26656,
-        createdAt: new Date('2024-01-20'),
+        createdAt: undefined,
         productType: undefined,
         updatedAt: undefined
       }
@@ -610,7 +608,6 @@ export const getSales = async (): Promise<Sale[]> => {
     date: new Date(sale.date),
     items: (sale.items || []).map((item: any) => ({
       id: item.id,
-      saleId: sale.id,
       description: item.description,
       coilRef: item.coil_ref,
       coilThickness: item.coil_thickness,
@@ -622,8 +619,8 @@ export const getSales = async (): Promise<Sale[]> => {
       pricePerTon: Number(item.price_per_ton),
       totalAmountHT: Number(item.total_amount_ht ?? item.total_amount),
       totalAmountTTC: Number(item.total_amount_ttc),
-      createdAt: item.created_at ? new Date(item.created_at) : new Date(),
-      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
       productType:
         item.productType ||
         item.product_type ||
@@ -656,7 +653,6 @@ export const getDeletedSales = async (): Promise<Sale[]> => {
     date: new Date(sale.date),
     items: (sale.items || []).map((item: any) => ({
       id: item.id,
-      saleId: sale.id,
       description: item.description,
       coilRef: item.coil_ref,
       coilThickness: item.coil_thickness,
@@ -668,8 +664,8 @@ export const getDeletedSales = async (): Promise<Sale[]> => {
       pricePerTon: Number(item.price_per_ton),
       totalAmountHT: Number(item.total_amount_ht ?? item.total_amount),
       totalAmountTTC: Number(item.total_amount_ttc),
-      createdAt: item.created_at ? new Date(item.created_at) : new Date(),
-      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
       productType:
         item.productType ||
         item.product_type ||

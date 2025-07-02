@@ -29,6 +29,7 @@ import SaleForm from "./components/sales/SaleForm";
 import ClientForm from "./components/clients/ClientForm";
 import InvoiceForm from "./components/invoices/InvoiceForm";
 import SaleDetail from "./pages/SaleDetail";
+import AuditLogPage from './pages/AuditLog';
 
 const queryClient = new QueryClient();
 
@@ -57,7 +58,7 @@ const ClientFormWrapper = () => {
 
 const App = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const { filters, setFilters } = useProductStore();
+  // const { filters, setFilters } = useProductStore();
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -84,9 +85,9 @@ const App = () => {
                       <Route path="/clients" element={<Clients />} />
                       <Route path="/clients/new" element={<ClientFormWrapper />} />
                       <Route path="/clients/:id" element={<ClientDetail />} />
-                      
                       <Route path="/reports" element={<Reports />} />
                       <Route path="/settings" element={<Settings />} />
+                      <Route path="/audit-log" element={<AuditLogPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </BrowserRouter>

@@ -29,12 +29,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { PaymentForm } from '@/components/invoices/PaymentForm';
 import { toast } from 'sonner';
 import { generateInvoicePDF } from '@/utils/pdfService.tsx';
 import { Badge } from '@/components/ui/badge';
+import type { Sale } from '@/types/index';
 
 const InvoiceDetail = () => {
   const { invoiceId } = useParams();
@@ -44,6 +47,9 @@ const InvoiceDetail = () => {
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   
   const {
     getInvoiceById,
@@ -69,19 +75,32 @@ const InvoiceDetail = () => {
   const totalPaid = invoicePaymentStatus?.totalPaid ?? 0;
   const remainingAmount = invoicePaymentStatus?.remainingAmount ?? 0;
   const payments = invoicePaymentStatus?.payments ?? [];
-  const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter(Boolean) : [];
+  const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter((s): s is Sale => Boolean(s)) : [];
   
+  const canHardDelete = invoice && !invoice.isPaid && payments.length === 0;
+
   const handleDeleteInvoice = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteInvoice = async () => {
     if (!invoice) return;
-    if (window.confirm(t('invoices.deleteConfirm'))) {
-      deleteInvoice(invoice.id);
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteInvoice(invoice.id);
       toast.success(t('invoices.deleted'));
+      // Optionally redirect or update state here
+    } catch (err: any) {
+      setDeleteError(err.message || String(err));
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
     }
   };
 
   const handleTogglePaid = async () => {
     if (!invoice) return;
-    
     if (!invoice.isPaid) {
       // When marking as paid, create a payment record
       await addPayment({
@@ -92,14 +111,14 @@ const InvoiceDetail = () => {
         method: 'bank_transfer',
         notes: 'Payment marked as completed',
         invoiceId: invoice.id,
+        isDeleted: false,
+        deletedAt: undefined,
       });
     }
-    
     updateInvoice(invoice.id, { 
       isPaid: !invoice.isPaid,
       paidAt: !invoice.isPaid ? new Date() : undefined
     });
-    
     toast.success(invoice.isPaid 
       ? 'Invoice marked as unpaid' 
       : 'Invoice marked as paid'
@@ -416,6 +435,48 @@ const InvoiceDetail = () => {
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <Card className="shadow-none border-none">
+            <CardHeader>
+              <CardTitle>
+                {canHardDelete
+                  ? t('invoices.deleteDraftTitle')
+                  : t('invoices.deleteConfirmTitle')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DialogDescription>
+                {canHardDelete ? (
+                  <>
+                    {t('invoices.deleteDraftConfirm')}
+                  </>
+                ) : (
+                  <>
+                    {t('invoices.deleteWarning')}
+                    <ul className="mt-2 text-sm text-muted-foreground list-disc list-inside">
+                      <li>{t('invoices.salesCount', { count: invoice.salesIds.length })}</li>
+                      <li>{t('invoices.paymentsCount', { count: payments.length })}</li>
+                    </ul>
+                  </>
+                )}
+                {deleteError && <div className="text-red-600 mt-2">{deleteError}</div>}
+              </DialogDescription>
+            </CardContent>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteInvoice} disabled={deleting}>
+                {canHardDelete
+                  ? t('invoices.deleteDraftAction')
+                  : t('invoices.deleteAction')}
+              </Button>
+            </DialogFooter>
+          </Card>
         </DialogContent>
       </Dialog>
     </MainLayout>

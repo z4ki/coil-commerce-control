@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Invoice, Sale, PaymentMethodType } from '../../types';
+import { Invoice, Sale, PaymentMethodType } from '@/types/index';
 import { formatCurrency, formatDate, formatDateInput, generateInvoiceNumber } from '../../utils/format';
 import { toast } from 'sonner';
 import { useLanguage } from '@/context/LanguageContext';
@@ -64,7 +64,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     sales,
     getSalePaymentStatus
   } = useAppContext();
-  const { settings: appSettings, updateInvoiceSettings } = useAppSettings();
+  const { settings: appSettings, updateSettings } = useAppSettings();
   const { settings: invoiceSettings } = useInvoiceSettings();
   const { t } = useLanguage();
 
@@ -176,8 +176,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
 
   const onSubmit = async (data: FormValues) => {
     try {
-      
-      setIsSubmitting(true);  
+      setIsSubmitting(true);
 
       if (selectedSales.length === 0) {
         toast.error("Please select at least one sale to include in the invoice.");
@@ -204,7 +203,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       }
 
       const allSalesPaid = selectedSales.every(saleId => getSalePaymentStatus(saleId)?.isFullyPaid === true);
-      
+
       const invoiceData = {
         invoiceNumber: data.invoiceNumber,
         clientId: data.clientId,
@@ -217,14 +216,27 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
         isPaid: allSalesPaid,
         paidAt: allSalesPaid ? new Date() : undefined,
         paymentMethod: data.paymentMethod || undefined,
+        isDeleted: false,
       };
-      
+
+      // SMART INCREMENT LOGIC
+      const expectedAutoNumber = generateInvoiceNumber(invoiceSettings.defaultPrefix, appSettings.invoice.nextNumber);
+      // Extract the numeric part from the invoice number (assumes format PREFIX-123 or similar)
+      const manualNumberMatch = data.invoiceNumber.match(/(\d+)$/);
+      const manualNumber = manualNumberMatch ? parseInt(manualNumberMatch[1], 10) : null;
+      if (data.invoiceNumber === expectedAutoNumber) {
+        // User accepted the automatic number, increment nextNumber
+        updateSettings({ invoice: { ...appSettings.invoice, nextNumber: appSettings.invoice.nextNumber + 1 } });
+      } else if (manualNumber && manualNumber >= appSettings.invoice.nextNumber) {
+        // User entered a manual number higher than nextNumber, update nextNumber to manual+1
+        updateSettings({ invoice: { ...appSettings.invoice, nextNumber: manualNumber + 1 } });
+      }
+
       if (invoice) {
         await updateInvoice(invoice.id, invoiceData);
         toast.success('Invoice has been updated');
       } else {
         await addInvoice(invoiceData);
-        updateInvoiceSettings({ nextNumber: appSettings.invoice.nextNumber + 1 });
         toast.success('Invoice has been created');
       }
       if (onSuccess) onSuccess();

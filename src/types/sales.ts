@@ -34,6 +34,8 @@ export interface Sale {
   taxRate: number;
   createdAt: Date;
   updatedAt?: Date;
+  isPaid: boolean;
+  paidAt?: Date;
 }
 
 export interface Invoice {

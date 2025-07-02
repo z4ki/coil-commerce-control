@@ -24,6 +24,10 @@ interface AppSettings {
   notifications?: boolean;
   darkMode?: boolean;
   user_id?: string;
+  invoice: {
+    nextNumber: number;
+    paymentTerms: number;
+  };
 }
 
 interface AppSettingsContextType {
@@ -52,7 +56,11 @@ const defaultSettings: AppSettings = {
     taxId: '',
     logo: ''
   },
-  user_id: ''
+  user_id: '',
+  invoice: {
+    nextNumber: 1,
+    paymentTerms: 30,
+  },
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -75,13 +83,17 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           company: {
             ...defaultSettings.company,
             ...(dbSettings.company || {}),
-            taxId: dbSettings.company?.nif ?? '', // Map NIF to taxId, fallback to empty string
+            taxId: dbSettings.company?.nif ?? '',
             nif: dbSettings.company?.nif ?? '',
             nis: dbSettings.company?.nis ?? '',
             rc: dbSettings.company?.rc ?? '',
             ai: dbSettings.company?.ai ?? '',
             rib: dbSettings.company?.rib ?? '',
             logo: dbSettings.company?.logo ?? '',
+          },
+          invoice: {
+            ...defaultSettings.invoice,
+            ...(dbSettings.invoice || {}),
           },
         }));
       } catch (error) {

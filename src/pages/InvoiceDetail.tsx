@@ -54,6 +54,7 @@ const InvoiceDetail = () => {
     deletePayment,
     addPayment,
     getPaymentsByInvoice,
+    getInvoicePaymentStatus,
     getSalePaymentStatus,
     getPaymentsBySale,
   } = useAppContext();
@@ -64,9 +65,10 @@ const InvoiceDetail = () => {
   const invoice = getInvoiceById(invoiceId || '');
   const client = invoice ? getClientById(invoice.clientId) : undefined;
   const isOverdue = invoice ? !invoice.isPaid && new Date() > invoice.dueDate : false;
-  const payments = invoice ? getPaymentsByInvoice(invoice.id) : [];
-  const totalPaid = payments.reduce((total, payment) => total + payment.amount, 0);
-  const remainingAmount = invoice ? invoice.totalAmountTTC - totalPaid : 0;
+  const invoicePaymentStatus = invoice ? getInvoicePaymentStatus(invoice.id) : null;
+  const totalPaid = invoicePaymentStatus?.totalPaid ?? 0;
+  const remainingAmount = invoicePaymentStatus?.remainingAmount ?? 0;
+  const payments = invoicePaymentStatus?.payments ?? [];
   const sales = invoice ? invoice.salesIds.map(id => getSaleById(id)).filter(Boolean) : [];
   
   const handleDeleteInvoice = () => {

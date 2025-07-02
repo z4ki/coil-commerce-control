@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Sale } from '@/types';
+import type { Sale, Invoice } from '@/types/sales';
+import type { Client, Payment, BulkPayment, CreditTransaction, AppSettings } from '@/types/index';
 import { tauriApi } from '@/lib/tauri-api';
 
 // Mock data storage
@@ -48,6 +49,7 @@ let mockSales: Sale[] = [
     items: [
       {
         id: '1',
+        saleId: '1',
         description: 'Corrugated Steel Sheets',
         coilRef: 'CR001',
         coilThickness: 0.5,
@@ -58,7 +60,10 @@ let mockSales: Sale[] = [
         quantity: 10,
         pricePerTon: 1200,
         totalAmountHT: 30000,
-        totalAmountTTC: 35700
+        totalAmountTTC: 35700,
+        createdAt: new Date('2024-01-15'),
+        productType: undefined,
+        updatedAt: undefined
       }
     ],
     totalAmountHT: 30000,
@@ -70,7 +75,9 @@ let mockSales: Sale[] = [
     transportationFee: 500,
     taxRate: 0.19,
     createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15')
+    updatedAt: new Date('2024-01-15'),
+    isPaid: false,
+    paidAt: undefined
   },
   {
     id: '2',
@@ -79,6 +86,7 @@ let mockSales: Sale[] = [
     items: [
       {
         id: '2',
+        saleId: '2',
         description: 'Steel Slitting Strips',
         coilRef: 'SS002',
         coilThickness: 0.8,
@@ -89,18 +97,24 @@ let mockSales: Sale[] = [
         quantity: 5,
         pricePerTon: 1400,
         totalAmountHT: 22400,
-        totalAmountTTC: 26656
+        totalAmountTTC: 26656,
+        createdAt: new Date('2024-01-20'),
+        productType: undefined,
+        updatedAt: undefined
       }
     ],
     totalAmountHT: 22400,
     totalAmountTTC: 26656,
     isInvoiced: false,
+    invoiceId: undefined,
     notes: 'Test sale 2',
     paymentMethod: 'cash',
     transportationFee: 300,
     taxRate: 0.19,
     createdAt: new Date('2024-01-20'),
-    updatedAt: new Date('2024-01-20')
+    updatedAt: new Date('2024-01-20'),
+    isPaid: false,
+    paidAt: undefined
   }
 ];
 
@@ -114,12 +128,8 @@ let mockInvoices: Invoice[] = [
     dueDate: new Date('2024-02-15'),
     totalAmountHT: 30000,
     totalAmountTTC: 35700,
-    taxRate: 0.19,
     isPaid: false,
-    paymentMethod: 'bank_transfer',
-    transportationFee: 500,
-    transportationFeeTTC: 595,
-    notes: 'Test invoice 1',
+    paidAt: undefined,
     createdAt: new Date('2024-01-15'),
     updatedAt: new Date('2024-01-15')
   }
@@ -135,7 +145,12 @@ let mockPayments: Payment[] = [
     method: 'bank_transfer',
     notes: 'Partial payment',
     createdAt: new Date('2024-01-20'),
-    updatedAt: new Date('2024-01-20')
+    updatedAt: new Date('2024-01-20'),
+    invoiceId: undefined,
+    isDeleted: false,
+    deletedAt: undefined,
+    checkNumber: undefined,
+    bulkPaymentId: undefined
   }
 ];
 
@@ -286,15 +301,57 @@ export const localDB = {
     },
 
     create: async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): Promise<Sale> => {
-      const newSale: Sale = {
-        ...sale,
-        id: generateId(),
-        items: sale.items.map(item => ({ ...item, id: generateId() })),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      mockSales.push(newSale);
-      return Promise.resolve({ ...newSale });
+      try {
+        // Ensure date is a valid ISO string
+        let dateString: string = "";
+        if (sale.date instanceof Date && !isNaN(sale.date.getTime())) {
+          dateString = sale.date.toISOString();
+        } else if (typeof sale.date === 'string' && sale.date.length > 0) {
+          // Try to parse and re-serialize
+          const d = new Date(sale.date);
+          dateString = !isNaN(d.getTime()) ? d.toISOString() : "";
+        }
+        // Ensure paidAt is a valid ISO string or null
+        let paidAtString: string | null = null;
+        if (sale.paidAt instanceof Date && !isNaN(sale.paidAt.getTime())) {
+          paidAtString = sale.paidAt.toISOString();
+        } else if (typeof sale.paidAt === 'string' && sale.paidAt.length > 0) {
+          const d = new Date(sale.paidAt);
+          paidAtString = !isNaN(d.getTime()) ? d.toISOString() : null;
+        }
+        const backendSale: any = {
+          client_id: sale.clientId,
+          date: dateString,
+          total_amount: typeof sale.totalAmountHT === 'number' ? sale.totalAmountHT : 0,
+          total_amount_ttc: typeof sale.totalAmountTTC === 'number' ? sale.totalAmountTTC : 0,
+          is_invoiced: sale.isInvoiced ?? false,
+          invoice_id: sale.invoiceId ?? null,
+          notes: sale.notes ?? "",
+          payment_method: sale.paymentMethod ?? null,
+          transportation_fee: typeof sale.transportationFee === 'number' ? sale.transportationFee : 0,
+          tax_rate: typeof sale.taxRate === 'number' ? sale.taxRate : 0,
+          is_paid: sale.isPaid ?? false,
+          paid_at: paidAtString,
+          items: (sale.items || []).map(item => ({
+            description: item.description,
+            coil_ref: item.coilRef ?? null,
+            coil_thickness: typeof item.coilThickness === 'number' ? item.coilThickness : 0,
+            coil_width: typeof item.coilWidth === 'number' ? item.coilWidth : 0,
+            top_coat_ral: item.topCoatRAL ?? null,
+            back_coat_ral: item.backCoatRAL ?? null,
+            coil_weight: typeof item.coilWeight === 'number' ? item.coilWeight : 0,
+            quantity: typeof item.quantity === 'number' ? item.quantity : 0,
+            price_per_ton: typeof item.pricePerTon === 'number' ? item.pricePerTon : 0,
+            total_amount: typeof item.totalAmountHT === 'number' ? item.totalAmountHT : 0,
+            product_type: item.productType ?? 'coil',
+          }))
+        };
+        console.log('[createSale] Payload to backend:', JSON.stringify(backendSale, null, 2));
+        return await tauriApi.sales.create(backendSale);
+      } catch (error) {
+        console.error('Error creating sale:', error);
+        throw error;
+      }
     },
 
     update: async (id: string, sale: Partial<Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Sale> => {
@@ -547,7 +604,6 @@ export const mockData = {
 export const getSales = async (): Promise<Sale[]> => {
   const backendSales = await tauriApi.sales.getAll() as any[];
   if (!Array.isArray(backendSales)) return [];
-  
   return backendSales.map((sale: any) => ({
     id: sale.id,
     clientId: sale.client_id,
@@ -586,15 +642,14 @@ export const getSales = async (): Promise<Sale[]> => {
     taxRate: sale.tax_rate,
     createdAt: new Date(sale.created_at),
     updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
-    isDeleted: !!sale.is_deleted,
-    deletedAt: sale.deleted_at ? new Date(sale.deleted_at) : undefined,
+    isPaid: !!sale.is_paid,
+    paidAt: sale.paid_at ? new Date(sale.paid_at) : undefined
   }));
 };
 
 export const getDeletedSales = async (): Promise<Sale[]> => {
   const backendSales = await tauriApi.sales.getDeleted() as any[];
   if (!Array.isArray(backendSales)) return [];
-  
   return backendSales.map((sale: any) => ({
     id: sale.id,
     clientId: sale.client_id,
@@ -633,8 +688,8 @@ export const getDeletedSales = async (): Promise<Sale[]> => {
     taxRate: sale.tax_rate,
     createdAt: new Date(sale.created_at),
     updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
-    isDeleted: !!sale.is_deleted,
-    deletedAt: sale.deleted_at ? new Date(sale.deleted_at) : undefined,
+    isPaid: !!sale.is_paid,
+    paidAt: sale.paid_at ? new Date(sale.paid_at) : undefined
   }));
 };
 
@@ -653,7 +708,7 @@ export const deleteSale = async (id: string): Promise<void> => {
 
 export const getSaleById = async (id: string): Promise<Sale | null> => {
   try {
-    return await tauriApi.sales.getById(id);
+    return (await tauriApi.sales.getById(id)) as Sale;
   } catch (error) {
     console.error('Error fetching sale:', error);
     throw error;
@@ -662,7 +717,52 @@ export const getSaleById = async (id: string): Promise<Sale | null> => {
 
 export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>): Promise<Sale> => {
   try {
-    return await tauriApi.sales.create(sale);
+    // Ensure date is a valid ISO string
+    let dateString: string = "";
+    if (sale.date instanceof Date && !isNaN(sale.date.getTime())) {
+      dateString = sale.date.toISOString();
+    } else if (typeof sale.date === 'string' && sale.date.length > 0) {
+      // Try to parse and re-serialize
+      const d = new Date(sale.date);
+      dateString = !isNaN(d.getTime()) ? d.toISOString() : "";
+    }
+    // Ensure paidAt is a valid ISO string or null
+    let paidAtString: string | null = null;
+    if (sale.paidAt instanceof Date && !isNaN(sale.paidAt.getTime())) {
+      paidAtString = sale.paidAt.toISOString();
+    } else if (typeof sale.paidAt === 'string' && sale.paidAt.length > 0) {
+      const d = new Date(sale.paidAt);
+      paidAtString = !isNaN(d.getTime()) ? d.toISOString() : null;
+    }
+    const backendSale: any = {
+      client_id: sale.clientId,
+      date: dateString,
+      total_amount: typeof sale.totalAmountHT === 'number' ? sale.totalAmountHT : 0,
+      total_amount_ttc: typeof sale.totalAmountTTC === 'number' ? sale.totalAmountTTC : 0,
+      is_invoiced: sale.isInvoiced ?? false,
+      invoice_id: sale.invoiceId ?? null,
+      notes: sale.notes ?? "",
+      payment_method: sale.paymentMethod ?? null,
+      transportation_fee: typeof sale.transportationFee === 'number' ? sale.transportationFee : 0,
+      tax_rate: typeof sale.taxRate === 'number' ? sale.taxRate : 0,
+      is_paid: sale.isPaid ?? false,
+      paid_at: paidAtString,
+      items: (sale.items || []).map(item => ({
+        description: item.description,
+        coil_ref: item.coilRef ?? null,
+        coil_thickness: typeof item.coilThickness === 'number' ? item.coilThickness : 0,
+        coil_width: typeof item.coilWidth === 'number' ? item.coilWidth : 0,
+        top_coat_ral: item.topCoatRAL ?? null,
+        back_coat_ral: item.backCoatRAL ?? null,
+        coil_weight: typeof item.coilWeight === 'number' ? item.coilWeight : 0,
+        quantity: typeof item.quantity === 'number' ? item.quantity : 0,
+        price_per_ton: typeof item.pricePerTon === 'number' ? item.pricePerTon : 0,
+        total_amount: typeof item.totalAmountHT === 'number' ? item.totalAmountHT : 0,
+        product_type: item.productType ?? 'coil',
+      }))
+    };
+    console.log('[createSale] Payload to backend:', JSON.stringify(backendSale, null, 2));
+    return await tauriApi.sales.create(backendSale);
   } catch (error) {
     console.error('Error creating sale:', error);
     throw error;
@@ -674,7 +774,6 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
   const existing = await getSaleById(id);
   if (!existing) throw new Error('Sale not found');
   const merged = { ...existing, ...sale };
-
   // Validate required fields
   if (!merged.clientId) throw new Error('clientId is required');
   if (!merged.date) throw new Error('date is required');
@@ -683,7 +782,6 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
   if (typeof merged.isInvoiced !== 'boolean') throw new Error('isInvoiced is required');
   if (!Array.isArray(merged.items) || merged.items.length === 0) throw new Error('At least one sale item is required');
   if (typeof merged.taxRate !== 'number') throw new Error('taxRate is required');
-
   // Ensure all items have pricePerTon and required fields
   const items = (merged.items || []).map((item: any, idx: number) => {
     if (item.pricePerTon == null) {
@@ -718,15 +816,12 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
       product_type: item.productType,
     };
   });
-
-  // Only include fields that are present and required
   function flattenAndClean(obj: Record<string, any>) {
     return Object.fromEntries(
       Object.entries(obj)
         .filter(([_, v]) => v !== undefined && v !== null)
     );
   }
-
   const backendSale: any = flattenAndClean({
     client_id: merged.clientId,
     date:
@@ -743,9 +838,10 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
     payment_method: merged.paymentMethod,
     transportation_fee: merged.transportationFee,
     tax_rate: merged.taxRate,
+    is_paid: merged.isPaid ?? false,
+    paid_at: merged.paidAt ? (merged.paidAt instanceof Date ? merged.paidAt.toISOString() : merged.paidAt) : null,
     items,
   });
-
   // Final check for undefined or NaN fields
   Object.entries(backendSale).forEach(([k, v]) => {
     if (v === undefined) {
@@ -755,10 +851,8 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
       throw new Error(`Field ${k} is NaN`);
     }
   });
-
   // Log the payload for debugging
   console.log('[updateSale] Payload to backend:', JSON.stringify(backendSale, null, 2));
-
   try {
     const result = await tauriApi.sales.update(id, backendSale);
     console.log('[updateSale] Backend result:', result);

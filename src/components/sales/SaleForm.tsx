@@ -270,15 +270,22 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     const items = data.items.map((item, i) => ({
       ...item,
       pricePerTon: Number(item.pricePerTon),
+      totalAmountHT: Number(item.totalAmountHT),
+      totalAmountTTC: Number(item.totalAmountTTC),
     }));
-    console.log('Submitting sale:', { ...data, items });
+    // Calculate totals
+    const itemsTotalHT = items.reduce((sum, item) => sum + (item.totalAmountHT || 0), 0);
+    const transportationFee = Number(data.transportationFee || 0);
+    const totalAmountHT = itemsTotalHT + transportationFee;
+    const totalAmountTTC = totalAmountHT * (1 + TAX_RATE);
+    console.log('Submitting sale:', { ...data, items, totalAmountHT, totalAmountTTC });
     items.forEach((item, i) => console.log(`Submit item ${i}:`, item));
     try {
       if (sale) {
-        await updateSale(sale.id, { ...sale, ...data, items });
+        await updateSale(sale.id, { ...sale, ...data, items, totalAmountHT, totalAmountTTC });
         toast.success(t('sales.updated'));
       } else {
-        await addSale({ ...data, items });
+        await addSale({ ...data, items, totalAmountHT, totalAmountTTC });
         toast.success(t('sales.added'));
       }
       if (onSuccess) onSuccess();

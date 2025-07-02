@@ -102,6 +102,8 @@ pub struct Sale {
     pub tax_rate: f64,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
+    pub is_paid: bool,
+    pub paid_at: Option<DateTime<Utc>>,
     pub items: Vec<SaleItem>,
 }
 
@@ -117,6 +119,8 @@ pub struct CreateSaleRequest {
     pub payment_method: Option<String>,
     pub transportation_fee: Option<f64>,
     pub tax_rate: f64,
+    pub is_paid: Option<bool>,
+    pub paid_at: Option<DateTime<Utc>>,
     pub items: Vec<CreateSaleItemRequest>,
 }
 
@@ -366,6 +370,8 @@ pub async fn get_sales(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Sale>, 
             tax_rate: sale_row.get("tax_rate"),
             created_at: sale_row.get("created_at"),
             updated_at: sale_row.get("updated_at"),
+            is_paid: sale_row.get("is_paid"),
+            paid_at: sale_row.get("paid_at"),
             items,
         });
     }
@@ -423,6 +429,8 @@ pub async fn get_sale_by_id(
             tax_rate: sale_row.get("tax_rate"),
             created_at: sale_row.get("created_at"),
             updated_at: sale_row.get("updated_at"),
+            is_paid: sale_row.get("is_paid"),
+            paid_at: sale_row.get("paid_at"),
             items,
         }))
     } else {
@@ -493,12 +501,21 @@ pub async fn create_sale(
     sale: CreateSaleRequest,
     pool: tauri::State<'_, SqlitePool>
 ) -> Result<Sale, String> {
+    // Debug: print the received sale JSON and fields
+    match serde_json::to_string(&sale) {
+        Ok(json) => println!("[create_sale] Received sale JSON: {}", json),
+        Err(e) => println!("[create_sale] Failed to serialize received sale: {}", e),
+    }
+    println!("[create_sale] Fields: client_id={:?}, date={:?}, total_amount={:?}, total_amount_ttc={:?}, is_invoiced={:?}, invoice_id={:?}, notes={:?}, payment_method={:?}, transportation_fee={:?}, tax_rate={:?}, is_paid={:?}, paid_at={:?}, items.len={}",
+        sale.client_id, sale.date, sale.total_amount, sale.total_amount_ttc, sale.is_invoiced, sale.invoice_id, sale.notes, sale.payment_method, sale.transportation_fee, sale.tax_rate, sale.is_paid, sale.paid_at, sale.items.len());
     let sale_id = Uuid::new_v4().to_string();
     let now = Utc::now();
+    let is_paid = sale.is_paid.unwrap_or(false);
+    let paid_at = sale.paid_at;
     sqlx::query(
         r#"INSERT INTO sales (
-            id, client_id, date, total_amount, total_amount_ttc, is_invoiced, invoice_id, notes, payment_method, transportation_fee, tax_rate, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+            id, client_id, date, total_amount, total_amount_ttc, is_invoiced, invoice_id, notes, payment_method, transportation_fee, tax_rate, is_paid, paid_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
     )
     .bind(&sale_id)
     .bind(&sale.client_id)
@@ -511,6 +528,8 @@ pub async fn create_sale(
     .bind(&sale.payment_method)
     .bind(sale.transportation_fee)
     .bind(sale.tax_rate)
+    .bind(is_paid)
+    .bind(paid_at)
     .bind(now)
     .bind(now)
     .execute(&*pool)
@@ -561,8 +580,10 @@ pub async fn update_sale(
         Err(e) => println!("[update_sale] Failed to serialize received sale: {}", e),
     }
     let now = Utc::now();
+    let is_paid = sale.is_paid.unwrap_or(false);
+    let paid_at = sale.paid_at;
     sqlx::query(
-        r#"UPDATE sales SET client_id = ?, date = ?, total_amount = ?, total_amount_ttc = ?, is_invoiced = ?, invoice_id = ?, notes = ?, payment_method = ?, transportation_fee = ?, tax_rate = ?, updated_at = ? WHERE id = ?"#
+        r#"UPDATE sales SET client_id = ?, date = ?, total_amount = ?, total_amount_ttc = ?, is_invoiced = ?, invoice_id = ?, notes = ?, payment_method = ?, transportation_fee = ?, tax_rate = ?, is_paid = ?, paid_at = ?, updated_at = ? WHERE id = ?"#
     )
     .bind(&sale.client_id)
     .bind(sale.date)
@@ -574,6 +595,8 @@ pub async fn update_sale(
     .bind(&sale.payment_method)
     .bind(sale.transportation_fee)
     .bind(sale.tax_rate)
+    .bind(is_paid)
+    .bind(paid_at)
     .bind(now)
     .bind(&id)
     .execute(&*pool)
@@ -854,6 +877,17 @@ pub async fn create_invoice(
         sqlx::query("UPDATE sales SET is_invoiced = 1, invoice_id = ? WHERE id = ?")
         .bind(&id)
         .bind(sale_id)
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Link sale to invoice in invoice_sales
+        let link_id = Uuid::new_v4().to_string();
+        sqlx::query("INSERT INTO invoice_sales (id, invoice_id, sale_id, created_at) VALUES (?, ?, ?, ?)")
+            .bind(&link_id)
+            .bind(&id)
+            .bind(sale_id)
+            .bind(&now)
             .execute(&*pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -1385,6 +1419,8 @@ pub async fn get_deleted_sales(pool: tauri::State<'_, SqlitePool>) -> Result<Vec
             tax_rate: sale_row.get("tax_rate"),
             created_at: sale_row.get("created_at"),
             updated_at: sale_row.get("updated_at"),
+            is_paid: sale_row.get("is_paid"),
+            paid_at: sale_row.get("paid_at"),
             items,
         });
     }

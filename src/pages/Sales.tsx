@@ -264,253 +264,299 @@ const Sales = () => {
               </Select>
             </div>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t('sales.add')}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="mr-0"
+              onClick={() => setShowArchive(a => !a)}
+              variant="outline"
+            >
+              {showArchive ? t('sales.showActive') || 'Show Active' : t('sales.showArchive') || 'Show Archive'}
+            </Button>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('sales.add')}
+            </Button>
+          </div>
         </div>
 
-        {/* Sales Table */}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader className="bg-gray-100">
-              <TableRow>
-                <TableHead className="w-[50px]"></TableHead>
-                <TableHead>{t('sales.date')}</TableHead>
-                <TableHead>{t('sales.client')}</TableHead>
-                <TableHead>{t('sales.items')}</TableHead>
-                <TableHead className="text-right">{t('sales.total')}</TableHead>
-                <TableHead>{t('sales.status')}</TableHead>
-                <TableHead className="text-right">{t('general.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredSales.length > 0 ? (
-                filteredSales.map((sale) => {
+        {showArchive ? (
+          <div>
+            <h2 className="text-lg font-semibold mb-2">{t('sales.archive') || 'Deleted Sales'}</h2>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('sales.date')}</TableHead>
+                  <TableHead>{t('sales.client')}</TableHead>
+                  <TableHead>{t('sales.total')}</TableHead>
+                  <TableHead>{t('sales.deletedAt') || 'Deleted At'}</TableHead>
+                  <TableHead>{t('general.actions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deletedSales.map(sale => {
                   const client = getClientById(sale.clientId);
-                  const isExpanded = expandedSales[sale.id] || false;
-                  const paymentStatus = getSalePaymentStatus(sale.id);
                   return (
-                    <React.Fragment key={sale.id}>
-                      <TableRow>
-                        <TableCell className="p-0 pl-4">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => toggleSaleExpansion(sale.id)}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <Link to={`/sales/${sale.id}`} className="text-primary hover:underline">
-                            {formatDate(sale.date)}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">
-                            {client && (
-                              <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
-                                {client.name}
-                              </Link>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground">{client?.company || ''}</div>
-                        </TableCell>
-                        <TableCell>{sale.items.length} {t('general.items')}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="font-medium">{formatCurrency(sale.totalAmountTTC)}</div>
-                          {paymentStatus && (
-                            <div className="text-xs text-muted-foreground">
-                              {t('sales.paid')}: {formatCurrency(paymentStatus.totalPaid)}
-                              {paymentStatus.remainingAmount > 0 && (
-                                <div>
-                                  {t('sales.remaining')}: {formatCurrency(paymentStatus.remainingAmount)}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <StatusBadge 
-                              status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
-                            />
-                            {paymentStatus && (
-                              <StatusBadge 
-                                status={
-                                  paymentStatus.isFullyPaid ? 'paid' :
-                                  paymentStatus.totalPaid > 0 ? 'partial' : 'unpaid'
-                                } 
-                              />
-                            )}
-                            {sale.isInvoiced && sale.invoiceId && (
-                              <Link 
-                                to={`/invoices/${sale.invoiceId}`}
-                                className="text-xs text-primary hover:underline hover:text-primary/80"
+                    <TableRow key={sale.id}>
+                      <TableCell>{formatDate(sale.date)}</TableCell>
+                      <TableCell>{client?.name || ''}</TableCell>
+                      <TableCell>{formatCurrency(sale.totalAmountTTC)}</TableCell>
+                      <TableCell>{sale.deletedAt ? formatDate(sale.deletedAt) : ''}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="default" onClick={() => handleRestoreSale(sale.id)}>
+                          {t('sales.restore') || 'Restore'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <>
+            {/* Sales Table */}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader className="bg-gray-100">
+                  <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead>{t('sales.date')}</TableHead>
+                    <TableHead>{t('sales.client')}</TableHead>
+                    <TableHead>{t('sales.items')}</TableHead>
+                    <TableHead className="text-right">{t('sales.total')}</TableHead>
+                    <TableHead>{t('sales.status')}</TableHead>
+                    <TableHead className="text-right">{t('general.actions')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSales.length > 0 ? (
+                    filteredSales.map((sale) => {
+                      const client = getClientById(sale.clientId);
+                      const isExpanded = expandedSales[sale.id] || false;
+                      const paymentStatus = getSalePaymentStatus(sale.id);
+                      return (
+                        <React.Fragment key={sale.id}>
+                          <TableRow>
+                            <TableCell className="p-0 pl-4">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleSaleExpansion(sale.id)}
                               >
-                                {t('sales.viewInvoice')}
-                              </Link>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleExportPDF(sale)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                {t('general.export')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleAddPayment(sale.id)}>
-                                <DollarSign className="mr-2 h-4 w-4" />
-                                {t('payments.add')}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => {
-                                setSelectedSale(sale);
-                                setShowAddDialog(true);
-                              }}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                {t('general.edit')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
-                                <Trash className="mr-2 h-4 w-4" />
-                                {t('general.delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                      
-                      {/* Expanded Sale Details */}
-                      {isExpanded && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="p-0">
-                            <div className="bg-muted/50 p-4">
-                              <div className="space-y-4">
-                                {/* Items List */}
-                                <div>
-                                  <h4 className="font-medium mb-2">{t('sales.items')}</h4>
-                                  <div className="space-y-2">
-                                    
-                                    {sale.items.map((item, index) => (
-                                      <div key={item.id} className="bg-background rounded-md p-3">
-                                        <div className="flex justify-between items-start">
-                                          <div>
-                                            <div className="font-medium">{item.description}</div>
-                                            <div className="text-sm text-muted-foreground">
-                                              {item.coilRef && `${t('form.sale.coilRef')}: ${item.coilRef}`}
-                                              {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
-                                              {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
-                                              {/* Add more attributes if needed */}
-                                            </div>
-                                          </div>
-                                          <div className="text-right text-red-600">
-                                            <div className="text-sm text-muted-foreground">
-                                          
-                                              {item.productType === 'coil' && (
-                                                <>
-                                                  
-                                                  {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                </>
-                                              )}
-                                              {item.productType === 'steel_slitting' && (
-                                                <>
-                                                  {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                </>
-                                              )}
-                                              {item.productType === 'corrugated_sheet' && (
-                                                <>
-                                                  {item.quantity} (u) × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                </>
-                                              )}
-                                              {/* Fallback for unknown type */}
-                                              {!item.productType && (
-                                                <>
-                                                  {item.quantity} U × {formatCurrency(item.pricePerTon)} {"P.U"}
-                                                </>
-                                              )}
-                                            </div>
-                                            <div className='text-sm font-medium'>
-                                              {formatCurrency(
-                                                item.productType === 'coil'
-                                                  ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
-                                                  : item.productType === 'steel_slitting'
-                                                    ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
-                                                    : item.productType === 'corrugated_sheet'
-                                                      ? (item.quantity ?? 0) * (item.pricePerTon ?? 0)
-                                                      : (item.quantity ?? 0) * (item.pricePerTon ?? 0)
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Summary */}
-                                <div className="flex justify-end">
-                                  <div className="w-72 space-y-1">
-                                    <div className="flex justify-between text-sm">
-                                      <span>{t('form.sale.subtotalHT')}:</span>
-                                      <span>{formatCurrency(sale.totalAmountHT ?? 0 - (sale.transportationFee ?? 0))}</span>
-                                    </div>
-                                    {(sale.transportationFee ?? 0) > 0 && (
-                                      <div className="flex justify-between text-sm">
-                                        <span>{t('form.sale.transportationFee')}:</span>
-                                        <span>{formatCurrency(sale.transportationFee ?? 0)}</span>
-                                      </div>
-                                    )}
-                                    <div className="flex justify-between text-sm pt-1 border-t">
-                                      <span>{t('form.sale.totalHT')}:</span>
-                                      <span>{formatCurrency(sale.totalAmountHT ?? 0)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                      <span>{t('form.sale.tva')} (19%):</span>
-                                      <span>{formatCurrency((sale.totalAmountTTC ?? 0) - (sale.totalAmountHT ?? 0))}</span>
-                                    </div>
-                                    <div className="flex justify-between font-medium pt-1 border-t">
-                                      <span>{t('form.sale.totalTTC')}:</span>
-                                      <span>{formatCurrency(sale.totalAmountTTC ?? 0)}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Notes if any */}
-                                {sale.notes && (
-                                  <div>
-                                    <h4 className="font-medium mb-2">{t('form.sale.notes')}</h4>
-                                    <p className="text-sm text-muted-foreground">{sale.notes}</p>
-                                  </div>
+                            </TableCell>
+                            <TableCell>
+                              <Link to={`/sales/${sale.id}`} className="text-primary hover:underline">
+                                {formatDate(sale.date)}
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">
+                                {client && (
+                                  <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
+                                    {client.name}
+                                  </Link>
                                 )}
                               </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    {searchTerm ? t('sales.noSales') : t('general.noData')}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                              <div className="text-xs text-muted-foreground">{client?.company || ''}</div>
+                            </TableCell>
+                            <TableCell>{sale.items.length} {t('general.items')}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="font-medium">{formatCurrency(sale.totalAmountTTC)}</div>
+                              {paymentStatus && (
+                                <div className="text-xs text-muted-foreground">
+                                  {t('sales.paid')}: {formatCurrency(paymentStatus.totalPaid)}
+                                  {paymentStatus.remainingAmount > 0 && (
+                                    <div>
+                                      {t('sales.remaining')}: {formatCurrency(paymentStatus.remainingAmount)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <StatusBadge 
+                                  status={sale.isInvoiced ? 'invoiced' : 'notInvoiced'} 
+                                />
+                                {paymentStatus && (
+                                  <StatusBadge 
+                                    status={
+                                      paymentStatus.isFullyPaid ? 'paid' :
+                                      paymentStatus.totalPaid > 0 ? 'partial' : 'unpaid'
+                                    } 
+                                  />
+                                )}
+                                {sale.isInvoiced && sale.invoiceId && (
+                                  <Link 
+                                    to={`/invoices/${sale.invoiceId}`}
+                                    className="text-xs text-primary hover:underline hover:text-primary/80"
+                                  >
+                                    {t('sales.viewInvoice')}
+                                  </Link>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleExportPDF(sale)}>
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    {t('general.export')}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleAddPayment(sale.id)}>
+                                    <DollarSign className="mr-2 h-4 w-4" />
+                                    {t('payments.add')}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => {
+                                    setSelectedSale(sale);
+                                    setShowAddDialog(true);
+                                  }}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    {t('general.edit')}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDeleteSale(sale)}>
+                                    <Trash className="mr-2 h-4 w-4" />
+                                    {t('general.delete')}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Expanded Sale Details */}
+                          {isExpanded && (
+                            <TableRow>
+                              <TableCell colSpan={7} className="p-0">
+                                <div className="bg-muted/50 p-4">
+                                  <div className="space-y-4">
+                                    {/* Items List */}
+                                    <div>
+                                      <h4 className="font-medium mb-2">{t('sales.items')}</h4>
+                                      <div className="space-y-2">
+                                        
+                                        {sale.items.map((item, index) => (
+                                          <div key={item.id} className="bg-background rounded-md p-3">
+                                            <div className="flex justify-between items-start">
+                                              <div>
+                                                <div className="font-medium">{item.description}</div>
+                                                <div className="text-sm text-muted-foreground">
+                                                  {item.coilRef && `${t('form.sale.coilRef')}: ${item.coilRef}`}
+                                                  {item.coilThickness && ` • ${t('form.sale.coilThickness')}: ${item.coilThickness}`}
+                                                  {item.coilWidth && ` • ${t('form.sale.coilWidth')}: ${item.coilWidth}`}
+                                                  {/* Add more attributes if needed */}
+                                                </div>
+                                              </div>
+                                              <div className="text-right text-red-600">
+                                                <div className="text-sm text-muted-foreground">
+                                              
+                                                  {item.productType === 'coil' && (
+                                                    <>
+                                                      
+                                                      {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                    </>
+                                                  )}
+                                                  {item.productType === 'steel_slitting' && (
+                                                    <>
+                                                      {item.coilWeight} {"TONS"} × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                    </>
+                                                  )}
+                                                  {item.productType === 'corrugated_sheet' && (
+                                                    <>
+                                                      {item.quantity} (u) × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                    </>
+                                                  )}
+                                                  {/* Fallback for unknown type */}
+                                                  {!item.productType && (
+                                                    <>
+                                                      {item.quantity} U × {formatCurrency(item.pricePerTon)} {"P.U"}
+                                                    </>
+                                                  )}
+                                                </div>
+                                                <div className='text-sm font-medium'>
+                                                  {formatCurrency(
+                                                    item.productType === 'coil'
+                                                      ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
+                                                      : item.productType === 'steel_slitting'
+                                                        ? (item.coilWeight ?? 0) * (item.pricePerTon ?? 0)
+                                                        : item.productType === 'corrugated_sheet'
+                                                          ? (item.quantity ?? 0) * (item.pricePerTon ?? 0)
+                                                          : (item.quantity ?? 0) * (item.pricePerTon ?? 0)
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Summary */}
+                                    <div className="flex justify-end">
+                                      <div className="w-72 space-y-1">
+                                        <div className="flex justify-between text-sm">
+                                          <span>{t('form.sale.subtotalHT')}:</span>
+                                          <span>{formatCurrency(sale.totalAmountHT ?? 0 - (sale.transportationFee ?? 0))}</span>
+                                        </div>
+                                        {(sale.transportationFee ?? 0) > 0 && (
+                                          <div className="flex justify-between text-sm">
+                                            <span>{t('form.sale.transportationFee')}:</span>
+                                            <span>{formatCurrency(sale.transportationFee ?? 0)}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between text-sm pt-1 border-t">
+                                          <span>{t('form.sale.totalHT')}:</span>
+                                          <span>{formatCurrency(sale.totalAmountHT ?? 0)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                          <span>{t('form.sale.tva')} (19%):</span>
+                                          <span>{formatCurrency((sale.totalAmountTTC ?? 0) - (sale.totalAmountHT ?? 0))}</span>
+                                        </div>
+                                        <div className="flex justify-between font-medium pt-1 border-t">
+                                          <span>{t('form.sale.totalTTC')}:</span>
+                                          <span>{formatCurrency(sale.totalAmountTTC ?? 0)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Notes if any */}
+                                    {sale.notes && (
+                                      <div>
+                                        <h4 className="font-medium mb-2">{t('form.sale.notes')}</h4>
+                                        <p className="text-sm text-muted-foreground">{sale.notes}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center">
+                        {searchTerm ? t('sales.noSales') : t('general.noData')}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Add/Edit Sale Dialog */}

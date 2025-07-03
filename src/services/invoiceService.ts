@@ -34,6 +34,7 @@ interface DbInvoice {
   paid_at?: string;
   created_at: string;
   updated_at?: string;
+  deleted_at?: string;
 }
 
 // Helper to convert database response to DbInvoice
@@ -101,19 +102,30 @@ export const getDeletedInvoices = async (): Promise<Invoice[]> => {
   try {
     const backendInvoices = await tauriApi.invoices.getDeleted() as any[];
     if (!Array.isArray(backendInvoices)) return [];
-    return backendInvoices.map((inv: any) => mapDbInvoiceToInvoice({
-      id: inv.id,
-      invoice_number: inv.invoice_number,
-      client_id: inv.client_id,
-      date: inv.date,
-      due_date: inv.due_date,
-      total_amount_ht: inv.total_amount_ht,
-      total_amount_ttc: inv.total_amount_ttc,
-      is_paid: inv.is_paid,
-      paid_at: inv.paid_at,
-      created_at: inv.created_at,
-      updated_at: inv.updated_at,
-    }, inv.sales_ids || [], inv));
+    return backendInvoices.map((inv: any) => {
+      // Defensive: ensure sales_ids is always an array
+      let salesIds: string[] = [];
+      if (Array.isArray(inv.sales_ids)) {
+        salesIds = inv.sales_ids;
+      } else if (typeof inv.sales_ids === 'string') {
+        salesIds = inv.sales_ids.split(',').filter(Boolean);
+      } // else leave as []
+
+      return mapDbInvoiceToInvoice({
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        client_id: inv.client_id,
+        date: inv.date,
+        due_date: inv.due_date,
+        total_amount_ht: inv.total_amount_ht,
+        total_amount_ttc: inv.total_amount_ttc,
+        is_paid: inv.is_paid,
+        paid_at: inv.paid_at,
+        created_at: inv.created_at,
+        updated_at: inv.updated_at,
+        deleted_at: inv.deleted_at,
+      }, salesIds, inv);
+    });
   } catch (error) {
     console.error('Error fetching deleted invoices:', error);
     throw error;

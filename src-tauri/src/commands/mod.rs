@@ -788,6 +788,7 @@ pub struct Invoice {
     pub paid_at: Option<String>,
     pub created_at: String,
     pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -920,6 +921,7 @@ pub async fn create_invoice(
         paid_at: None,  // always None at creation
         created_at: now.clone(),
         updated_at: Some(now),
+        deleted_at: None,// always None at creation
     })
 }
 
@@ -1455,10 +1457,12 @@ pub async fn get_deleted_invoices(pool: tauri::State<'_, SqlitePool>) -> Result<
                 "paid_at": row.get::<Option<String>, _>("paid_at"),
                 "created_at": row.get::<String, _>("created_at"),
                 "updated_at": row.get::<Option<String>, _>("updated_at"),
+                // "deleted_at": row.get::<String, _>("deleted_at"),
                 "sales_ids": sales_ids_array
             })
         })
         .collect();
+    
     Ok(invoices)
 }
 

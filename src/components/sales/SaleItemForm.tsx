@@ -12,12 +12,20 @@ import {
 import { Input } from '@/components/ui/input';
 import { Trash2 } from 'lucide-react';
 import { calculateItemTotalHT, calculateItemTotalTTC, TAX_RATE } from '../../utils/calculations';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SaleItemFormProps {
   index: number;
   onRemove: () => void;
   isRemoveDisabled: boolean;
 }
+
+// Helper to normalize productType
+const normalizeProductType = (type?: string) => {
+  if (type === 'slitting') return 'steel_slitting';
+  if (type === 'sheet') return 'corrugated_sheet';
+  return type || 'coil';
+};
 
 const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) => {
   const { control, watch, setValue, trigger } = useFormContext();
@@ -189,11 +197,19 @@ const SaleItemForm = ({ index, onRemove, isRemoveDisabled }: SaleItemFormProps) 
             <FormItem>
               <FormLabel>{t('form.sale.productType') || 'Product Type'}</FormLabel>
               <FormControl>
-                <select {...field} value={field.value || 'coil'} onChange={field.onChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                  {productTypes.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
+                <Select
+                  value={normalizeProductType(field.value) || 'coil'}
+                  onValueChange={val => field.onChange(normalizeProductType(val))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={t('form.sale.productType')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="coil">{t('productTypes.coil')}</SelectItem>
+                    <SelectItem value="corrugated_sheet">{t('productTypes.corrugatedSheet')}</SelectItem>
+                    <SelectItem value="steel_slitting">{t('productTypes.steelSlitting')}</SelectItem>
+                  </SelectContent>
+                </Select>
               </FormControl>
               <FormMessage />
             </FormItem>

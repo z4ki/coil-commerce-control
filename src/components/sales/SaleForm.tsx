@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { formatDateInput, parseDateInput, formatCurrency } from '../../utils/format';
 import { toast } from 'sonner';
-import { Sale, SaleItem } from '../../types';
+import type { Sale, SaleItem } from '@/types/index';
 import { v4 as uuidv4 } from 'uuid';
 import { Plus, FileText } from 'lucide-react';
 import SaleItemForm from './SaleItemForm';
@@ -92,12 +92,30 @@ interface SummaryTotals {
   totalTTC: number;
 }
 
+// Helper to normalize productType
+const normalizeProductType = (type?: string, description?: string) => {
+  if (type === 'slitting' || type === 'steel_slitting') return 'steel_slitting';
+  if (type === 'sheet' || type === 'corrugated_sheet') return 'corrugated_sheet';
+  if (type === 'coil') return 'coil';
+  // Fallback: try to infer from description
+  if (description?.toLowerCase().includes('slitting')) return 'steel_slitting';
+  if (description?.toLowerCase().includes('coil')) return 'coil';
+  if (description?.toLowerCase().includes('corrugated')) return 'corrugated_sheet';
+  return 'coil';
+};
+
+// Helper to safely parse date
+const safeParseDateInput = (dateStr: string) => {
+  const parsed = parseDateInput(dateStr);
+  return parsed instanceof Date && !isNaN(parsed.getTime()) ? parsed : new Date();
+};
+
 const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   const { addSale, updateSale, clients, getClientById } = useAppContext();
   const { t } = useLanguage();
   
   const [itemsState, setItemsState] = useState<SaleItemFormData[]>(
-    sale?.items.map(item => ({
+    sale?.items.map((item: SaleItem) => ({
       id: item.id,
       description: item.description,
       coilRef: item.coilRef || '',
@@ -110,7 +128,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       pricePerTon: Number(item.pricePerTon) || 0,
       totalAmountHT: item.totalAmountHT,
       totalAmountTTC: item.totalAmountTTC,
-      productType: item.productType || '',
+      productType: normalizeProductType(item.productType, item.description),
     })) || [{ 
       id: uuidv4(), 
       description: '', 
@@ -133,7 +151,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     clientId: sale?.clientId || '',
     date: formatDateInput(sale?.date || new Date()),
     items: itemsState,
-    transportationFee: sale?.transportationFee || 0,
+    transportationFee: sale?.transportationFee ?? 0,
     notes: sale?.notes || '',
     paymentMethod: sale?.paymentMethod as PaymentMethod | undefined || undefined, // Initialize as undefined
   };
@@ -186,9 +204,9 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     transportationFee: z.coerce.number().min(0).default(0),
     notes: z.string().optional(),
     paymentMethod: z.enum(paymentMethods).optional().nullable() // Allow optional and nullable
-        .refine(val => val === null || val === undefined || paymentMethods.includes(val), { // Ensure if it's provided, it's one of the enum values
-            message: "Invalid payment method",
-        }),
+      .refine(val => val === null || val === undefined || paymentMethods.includes(val), {
+        message: "Invalid payment method",
+      }),
   });
 
   const form = useForm<FormValues>({
@@ -272,6 +290,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
       pricePerTon: Number(item.pricePerTon),
       totalAmountHT: Number(item.totalAmountHT),
       totalAmountTTC: Number(item.totalAmountTTC),
+      productType: normalizeProductType(item.productType, item.description),
     }));
     // Calculate totals
     const itemsTotalHT = items.reduce((sum, item) => sum + (item.totalAmountHT || 0), 0);
@@ -282,10 +301,19 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     items.forEach((item, i) => console.log(`Submit item ${i}:`, item));
     try {
       if (sale) {
-        await updateSale(sale.id, { ...sale, ...data, items, totalAmountHT, totalAmountTTC });
+        await updateSale(sale.id, { ...sale, ...data, items, totalAmountHT, totalAmountTTC, date: safeParseDateInput(data.date) });
         toast.success(t('sales.updated'));
       } else {
-        await addSale({ ...data, items, totalAmountHT, totalAmountTTC });
+        await addSale({
+          ...data,
+          items,
+          totalAmountHT,
+          totalAmountTTC,
+          isInvoiced: false,
+          taxRate: TAX_RATE,
+          isDeleted: false,
+          date: safeParseDateInput(data.date),
+        });
         toast.success(t('sales.added'));
       }
       if (onSuccess) onSuccess();
@@ -338,7 +366,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
     const tempSale: Sale = {
       id: sale?.id || uuidv4(),
       clientId: formData.clientId,
-      date: parseDateInput(formData.date),
+      date: safeParseDateInput(formData.date),
       items: sanitizedItems,
       totalAmountHT: isNaN(totalHT_sanitized) ? 0 : totalHT_sanitized,
       totalAmountTTC: totalTTC_sanitized,
@@ -364,11 +392,11 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
   };
 
   return (
-    <FormProvider {...form}>
+    <FormProvider<FormValues> {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col md:flex-row gap-6 h-full">
         <div className="flex-1 space-y-6 overflow-y-auto pr-2 md:max-h-[calc(100vh-200px)]">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField
+            <FormField<FormValues>
               control={form.control} name="clientId"
               render={({ field }) => (
                 <FormItem>
@@ -381,12 +409,12 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
                 </FormItem>
               )}
             />
-            <FormField
+            <FormField<FormValues>
               control={form.control} name="date"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('form.sale.date')}</FormLabel>
-                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormControl><Input type="date" {...field} value={field.value || ''} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -404,18 +432,18 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField
+            <FormField<FormValues>
               control={form.control} name="transportationFee"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('form.sale.transportationFee')}</FormLabel>
-                  <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
+                  <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-          <FormField
+          <FormField<FormValues>
             control={form.control}
             name="paymentMethod"
             render={({ field }) => (
@@ -443,7 +471,7 @@ const SaleForm = ({ sale, onSuccess }: SaleFormProps) => {
               </FormItem>
             )}
           />
-          <FormField
+          <FormField<FormValues>
             control={form.control} name="notes"
             render={({ field }) => (
               <FormItem>

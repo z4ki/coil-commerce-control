@@ -136,7 +136,7 @@ const Invoices = () => {
                   <TableHead>{t('invoices.number')}</TableHead>
                   <TableHead>{t('invoices.client')}</TableHead>
                   <TableHead>{t('invoices.date')}</TableHead>
-                  <TableHead>{t('invoices.deletedAt') || 'Deleted At'}</TableHead>
+                  {/* <TableHead>{t('invoices.deletedAt') || 'Deleted At'}</TableHead> */}
                   <TableHead>{t('invoices.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -146,7 +146,7 @@ const Invoices = () => {
                     <TableCell>{invoice.invoiceNumber}</TableCell>
                     <TableCell>{getClientById(invoice.clientId)?.name || ''}</TableCell>
                     <TableCell>{formatDate(invoice.date)}</TableCell>
-                    <TableCell>{invoice.deletedAt ? formatDate(invoice.deletedAt) : ''}</TableCell>
+                    {/* <TableCell>{invoice.deletedAt ? formatDate(invoice.deletedAt) : ''}</TableCell> */}
                     <TableCell>
                       <Button size="sm" onClick={() => handleRestoreInvoice(invoice.id)}>
                         {t('invoices.restore') || 'Restore'}

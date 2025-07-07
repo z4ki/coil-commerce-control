@@ -29,8 +29,8 @@ export const InvoiceItems: React.FC<InvoiceItemsProps> = ({ items }) => {
         <tbody>
           {items.map((item, index) => (
             <tr key={index} className="border-b border-[#D7DAE0] last:border-b-0">
-              <td className="py-3 px-4 text-sm text-[#4B5563]">{item.code}</td>
-              <td className="py-3 px-4 text-sm text-[#4B5563]">{item.description}</td>
+              <td className="py-3 px-4 text-sm text-[#4B5563]">{item.code || '-'}</td>
+              <td className="py-3 px-4 text-sm text-[#4B5563]">{item.description || '-'}</td>
               <td className="py-3 px-4 text-sm text-[#4B5563] text-right">
                 {item.weight.toFixed(2)}
               </td>

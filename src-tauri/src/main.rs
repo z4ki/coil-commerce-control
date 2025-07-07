@@ -162,6 +162,9 @@ async fn main() {
             // commands::delete_audit_log,
             // commands::restore_audit_log,
             // commands::get_deleted_audit_logs,
+            // Analytics commands
+            commands::get_sold_products_analytics,
+            commands::get_sold_products_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

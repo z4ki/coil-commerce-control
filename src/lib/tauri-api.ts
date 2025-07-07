@@ -44,6 +44,10 @@ export const tauriApi = {
     getDeleted: () => core.invoke('get_deleted_payments'),
     // update: (id: string, payment: any) => core.invoke('update_payment', { id, payment }), // Commented out, not implemented in backend
   },
+  analytics: {
+    getSoldProducts: (filter: any) => core.invoke('get_sold_products_analytics', { filter }),
+    getSoldProductsSummary: (filter: any) => core.invoke('get_sold_products_summary', { filter }),
+  },
   settings: {
     get: () => core.invoke('get_settings'),
     update: (updates: any) => core.invoke('update_settings', { updates }),

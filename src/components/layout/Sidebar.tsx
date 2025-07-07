@@ -14,6 +14,7 @@ const Sidebar = () => {
     { name: t('sales.title'), path: '/sales', icon: ShoppingBag },
     { name: t('general.invoices'), path: '/invoices', icon: FileText },
     { name: t('general.reports'), path: '/reports', icon: BarChart2 },
+    { name: t('analytics.soldProducts') || 'Sold Products Analytics', path: '/analytics/sold-products', icon: BarChart2 },
     { name: t('general.auditLog'), path: '/audit-log', icon: Shield },
     { name: t('general.settings'), path: '/settings', icon: Settings },
   ];

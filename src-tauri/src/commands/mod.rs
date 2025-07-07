@@ -1773,4 +1773,255 @@ pub async fn get_audit_log(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Aud
     }).collect();
     Ok(logs)
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SoldProductsFilter {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub product_type: Option<String>,
+    pub client_id: Option<String>,
+    /// Multi-select filter for thickness (mm)
+    pub thickness: Option<Vec<f64>>,
+    /// Multi-select filter for width (mm)
+    pub width: Option<Vec<f64>>,
+    /// Unit price min filter
+    pub unit_price_min: Option<f64>,
+    /// Unit price max filter
+    pub unit_price_max: Option<f64>,
+    /// Payment status filter: 'all', 'paid', 'unpaid'
+    pub payment_status: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SoldProduct {
+    pub product_name: String,
+    pub client_name: String,
+    pub thickness: f64,
+    pub width: f64,
+    pub quantity: f64,
+    pub weight: f64,
+    pub unit_price: f64,
+    pub total_price: f64,
+    pub invoice_number: String,
+    pub sale_date: String,
+    pub payment_status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SoldProductsSummary {
+    pub total_weight: f64,
+    pub total_revenue: f64,
+    pub total_quantity: f64,
+    pub unique_products: i64,
+    pub unique_clients: i64,
+    pub average_order_value: f64,
+}
+
+#[tauri::command]
+pub async fn get_sold_products_analytics(
+    filter: SoldProductsFilter,
+    pool: tauri::State<'_, SqlitePool>,
+) -> Result<Vec<SoldProduct>, String> {
+    println!("[get_sold_products_analytics] filter: {:?}", filter);
+    let mut query = String::from(r#"
+        SELECT
+            si.description as product_name,
+            c.name as client_name,
+            si.coil_thickness as thickness,
+            si.coil_width as width,
+            si.quantity,
+            si.coil_weight as weight,
+            si.price_per_ton as unit_price,
+            (si.total_amount * 1.19) as total_price,
+            i.invoice_number,
+            s.date as sale_date,
+            CASE WHEN i.is_paid = 1 THEN 'Paid' ELSE 'Unpaid' END as payment_status
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        JOIN clients c ON s.client_id = c.id
+        LEFT JOIN invoices i ON s.invoice_id = i.id
+        WHERE 1=1
+    "#);
+    let mut params: Vec<(String, String)> = Vec::new();
+    if let Some(ref start) = filter.start_date {
+        query.push_str(" AND s.date >= ?");
+        params.push(("start_date".to_string(), start.clone()));
+    }
+    if let Some(ref end) = filter.end_date {
+        query.push_str(" AND s.date <= ?");
+        params.push(("end_date".to_string(), end.clone()));
+    }
+    if let Some(ref pt) = filter.product_type {
+        query.push_str(" AND si.product_type = ?");
+        params.push(("product_type".to_string(), pt.clone()));
+    }
+    if let Some(ref cid) = filter.client_id {
+        query.push_str(" AND s.client_id = ?");
+        params.push(("client_id".to_string(), cid.clone()));
+    }
+    if let Some(ref thicknesses) = filter.thickness {
+        if !thicknesses.is_empty() {
+            let placeholders = vec!["?"; thicknesses.len()].join(", ");
+            query.push_str(&format!(" AND si.coil_thickness IN ({})", placeholders));
+            for t in thicknesses {
+                params.push(("thickness".to_string(), t.to_string()));
+            }
+        }
+    }
+    if let Some(ref widths) = filter.width {
+        if !widths.is_empty() {
+            let placeholders = vec!["?"; widths.len()].join(", ");
+            query.push_str(&format!(" AND si.coil_width IN ({})", placeholders));
+            for w in widths {
+                params.push(("width".to_string(), w.to_string()));
+            }
+        }
+    }
+    if let Some(min) = filter.unit_price_min {
+        query.push_str(" AND si.price_per_ton >= ?");
+        params.push(("unit_price_min".to_string(), min.to_string()));
+    }
+    if let Some(max) = filter.unit_price_max {
+        query.push_str(" AND si.price_per_ton <= ?");
+        params.push(("unit_price_max".to_string(), max.to_string()));
+    }
+    if let Some(ref status) = filter.payment_status {
+        if status == "paid" {
+            query.push_str(" AND i.is_paid = 1");
+        } else if status == "unpaid" {
+            query.push_str(" AND (i.is_paid = 0 OR i.is_paid IS NULL)");
+        }
+    }
+    query.push_str(" ORDER BY s.date DESC, si.description ASC");
+    println!("[get_sold_products_analytics] SQL: {}", query);
+    println!("[get_sold_products_analytics] params: {:?}", params);
+    let mut q = sqlx::query(&query);
+    for (_k, v) in &params {
+        q = q.bind(v);
+    }
+    let rows = match q.fetch_all(&*pool).await {
+        Ok(rows) => rows,
+        Err(e) => {
+            println!("[get_sold_products_analytics] SQL error: {}", e);
+            return Err(e.to_string());
+        }
+    };
+    let products = rows.into_iter().map(|row| SoldProduct {
+        product_name: row.try_get("product_name").unwrap_or_default(),
+        client_name: row.try_get("client_name").unwrap_or_default(),
+        thickness: row.try_get("thickness").unwrap_or(0.0),
+        width: row.try_get("width").unwrap_or(0.0),
+        quantity: row.get("quantity"),
+        weight: row.try_get("weight").unwrap_or(0.0),
+        unit_price: row.try_get("unit_price").unwrap_or(0.0),
+        total_price: row.try_get("total_price").unwrap_or(0.0),
+        invoice_number: row.try_get("invoice_number").unwrap_or_default(),
+        sale_date: row.try_get("sale_date").unwrap_or_default(),
+        payment_status: row.try_get("payment_status").unwrap_or_default(),
+    }).collect();
+    Ok(products)
+}
+
+#[tauri::command]
+pub async fn get_sold_products_summary(
+    filter: SoldProductsFilter,
+    pool: tauri::State<'_, SqlitePool>,
+) -> Result<SoldProductsSummary, String> {
+    println!("[get_sold_products_summary] filter: {:?}", filter);
+    let mut query = String::from(r#"
+        SELECT
+            SUM(si.coil_weight) as total_weight,
+            SUM(si.total_amount * 1.19) as total_revenue,
+            SUM(si.quantity) as total_quantity,
+            COUNT(DISTINCT si.description) as unique_products,
+            COUNT(DISTINCT s.client_id) as unique_clients,
+            AVG(s.total_amount) as average_order_value
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        JOIN clients c ON s.client_id = c.id
+        LEFT JOIN invoices i ON s.invoice_id = i.id
+        WHERE 1=1
+    "#);
+    let mut params: Vec<(String, String)> = Vec::new();
+    if let Some(ref start) = filter.start_date {
+        query.push_str(" AND s.date >= ?");
+        params.push(("start_date".to_string(), start.clone()));
+    }
+    if let Some(ref end) = filter.end_date {
+        query.push_str(" AND s.date <= ?");
+        params.push(("end_date".to_string(), end.clone()));
+    }
+    if let Some(ref pt) = filter.product_type {
+        query.push_str(" AND si.product_type = ?");
+        params.push(("product_type".to_string(), pt.clone()));
+    }
+    if let Some(ref cid) = filter.client_id {
+        query.push_str(" AND s.client_id = ?");
+        params.push(("client_id".to_string(), cid.clone()));
+    }
+    if let Some(ref thicknesses) = filter.thickness {
+        if !thicknesses.is_empty() {
+            let placeholders = vec!["?"; thicknesses.len()].join(", ");
+            query.push_str(&format!(" AND si.coil_thickness IN ({})", placeholders));
+            for t in thicknesses {
+                params.push(("thickness".to_string(), t.to_string()));
+            }
+        }
+    }
+    if let Some(ref widths) = filter.width {
+        if !widths.is_empty() {
+            let placeholders = vec!["?"; widths.len()].join(", ");
+            query.push_str(&format!(" AND si.coil_width IN ({})", placeholders));
+            for w in widths {
+                params.push(("width".to_string(), w.to_string()));
+            }
+        }
+    }
+    if let Some(min) = filter.unit_price_min {
+        query.push_str(" AND si.price_per_ton >= ?");
+        params.push(("unit_price_min".to_string(), min.to_string()));
+    }
+    if let Some(max) = filter.unit_price_max {
+        query.push_str(" AND si.price_per_ton <= ?");
+        params.push(("unit_price_max".to_string(), max.to_string()));
+    }
+    if let Some(ref status) = filter.payment_status {
+        if status == "paid" {
+            query.push_str(" AND i.is_paid = 1");
+        } else if status == "unpaid" {
+            query.push_str(" AND (i.is_paid = 0 OR i.is_paid IS NULL)");
+        }
+    }
+    query.push_str(" ORDER BY s.date DESC, si.description ASC");
+    println!("[get_sold_products_summary] SQL: {}", query);
+    println!("[get_sold_products_summary] params: {:?}", params);
+    let mut q = sqlx::query(&query);
+    for (_k, v) in &params {
+        q = q.bind(v);
+    }
+    let row = match q.fetch_one(&*pool).await {
+        Ok(row) => {
+            let total_weight: Option<f64> = row.try_get("total_weight").ok();
+            let total_revenue: Option<f64> = row.try_get("total_revenue").ok();
+            let total_quantity: Option<f64> = row.try_get("total_quantity").ok();
+            let unique_products: Option<i64> = row.try_get("unique_products").ok();
+            let unique_clients: Option<i64> = row.try_get("unique_clients").ok();
+            let average_order_value: Option<f64> = row.try_get("average_order_value").ok();
+            println!("[get_sold_products_summary] raw fields: total_weight={:?}, total_revenue={:?}, total_quantity={:?}, unique_products={:?}, unique_clients={:?}, average_order_value={:?}", total_weight, total_revenue, total_quantity, unique_products, unique_clients, average_order_value);
+            row
+        },
+        Err(e) => {
+            println!("[get_sold_products_summary] SQL error: {}", e);
+            return Err(e.to_string());
+        }
+    };
+    Ok(SoldProductsSummary {
+        total_weight: row.try_get("total_weight").unwrap_or(Some(0.0)).unwrap_or(0.0),
+        total_revenue: row.try_get("total_revenue").unwrap_or(Some(0.0)).unwrap_or(0.0),
+        total_quantity: row.try_get("total_quantity").unwrap_or(Some(0.0)).unwrap_or(0.0),
+        unique_products: row.try_get("unique_products").unwrap_or(Some(0)).unwrap_or(0),
+        unique_clients: row.try_get("unique_clients").unwrap_or(Some(0)).unwrap_or(0),
+        average_order_value: row.try_get("average_order_value").unwrap_or(Some(0.0)).unwrap_or(0.0),
+    })
+}
     

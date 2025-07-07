@@ -30,6 +30,7 @@ import ClientForm from "./components/clients/ClientForm";
 import InvoiceForm from "./components/invoices/InvoiceForm";
 import SaleDetail from "./pages/SaleDetail";
 import AuditLogPage from './pages/AuditLog';
+import SoldProductsAnalytics from "./pages/SoldProductsAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,7 @@ const App = () => {
                       <Route path="/reports" element={<Reports />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/audit-log" element={<AuditLogPage />} />
+                      <Route path="/analytics/sold-products" element={<SoldProductsAnalytics />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </BrowserRouter>

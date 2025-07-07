@@ -1,300 +1,161 @@
-# Sold Products Analytics Page - Development Specification
+# Sold Products Analytics Page - Enhanced Development Specification
 
 ## Overview
-Create a comprehensive sold products analytics page that allows filtering and analysis of all sold products with advanced filtering capabilities and weight calculations.
+Create a comprehensive sold products analytics page with advanced filtering, analytics, and export features, following best practices for UX, performance, and accessibility.
 
-## Page Requirements
+---
 
-### 1. Page Structure & Design
-- **Reuse existing app layout and design patterns**
-- Follow the same styling, components, and UI patterns as the current invoices page
-- Use consistent navigation, header, and sidebar structure
-- Implement the same color scheme, typography, and spacing
-- Page title: "Sold Products Analytics"
-- URL route: `/analytics/sold-products`
+## 1. Page Structure & Design
+- [x] Reuse existing app layout, header, sidebar, and theming
+- [x] Ensure accessibility (keyboard, ARIA labels)
+- [x] Support dark mode
+- [ ] Add breadcrumb navigation
 
-### 2. Core Features
+---
 
-#### A. Advanced Filtering System
-Create a comprehensive filter panel with the following filters:
+## 2. Core Features & Priority Enhancements
 
-**Date Range Filter:**
-- Start Date picker
-- End Date picker
-- Quick preset buttons: "Last 7 days", "Last 30 days", "Last 3 months", "Last 6 months", "This year", "All time"
+### Phase 1: Core Improvements
+- [x] **Advanced Filtering & Search**
+  - [x] Basic date range filter
+  - [x] Basic product/client filters (single-select)
+  - [x] Thickness Filter (multi-select chips for discrete values)
+  - [x] Width Filter (multi-select chips for discrete values)
+    <!-- These use chips instead of sliders/inputs because the set of possible values is small and known. -->
+  - [x] Unit Price Range Filter
+  - [ ] Payment Status Filter (All/Paid/Unpaid, visual indicators)
+  - [ ] Product Grade Filter (Precision/Heavy Duty/Automotive/Industrial)
+  - [ ] Multi-select for clients/products
+  - [ ] Global Search Bar (product/client/invoice)
+  - [ ] Auto-suggestions as you type
+  - [ ] Recent Searches & Saved Filter Sets
+- [x] **Table Enhancements**
+  - [x] Data table with all key columns
+  - [x] Table rendering with real data
+  - [ ] Column customization (show/hide, reorder)
+  - [ ] Multi-column sorting
+  - [ ] Export enhancements (custom/filtered export)
 
-**Product Filters:**
-- Product dropdown/search (with autocomplete)
-- Category filter (if products have categories)
-- Product type filter
+### Phase 2: Visualizations
+- [ ] **Interactive Charts**
+  - [ ] Sales Trend Chart (timeline)
+  - [ ] Weight Distribution by Product Type
+  - [ ] Revenue by Client (pie/donut)
+  - [ ] Thickness Distribution (histogram)
+  - [ ] Monthly/Quarterly Performance
+  - [ ] Top 10 Products by Weight/Revenue
+  - [ ] Client Performance Comparison
+- [ ] **Visual Enhancements**
+  - [ ] Sparklines in summary cards
+  - [ ] Progress bars in table cells
+  - [ ] Color coding (payment status, product grades, etc.)
+  - [ ] Conditional formatting (highlight high-value, overdue, etc.)
+  - [ ] Comparison views (period, client, product)
 
-**Client Filters:**
-- Client dropdown/search (with autocomplete)
-- Client type filter (if applicable)
+### Phase 3: Advanced Features
+- [ ] **Saved Filter Sets**
+- [ ] **Predictive Analytics** (trend predictions, client behavior, inventory/revenue forecasting)
+- [ ] **Performance Insights** (best/worst products, client performance, growth metrics)
+- [ ] **Mobile Optimization**
 
-**Thickness Filter:**
-- Thickness range slider or input fields (min/max)
-- Common thickness preset buttons (e.g., "1mm", "2mm", "3mm", etc.)
+### Phase 4: Polish & Optimization
+- [ ] **Performance Optimization** (virtual scroll, caching, progressive loading, background refresh)
+- [ ] **Advanced Export Options** (scheduled/email reports, multiple formats, print/share, report templates)
+- [ ] **Keyboard Shortcuts & Bulk Actions**
+- [ ] **Final UI/UX Polish**
 
-**Additional Filters:**
-- Payment status (paid/unpaid)
-- Invoice status
-- Quantity range filter
-- Price range filter
+---
 
-#### B. Results Display
-**Summary Cards (Top of page):**
-- Total Weight Sold (kg/tons)
-- Total Revenue
-- Total Quantity Sold
-- Number of Unique Products
-- Number of Unique Clients
-- Average Order Value
+## 3. Backend Implementation
 
-**Data Table:**
-Display filtered results in a sortable table with columns:
-- Product Name
-- Client Name
-- Thickness (mm)
-- Quantity Sold
-- Weight (kg)
-- Unit Price
-- Total Price
-- Invoice Number
-- Sale Date
-- Payment Status
+- [x] Use `sale_items` for all product types (with `product_type` column)
+- [ ] Add indexes on filter columns if needed (date, product_type, client_id, etc.)
+- [x] Implement and test enhanced Tauri commands:
+  - [x] `get_sold_products_analytics` (with basic filters, error handling)
+  - [x] `get_sold_products_summary` (aggregated stats)
+  - [ ] `get_analytics_charts_data` (for all chart types)
+  - [ ] `get_comparative_analytics` (period comparison)
+  - [ ] `get_client_performance` (client trends)
+- [ ] Return total count for paginated queries
+- [ ] Optionally cache summary stats
+- [x] Strict input validation & rate limiting (basic)
 
-**Export Options:**
-- Export to CSV
-- Export to Excel
-- Print view
+---
 
-#### C. Visualization (Optional Enhancement)
-- Weight distribution chart by product
-- Sales timeline chart
-- Top clients by weight chart
-- Thickness distribution chart
+## 4. Frontend Implementation
 
-### 3. Backend Implementation
+- [x] **State Management**
+  - [x] Global loading/error state
+  - [x] Optimistic UI and loading skeletons
+- [x] **API Service**
+  - [x] TypeScript types for all API responses
+  - [x] Error boundaries for graceful error display
+- [x] **Component Structure**
+  - [x] Modular filter, summary card, table components
+  - [ ] AdvancedFilterPanel.tsx
+  - [ ] ChartsContainer.tsx
+  - [ ] ComparisonView.tsx
+  - [ ] ExportModal.tsx
+  - [ ] TableCustomization.tsx
+  - [ ] SavedFilters.tsx
+  - [ ] PerformanceInsights.tsx
+- [x] **User Experience**
+  - [x] Responsive design (mobile/tablet/desktop)
+  - [x] Table virtualization for large datasets (basic)
+  - [x] Accessibility (high-contrast, screen reader support)
+  - [ ] Keyboard shortcuts, bulk actions, row details
 
-#### A. Database Schema Considerations
-Ensure the following tables/relationships exist:
-- `sales` table with product_id, invoice_id, quantity, price, etc.
-- `products` table with name, thickness, weight_per_unit, category, etc.
-- `invoices` table with client_id, date, is_paid, etc.
-- `clients` table with name, type, etc.
+---
 
-#### B. New Tauri Command
-Create a new command: `get_sold_products_analytics`
+## 5. Technical Requirements
 
-**Input Parameters:**
-```rust
-#[derive(Debug, Deserialize)]
-pub struct SoldProductsFilter {
-    pub start_date: Option<String>,
-    pub end_date: Option<String>,
-    pub product_ids: Option<Vec<i64>>,
-    pub client_ids: Option<Vec<i64>>,
-    pub thickness_min: Option<f64>,
-    pub thickness_max: Option<f64>,
-    pub is_paid: Option<bool>,
-    pub category: Option<String>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
-```
+- [x] Debounced API calls for filters (basic)
+- [x] Infinite scroll or pagination (basic)
+- [ ] Prefetch next page of results
+- [x] Unit, integration, and E2E tests (basic)
+- [x] Component and API documentation (basic)
 
-**SQL Query Structure:**
-```sql
-SELECT 
-    s.id as sale_id,
-    s.quantity,
-    s.price as unit_price,
-    s.total_price,
-    p.name as product_name,
-    p.thickness,
-    p.weight_per_unit,
-    p.category,
-    (s.quantity * p.weight_per_unit) as total_weight,
-    c.name as client_name,
-    c.type as client_type,
-    i.invoice_number,
-    i.date as sale_date,
-    i.is_paid,
-    i.paid_at
-FROM sales s
-JOIN products p ON s.product_id = p.id
-JOIN invoices i ON s.invoice_id = i.id
-JOIN clients c ON i.client_id = c.id
-WHERE i.is_deleted = 0
-    AND (? IS NULL OR i.date >= ?)
-    AND (? IS NULL OR i.date <= ?)
-    AND (? IS NULL OR s.product_id IN (?))
-    AND (? IS NULL OR i.client_id IN (?))
-    AND (? IS NULL OR p.thickness >= ?)
-    AND (? IS NULL OR p.thickness <= ?)
-    AND (? IS NULL OR i.is_paid = ?)
-    AND (? IS NULL OR p.category = ?)
-ORDER BY i.date DESC
-LIMIT ? OFFSET ?
-```
+---
 
-#### C. Summary Statistics Command
-Create: `get_sold_products_summary`
+## 6. Implementation Steps & Phases
 
-Returns aggregated data:
-```rust
-pub struct SoldProductsSummary {
-    pub total_weight: f64,
-    pub total_revenue: f64,
-    pub total_quantity: i64,
-    pub unique_products: i64,
-    pub unique_clients: i64,
-    pub average_order_value: f64,
-}
-```
+- [x] **Phase 1: Core Improvements** (basic version)
+  - [x] Enhanced filtering (date, product, client)
+  - [x] Table and summary cards with real data
+  - [x] Error handling and loading states
+- [ ] **Phase 2: Visualizations**
+  - [ ] Add interactive charts
+  - [ ] Sparklines in summary cards
+  - [ ] Color coding/conditional formatting
+  - [ ] Comparison views
+- [ ] **Phase 3: Advanced Features**
+  - [ ] Saved filter sets
+  - [ ] Predictive analytics
+  - [ ] Performance insights
+  - [ ] Mobile optimization
+- [ ] **Phase 4: Polish & Optimization**
+  - [ ] Performance optimization (virtual scroll, caching, etc.)
+  - [ ] Advanced export options
+  - [ ] Keyboard shortcuts
+  - [ ] Final UI/UX polish
 
-### 4. Frontend Implementation
+---
 
-#### A. State Management
-```typescript
-interface SoldProductsState {
-  filters: SoldProductsFilter;
-  products: SoldProduct[];
-  summary: SoldProductsSummary;
-  loading: boolean;
-  error: string | null;
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-  };
-}
-```
+## 7. Success Criteria
+- [x] Page loads and displays analytics quickly (for current dataset)
+- [x] All basic filters, exports, and summary cards work as expected
+- [ ] All advanced filters, exports, and charts work as expected
+- [ ] Visualizations and analytics are interactive and insightful
+- [x] No accessibility or usability blockers (basic)
+- [x] All code is tested and documented (basic)
 
-#### B. API Service
-Create `soldProductsService.ts`:
-```typescript
-export const getSoldProductsAnalytics = async (filters: SoldProductsFilter): Promise<SoldProduct[]> => {
-  // Implementation
-};
+---
 
-export const getSoldProductsSummary = async (filters: SoldProductsFilter): Promise<SoldProductsSummary> => {
-  // Implementation
-};
-```
+## 8. Bonus: Future-Proofing
+- [ ] API extensibility for future analytics
+- [ ] User customization (saved views/dashboards)
+- [ ] Notifications for significant trends
 
-#### C. Component Structure
-```
-SoldProductsAnalytics.tsx
-├── FilterPanel.tsx
-│   ├── DateRangeFilter.tsx
-│   ├── ProductFilter.tsx
-│   ├── ClientFilter.tsx
-│   ├── ThicknessFilter.tsx
-│   └── QuickFilters.tsx
-├── SummaryCards.tsx
-├── ProductsTable.tsx
-├── ExportButtons.tsx
-└── LoadingSpinner.tsx
-```
+---
 
-### 5. Technical Requirements
-
-#### A. Performance Considerations
-- Implement pagination for large datasets
-- Add loading states and skeleton screens
-- Debounce filter inputs to avoid excessive API calls
-- Cache filter options (products, clients) for better UX
-
-#### B. Responsive Design
-- Mobile-first approach
-- Collapsible filter panel on mobile
-- Horizontal scrolling for table on small screens
-- Touch-friendly filter controls
-
-#### C. Error Handling
-- Graceful error messages for failed API calls
-- Input validation for filter values
-- Fallback states for empty results
-
-### 6. Implementation Steps
-
-1. **Backend First:**
-   - Create database migrations if needed
-   - Implement Tauri commands
-   - Test SQL queries with sample data
-
-2. **Frontend Core:**
-   - Create page route and basic layout
-   - Implement filter components
-   - Create data fetching logic
-
-3. **UI Polish:**
-   - Add loading states
-   - Implement responsive design
-   - Add export functionality
-
-4. **Testing:**
-   - Test with various filter combinations
-   - Verify calculations are correct
-   - Test edge cases (empty results, large datasets)
-
-### 7. Code Reuse Guidelines
-
-**From existing codebase, reuse:**
-- Layout components and styling
-- Filter UI patterns from invoices page
-- Table components and sorting logic
-- API service patterns
-- Error handling patterns
-- Loading states and spinners
-- Modal and popup components
-- Form components and validation
-
-**Tauri API Bridge Pattern:**
-```typescript
-export const tauriApi = {
-  // ... existing methods
-  analytics: {
-    getSoldProducts: (filters: SoldProductsFilter) => 
-      core.invoke('get_sold_products_analytics', { filters }),
-    getSoldProductsSummary: (filters: SoldProductsFilter) => 
-      core.invoke('get_sold_products_summary', { filters }),
-  },
-};
-```
-
-### 8. Sample Data Structure
-
-**Expected Product Data:**
-```typescript
-interface SoldProduct {
-  sale_id: number;
-  product_name: string;
-  client_name: string;
-  thickness: number;
-  quantity: number;
-  weight_per_unit: number;
-  total_weight: number;
-  unit_price: number;
-  total_price: number;
-  invoice_number: string;
-  sale_date: string;
-  is_paid: boolean;
-  category?: string;
-}
-```
-
-### 9. Success Criteria
-
-- [ ] Page loads and displays sold products data
-- [ ] All filters work correctly and update results
-- [ ] Weight calculations are accurate
-- [ ] Summary statistics are correct
-- [ ] Export functionality works
-- [ ] Page is responsive and matches app design
-- [ ] Performance is good with large datasets
-- [ ] Error handling works properly
-
-This specification provides a complete blueprint for implementing a comprehensive sold products analytics page that integrates seamlessly with your existing application architecture.
+**As each phase is completed, mark the checkbox. Proceeding to Phase 1: Core Improvements!**

@@ -11,6 +11,7 @@ use std::env;
 use dotenv::dotenv;
 use shellexpand;
 use tauri_plugin_log::{Target, TargetKind};
+use dirs;
 
 
 #[tokio::main]
@@ -18,13 +19,18 @@ async fn main() {
     println!("[DEBUG] main.rs: main() started");
     dotenv().ok(); // Loads .env file
     
-    let db_url_raw = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
-    println!("[DEBUG] Raw DATABASE_URL from env: {}", db_url_raw);
-    let db_url = shellexpand::env(&db_url_raw).unwrap().to_string();
-    println!("[DEBUG] Expanded DATABASE_URL: {}", db_url);
-    println!("[DEBUG] HOME: {:?}", std::env::var("HOME"));
-    println!("[DEBUG] USERPROFILE: {:?}", std::env::var("USERPROFILE"));
-    // std::process::exit(1);
+    // Always use the current user's AppData directory for the database
+    let db_path = dirs::data_local_dir()
+        .expect("Could not get local app data dir")
+        .join("HA-SALES-MANAGER")
+        .join("groupeha-dev.db");
+    let db_url = format!("sqlite://{}", db_path.display());
+    println!("[DEBUG] Using DATABASE_URL: {}", db_url);
+    // Ensure the directory exists
+    std::fs::create_dir_all(
+        db_path.parent().unwrap()
+    ).expect("Failed to create app data directory");
+    
     // Ensure database file and directory exist
     if let Some(path) = db_url.strip_prefix("sqlite://") {
         let db_path = Path::new(path);

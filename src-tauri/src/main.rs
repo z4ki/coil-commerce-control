@@ -165,6 +165,7 @@ async fn main() {
             // Analytics commands
             commands::get_sold_products_analytics,
             commands::get_sold_products_summary,
+            commands::get_unique_thickness_width,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

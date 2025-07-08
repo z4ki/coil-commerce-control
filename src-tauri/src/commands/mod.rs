@@ -2024,4 +2024,30 @@ pub async fn get_sold_products_summary(
         average_order_value: row.try_get("average_order_value").unwrap_or(Some(0.0)).unwrap_or(0.0),
     })
 }
+
+#[tauri::command]
+pub async fn get_unique_thickness_width(
+    pool: tauri::State<'_, SqlitePool>
+) -> Result<(Vec<f64>, Vec<f64>), String> {
+    // Fetch unique thicknesses
+    let thickness_rows = sqlx::query("SELECT DISTINCT coil_thickness FROM sale_items WHERE coil_thickness IS NOT NULL ORDER BY coil_thickness ASC")
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Fetch unique widths
+    let width_rows = sqlx::query("SELECT DISTINCT coil_width FROM sale_items WHERE coil_width IS NOT NULL ORDER BY coil_width ASC")
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Map to Vec<f64>
+    let thicknesses = thickness_rows
+        .into_iter()
+        .filter_map(|row| row.try_get::<f64, _>("coil_thickness").ok())
+        .collect::<Vec<f64>>();
+    let widths = width_rows
+        .into_iter()
+        .filter_map(|row| row.try_get::<f64, _>("coil_width").ok())
+        .collect::<Vec<f64>>();
+    Ok((thicknesses, widths))
+}
     

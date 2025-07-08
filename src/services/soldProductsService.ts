@@ -95,4 +95,9 @@ export const getSoldProductsSummary = async (filters: SoldProductsFilter): Promi
   } catch (e) {
     throw new Error((e as Error).message || 'Failed to fetch sold products summary');
   }
-}; 
+};
+
+export async function getUniqueThicknessWidth(): Promise<{ thicknesses: number[]; widths: number[] }> {
+  const [thicknesses, widths] = await tauriApi.analytics.getUniqueThicknessWidth() as [number[], number[]];
+  return { thicknesses, widths };
+} 

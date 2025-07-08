@@ -9,7 +9,7 @@
     "test:coverage": "jest --coverage",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "build":"vite build"
+    "build": "vite build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -42,6 +42,7 @@
     "react-dom": "^18.2.0",
     "react-helmet": "^6.1.0",
     "react-hook-form": "^7.56.4",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.0",
     "recharts": "^2.15.3",
     "sonner": "^2.0.3",

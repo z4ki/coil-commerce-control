@@ -47,6 +47,7 @@ export const tauriApi = {
   analytics: {
     getSoldProducts: (filter: any) => core.invoke('get_sold_products_analytics', { filter }),
     getSoldProductsSummary: (filter: any) => core.invoke('get_sold_products_summary', { filter }),
+    getUniqueThicknessWidth: () => core.invoke('get_unique_thickness_width'),
   },
   settings: {
     get: () => core.invoke('get_settings'),

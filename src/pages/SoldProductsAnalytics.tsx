@@ -8,9 +8,9 @@ import {
   SoldProductsFilter,
 } from '@/services/soldProductsService';
 import * as XLSX from 'xlsx';
-
-const THICKNESS_OPTIONS = [0.33, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80, 0.90];
-const WIDTH_OPTIONS = [800, 900, 1000, 1200, 1250];
+import { useLanguage } from '@/context/LanguageContext';
+import { getClients } from '@/services/clientService';
+import { getUniqueThicknessWidth } from '@/services/soldProductsService';
 
 const Chip = ({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
@@ -22,207 +22,265 @@ const Chip = ({ selected, onClick, children }: { selected: boolean; onClick: () 
   </button>
 );
 
-const FilterPanel = ({ filters, setFilters }: {
+// Add date formatting helpers
+function formatDateToInput(dateStr?: string) {
+  if (!dateStr) return '';
+  // from dd/mm/yyyy to yyyy-mm-dd
+  const [d, m, y] = dateStr.split('/');
+  return y && m && d ? `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}` : '';
+}
+function formatDateToDisplay(dateStr?: string) {
+  if (!dateStr) return '';
+  // from yyyy-mm-dd to dd/mm/yyyy
+  const [y, m, d] = dateStr.split('-');
+  return y && m && d ? `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}` : '';
+}
+
+const FilterPanel = ({ filters, setFilters, t }: {
   filters: SoldProductsFilter;
   setFilters: React.Dispatch<React.SetStateAction<SoldProductsFilter>>;
-}) => (
-  <div className="bg-muted/50 p-4 rounded-md mb-4">
-    <div className="flex flex-col md:flex-row gap-4">
-      {/* Date Range */}
-      <div>
-        <label className="block text-xs font-medium mb-1">Date Range</label>
+  t: (key: string) => string;
+}) => {
+  const [clientQuery, setClientQuery] = React.useState('');
+  const [clientOptions, setClientOptions] = React.useState<{ id: string; name: string }[]>([]);
+  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [thicknessOptions, setThicknessOptions] = React.useState<number[] | null>(null);
+  const [widthOptions, setWidthOptions] = React.useState<number[] | null>(null);
+  React.useEffect(() => {
+    getClients().then(clients => {
+      setClientOptions(clients.map(c => ({ id: c.id, name: c.name })));
+    });
+  }, []);
+  React.useEffect(() => {
+    getUniqueThicknessWidth().then(({ thicknesses, widths }) => {
+      setThicknessOptions(thicknesses);
+      setWidthOptions(widths);
+    });
+  }, []);
+  const filteredClients = clientQuery
+    ? clientOptions.filter(c => c.name.toLowerCase().includes(clientQuery.toLowerCase()))
+    : clientOptions;
+  const selectedClient = clientOptions.find(c => c.id === filters.clientId);
+  return (
+    <div className="bg-muted/50 p-4 rounded-md mb-4">
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* Date Range */}
+        <div>
+          <label className="block text-xs font-medium mb-1">{t('analytics.dateRange')}</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="dd/mm/yyyy"
+              value={formatDateToDisplay(filters.startDate)}
+              onChange={e => {
+                const val = e.target.value;
+                // Only allow dd/mm/yyyy or empty
+                if (/^\d{0,2}(\/\d{0,2}(\/\d{0,4})?)?$/.test(val)) {
+                  setFilters(f => ({ ...f, startDate: val.length === 10 ? formatDateToInput(val) : '' }));
+                }
+              }}
+              className="input input-sm w-28"
+              maxLength={10}
+            />
+            <span>-</span>
+            <input
+              type="text"
+              placeholder="dd/mm/yyyy"
+              value={formatDateToDisplay(filters.endDate)}
+              onChange={e => {
+                const val = e.target.value;
+                if (/^\d{0,2}(\/\d{0,2}(\/\d{0,4})?)?$/.test(val)) {
+                  setFilters(f => ({ ...f, endDate: val.length === 10 ? formatDateToInput(val) : '' }));
+                }
+              }}
+              className="input input-sm w-28"
+              maxLength={10}
+            />
+          </div>
+        </div>
+        {/* Product Type */}
+        <div>
+          <label className="block text-xs font-medium mb-1">{t('analytics.productType')}</label>
+          <select value={filters.productType || ''} onChange={e => setFilters(f => ({ ...f, productType: e.target.value }))} className="input input-sm">
+            <option value="">{t('general.all')}</option>
+            <option value="coil">{t('productTypes.coil')}</option>
+            <option value="corrugated_sheet">{t('productTypes.corrugatedSheet')}</option>
+            <option value="steel_slitting">{t('productTypes.steelSlitting')}</option>
+          </select>
+        </div>
+        {/* Client Search Bar */}
+        <div style={{ position: 'relative' }}>
+          <label className="block text-xs font-medium mb-1">{t('analytics.client')}</label>
+          <input
+            type="text"
+            className="input input-sm"
+            placeholder={t('general.search')}
+            value={selectedClient ? selectedClient.name : clientQuery}
+            onChange={e => {
+              setClientQuery(e.target.value);
+              setFilters(f => ({ ...f, clientId: undefined }));
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
+            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+            autoComplete="off"
+          />
+          {showDropdown && filteredClients.length > 0 && (
+            <div className="absolute z-10 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded shadow w-full max-h-40 overflow-y-auto">
+              <div
+                className="px-3 py-2 text-xs text-gray-500 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                onMouseDown={() => {
+                  setClientQuery('');
+                  setFilters(f => ({ ...f, clientId: undefined }));
+                }}
+              >
+                {t('general.all')}
+              </div>
+              {filteredClients.map(c => (
+                <div
+                  key={c.id}
+                  className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onMouseDown={() => {
+                    setFilters(f => ({ ...f, clientId: c.id }));
+                    setClientQuery('');
+                    setShowDropdown(false);
+                  }}
+                >
+                  {c.name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Thickness Chips */}
+      <div className="mt-4">
+        <label className="block text-xs font-medium mb-1">{t('analytics.thickness')}</label>
+        <div className="flex flex-wrap">
+          {thicknessOptions === null ? (
+            <span className="text-xs text-gray-400">Loading...</span>
+          ) : thicknessOptions.length === 0 ? (
+            <span className="text-xs text-gray-400">-</span>
+          ) : thicknessOptions.map(val => (
+            <Chip
+              key={val}
+              selected={Array.isArray(filters.thickness) && filters.thickness.includes(val)}
+              onClick={() => setFilters(f => {
+                const arr = Array.isArray(f.thickness) ? f.thickness : [];
+                return {
+                  ...f,
+                  thickness: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val],
+                };
+              })}
+            >
+              {val}
+            </Chip>
+          ))}
+        </div>
+      </div>
+      {/* Width Chips */}
+      <div className="mt-2">
+        <label className="block text-xs font-medium mb-1">{t('analytics.width')}</label>
+        <div className="flex flex-wrap">
+          {widthOptions === null ? (
+            <span className="text-xs text-gray-400">Loading...</span>
+          ) : widthOptions.length === 0 ? (
+            <span className="text-xs text-gray-400">-</span>
+          ) : widthOptions.map(val => (
+            <Chip
+              key={val}
+              selected={Array.isArray(filters.width) && filters.width.includes(val)}
+              onClick={() => setFilters(f => {
+                const arr = Array.isArray(f.width) ? f.width : [];
+                return {
+                  ...f,
+                  width: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val],
+                };
+              })}
+            >
+              {val}
+            </Chip>
+          ))}
+        </div>
+      </div>
+      {/* Unit Price Range */}
+      <div className="mt-2 flex gap-2 items-end">
+        <div>
+          <label className="block text-xs font-medium mb-1">{t('analytics.unitPriceMin')}</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={filters.unitPriceMin ?? ''}
+            onChange={e => setFilters(f => ({ ...f, unitPriceMin: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            className="input input-sm w-24"
+            placeholder="min"
+          />
+        </div>
+        <span className="mb-2">-</span>
+        <div>
+          <label className="block text-xs font-medium mb-1">{t('analytics.unitPriceMax')}</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={filters.unitPriceMax ?? ''}
+            onChange={e => setFilters(f => ({ ...f, unitPriceMax: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            className="input input-sm w-24"
+            placeholder="max"
+          />
+        </div>
+      </div>
+      {/* Payment Status Filter */}
+      <div className="mt-4">
+        <label className="block text-xs font-medium mb-1">{t('analytics.paymentStatus')}</label>
         <div className="flex gap-2">
-          <input type="date" value={filters.startDate || ''} onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))} className="input input-sm" />
-          <span>-</span>
-          <input type="date" value={filters.endDate || ''} onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))} className="input input-sm" />
+          {[
+            { value: 'all', label: t('general.all'), color: 'bg-gray-300 dark:bg-gray-700' },
+            { value: 'paid', label: t('status.paid'), color: 'bg-green-500' },
+            { value: 'unpaid', label: t('status.unpaid'), color: 'bg-red-500' },
+          ].map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${filters.paymentStatus === opt.value || (!filters.paymentStatus && opt.value === 'all') ? `${opt.color} text-white border-transparent` : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-200'}`}
+              onClick={() => setFilters(f => ({ ...f, paymentStatus: opt.value as 'all' | 'paid' | 'unpaid' }))}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
-      {/* Product Type */}
-      <div>
-        <label className="block text-xs font-medium mb-1">Product Type</label>
-        <select value={filters.productType || ''} onChange={e => setFilters(f => ({ ...f, productType: e.target.value }))} className="input input-sm">
-          <option value="">All</option>
-          <option value="coil">Coil</option>
-          <option value="corrugated_sheet">Corrugated Sheet</option>
-          <option value="steel_slitting">Steel Slitting</option>
-        </select>
-      </div>
-      {/* Client */}
-      <div>
-        <label className="block text-xs font-medium mb-1">Client</label>
-        <select value={filters.clientId || ''} onChange={e => setFilters(f => ({ ...f, clientId: e.target.value }))} className="input input-sm">
-          <option value="">All</option>
-          <option value="client1">Client 1</option>
-          <option value="client2">Client 2</option>
-        </select>
-      </div>
     </div>
-    {/* Thickness Chips */}
-    <div className="mt-4">
-      <label className="block text-xs font-medium mb-1">Thickness (mm)</label>
-      <div className="flex flex-wrap">
-        {THICKNESS_OPTIONS.map(val => (
-          <Chip
-            key={val}
-            selected={Array.isArray(filters.thickness) && filters.thickness.includes(val)}
-            onClick={() => setFilters(f => {
-              const arr = Array.isArray(f.thickness) ? f.thickness : [];
-              return {
-                ...f,
-                thickness: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val],
-              };
-            })}
-          >
-            {val}
-          </Chip>
-        ))}
-      </div>
-    </div>
-    {/* Width Chips */}
-    <div className="mt-2">
-      <label className="block text-xs font-medium mb-1">Width (mm)</label>
-      <div className="flex flex-wrap">
-        {WIDTH_OPTIONS.map(val => (
-          <Chip
-            key={val}
-            selected={Array.isArray(filters.width) && filters.width.includes(val)}
-            onClick={() => setFilters(f => {
-              const arr = Array.isArray(f.width) ? f.width : [];
-              return {
-                ...f,
-                width: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val],
-              };
-            })}
-          >
-            {val}
-          </Chip>
-        ))}
-      </div>
-    </div>
-    {/* Unit Price Range */}
-    <div className="mt-2 flex gap-2 items-end">
-      <div>
-        <label className="block text-xs font-medium mb-1">Unit Price Min</label>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={filters.unitPriceMin ?? ''}
-          onChange={e => setFilters(f => ({ ...f, unitPriceMin: e.target.value === '' ? undefined : Number(e.target.value) }))}
-          className="input input-sm w-24"
-          placeholder="Min"
-        />
-      </div>
-      <span className="mb-2">-</span>
-      <div>
-        <label className="block text-xs font-medium mb-1">Unit Price Max</label>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={filters.unitPriceMax ?? ''}
-          onChange={e => setFilters(f => ({ ...f, unitPriceMax: e.target.value === '' ? undefined : Number(e.target.value) }))}
-          className="input input-sm w-24"
-          placeholder="Max"
-        />
-      </div>
-    </div>
-    {/* Payment Status Filter */}
-    <div className="mt-4">
-      <label className="block text-xs font-medium mb-1">Payment Status</label>
-      <div className="flex gap-2">
-        {[
-          { value: 'all', label: 'All', color: 'bg-gray-300 dark:bg-gray-700' },
-          { value: 'paid', label: 'Paid', color: 'bg-green-500' },
-          { value: 'unpaid', label: 'Unpaid', color: 'bg-red-500' },
-        ].map(opt => (
-          <button
-            key={opt.value}
-            type="button"
-            className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${filters.paymentStatus === opt.value || (!filters.paymentStatus && opt.value === 'all') ? `${opt.color} text-white border-transparent` : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-200'}`}
-            onClick={() => setFilters(f => ({ ...f, paymentStatus: opt.value as 'all' | 'paid' | 'unpaid' }))}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
-const SummaryCards = ({ summary, loading, error, productType }: {
-  summary: SoldProductsSummary | null;
-  loading: boolean;
-  error: string | null;
-  productType: string | undefined;
-}) => (
-  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-    {loading ? (
-      <div className="col-span-6 text-center py-8">Loading summary...</div>
-    ) : error ? (
-      <div className="col-span-6 text-center text-red-600 py-8">{error}</div>
-    ) : summary ? (
-      <>
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-xs text-muted-foreground mb-1">
-            {productType === "corrugated_sheet" ? "Total Quantity Sold" : "Total Weight Sold"}
-          </span>
-          <span className="text-2xl font-bold">
-            {productType === "corrugated_sheet"
-              ? (summary.totalQuantity ?? 0).toLocaleString() + " m"
-              : (summary.totalWeight ?? 0).toLocaleString() + " Ton"}
-          </span>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-xs text-muted-foreground mb-1">Total Revenue</span>
-          <span className="text-2xl font-bold">{(summary.totalRevenue ?? 0).toLocaleString()} DA</span>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-xs text-muted-foreground mb-1">Total Quantity Sold</span>
-          <span className="text-2xl font-bold">{(summary.totalQuantity ?? 0).toLocaleString()}</span>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-xs text-muted-foreground mb-1">Unique Products</span>
-          <span className="text-2xl font-bold">{(summary.uniqueProducts ?? 0).toLocaleString()}</span>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-xs text-muted-foreground mb-1">Unique Clients</span>
-          <span className="text-2xl font-bold">{(summary.uniqueClients ?? 0).toLocaleString()}</span>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-xs text-muted-foreground mb-1">Avg. Order Value</span>
-          <span className="text-2xl font-bold">{(summary.averageOrderValue ?? 0).toLocaleString()} DA </span>
-        </div>
-      </>
-    ) : null}
-  </div>
-);
-
-const ProductsTable = ({ rows, loading, error }: {
+const ProductsTable = ({ rows, loading, error, t }: {
   rows: SoldProduct[];
   loading: boolean;
   error: string | null;
+  t: (key: string) => string;
 }) => (
   <div className="rounded-md border p-4 overflow-x-auto">
     {loading ? (
-      <div className="text-center py-8">Loading data...</div>
+      <div className="text-center py-8">{t('general.loadingData')}</div>
     ) : error ? (
       <div className="text-center text-red-600 py-8">{error}</div>
     ) : (
       <table className="min-w-full text-sm">
         <thead>
           <tr className="bg-gray-100 dark:bg-gray-800">
-            <th className="px-3 py-2 text-left">Product Name</th>
-            <th className="px-3 py-2 text-left">Client Name</th>
-            <th className="px-3 py-2 text-left">Thickness (mm)</th>
-            <th className="px-3 py-2 text-left">Width (mm)</th>
-            <th className="px-3 py-2 text-left">Quantity Sold</th>
-            <th className="px-3 py-2 text-left">Weight (ton)</th>
-            <th className="px-3 py-2 text-left">Unit Price</th>
-            <th className="px-3 py-2 text-left">Total Price</th>
-            <th className="px-3 py-2 text-left">Invoice Number</th>
-            <th className="px-3 py-2 text-left">Sale Date</th>
-            <th className="px-3 py-2 text-left">Payment Status</th>
+            <th className="px-3 py-2 text-left">{t('analytics.productName')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.clientName')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.thickness')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.width')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.quantitySold')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.weight')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.unitPrice')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.totalPrice')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.invoiceNumber')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.saleDate')}</th>
+            <th className="px-3 py-2 text-left">{t('analytics.paymentStatus')}</th>
           </tr>
         </thead>
         <tbody>
@@ -322,6 +380,7 @@ function exportToExcel(rows: SoldProduct[], summary: SoldProductsSummary | null,
 }
 
 const SoldProductsAnalytics = () => {
+  const { t } = useLanguage();
   const [filters, setFilters] = useState<SoldProductsFilter>({});
   const [summary, setSummary] = useState<SoldProductsSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -329,6 +388,37 @@ const SoldProductsAnalytics = () => {
   const [rows, setRows] = useState<SoldProduct[]>([]);
   const [rowsLoading, setRowsLoading] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
+
+  // Move summaryConfig inside component so t is in scope
+  const summaryConfig = [
+    {
+      label: (productType: string | undefined) =>
+        productType === "corrugated_sheet" ? t('analytics.totalQuantitySold') : t('analytics.totalWeightSold'),
+      value: (summary: SoldProductsSummary, productType: string | undefined) =>
+        productType === "corrugated_sheet"
+          ? (summary.totalQuantity ?? 0).toLocaleString() + " m"
+          : (summary.totalWeight ?? 0).toLocaleString() + " Ton",
+      bg: "bg-blue-50",
+    },
+    {
+      label: () => t('analytics.totalRevenue'),
+      value: (summary: SoldProductsSummary) =>
+        (summary.totalRevenue ?? 0).toLocaleString("fr-FR") + " DA",
+      bg: "bg-green-50",
+    },
+    {
+      label: () => t('analytics.totalQuantitySold'),
+      value: (summary: SoldProductsSummary) =>
+        (summary.totalQuantity ?? 0).toLocaleString(),
+      bg: "bg-purple-50",
+    },
+    {
+      label: () => t('analytics.uniqueClients'),
+      value: (summary: SoldProductsSummary) =>
+        (summary.uniqueClients ?? 0).toLocaleString(),
+      bg: "bg-pink-50",
+    },
+  ];
 
   useEffect(() => {
     setSummaryLoading(true);
@@ -349,22 +439,52 @@ const SoldProductsAnalytics = () => {
   }, [filters]);
 
   return (
-    <MainLayout title="Sold Products Analytics">
+    <MainLayout title={t('analytics.title') || 'Sold Products Analytics'}>
       <div className="space-y-6">
         <div className="flex justify-end items-center mb-2">
           <button
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             onClick={() => exportToExcel(rows, summary, filters.productType)}
           >
-            Exporter en Excel
+            {t('general.export') || 'Exporter en Excel'}
           </button>
         </div>
-        <FilterPanel filters={filters} setFilters={setFilters} />
-        <SummaryCards summary={summary} loading={summaryLoading} error={summaryError} productType={filters.productType} />
-        <ProductsTable rows={rows} loading={rowsLoading} error={rowsError} />
+        <FilterPanel filters={filters} setFilters={setFilters} t={t} />
+        <SummaryCards summary={summary} loading={summaryLoading} error={summaryError} productType={filters.productType} t={t} summaryConfig={summaryConfig} />
+        <ProductsTable rows={rows} loading={rowsLoading} error={rowsError} t={t} />
       </div>
     </MainLayout>
   );
 };
+
+// Update SummaryCards to accept summaryConfig as a prop
+const SummaryCards = ({ summary, loading, error, productType, t, summaryConfig }: {
+  summary: SoldProductsSummary | null;
+  loading: boolean;
+  error: string | null;
+  productType: string | undefined;
+  t: (key: string) => string;
+  summaryConfig: any[];
+}) => (
+  <div className="w-full flex justify-center">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 w-full max-w-6xl">
+      {loading ? (
+        <div className="col-span-4 text-center py-8">{t('general.loadingSummary')}</div>
+      ) : error ? (
+        <div className="col-span-4 text-center text-red-600 py-8">{error}</div>
+      ) : summary ? (
+        summaryConfig.map((conf, idx) => (
+          <div
+            key={idx}
+            className={`rounded-xl shadow-md p-3 flex flex-col items-center ${conf.bg} border border-gray-100 transition-all duration-200`}
+          >
+            <span className="text-sm text-gray-500 mb-1 text-center font-medium tracking-wide">{conf.label(productType)}</span>
+            <span className="text-xl font-extrabold text-gray-900 text-center">{conf.value(summary, productType)}</span>
+          </div>
+        ))
+      ) : null}
+    </div>
+  </div>
+);
 
 export default SoldProductsAnalytics; 

@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Coil Commerce Control",
+  "productName": "HA Sales Manager",
   "version": "0.1.0",
   "identifier": "com.groupeha.hasalesmanager",
   "build": {

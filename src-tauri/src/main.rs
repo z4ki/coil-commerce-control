@@ -10,7 +10,7 @@ use std::path::Path;
 use std::env;
 use dotenv::dotenv;
 use shellexpand;
-
+use tauri_plugin_log::{Target, TargetKind};
 
 
 #[tokio::main]
@@ -106,14 +106,13 @@ async fn main() {
     
     tauri::Builder::default()
         .manage(pool)
+        .plugin(tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Debug)
+            .target(Target::new(TargetKind::Stdout))
+            .target(Target::new(TargetKind::Webview))
+            .target(Target::new(TargetKind::LogDir { file_name: None }))
+            .build())
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

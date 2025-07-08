@@ -33,11 +33,28 @@
 | timestamp   | DATETIME | When the action occurred                         |
 | details     | TEXT     | Additional context/details (nullable)            |
 
+## Analytics & Reporting (Sold Products Analytics)
+- **Sold Products Analytics Page:**
+  - Advanced filtering: date range, product type, client (search bar), multi-select chips for thickness/width (dynamically fetched from DB), unit price min/max, payment status (All/Paid/Unpaid)
+  - Filter chips for thickness and width are dynamically generated from unique values in the sales data (not hardcoded)
+  - Summary cards: total weight, revenue, quantity, unique clients, etc., always match filtered data
+  - Export to Excel: exports filtered table and summary rows, always in French
+  - Conditional summary display (e.g., meters for corrugated sheet)
+  - Full i18n support: all UI strings use translation keys, easy to extend
+  - Modern, responsive UI with visual indicators for payment status
+  - Data flow: frontend sends filters to backend, backend joins sale_items, sales, clients, invoices, applies filters, and returns analytics/summary
+  - Error handling, loading states, and accessibility
+
 ## Rust Backend (Tauri)
 - **Command Structure:**
   - All CRUD for clients, sales, invoices, payments, sale items, product templates
   - Soft delete, restore, and get-deleted for all core entities
-  - **Audit Logging:**  
+  - **Analytics/Reporting:**
+    - Tauri commands for analytics: get_sold_products_analytics, get_sold_products_summary, get_unique_thickness_width
+    - get_unique_thickness_width returns all unique thickness and width values from sale_items for dynamic filter chips
+    - Analytics queries join sale_items, sales, clients, invoices, and apply all filters from frontend
+    - Export and summary logic matches frontend table and summary cards
+  - **Audit Logging:**
     - All critical actions call a utility to insert an audit log entry.
     - Audit log is written atomically with the main action for consistency.
     - Audit log can be queried and exported for admin/audit purposes.
@@ -62,7 +79,14 @@
   - TypeScript wrappers for all Tauri commands
   - Type-safe interfaces matching Rust structs
   - Error handling, loading states, and offline queuing
-  - **Audit Log Integration:**  
+  - **Analytics/Reporting:**
+    - Sold Products Analytics page with advanced filtering, summary cards, and export
+    - Dynamic filter chips for thickness/width (fetched from backend, not hardcoded)
+    - Client filter uses a search bar with autocomplete
+    - All UI strings use translation keys (i18n)
+    - Modern, responsive, and accessible UI
+    - Robust state management for filters, loading, and errors
+  - **Audit Log Integration:**
     - Service functions expect audit logging for all critical actions.
 - **UI Components:**
   - Dynamic forms for all product types (coil, corrugated sheet, slitting, custom, etc.)

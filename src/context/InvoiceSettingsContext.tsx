@@ -12,6 +12,7 @@ interface InvoiceSettings {
   paymentTerms: number;
   defaultNotes: string;
   autoPdfGeneration: boolean;
+  autoInvoiceNumber?: boolean; // NEW: toggle for auto-increment
 }
 
 interface InvoiceSettingsContextType {
@@ -30,6 +31,7 @@ const defaultSettings: InvoiceSettings = {
   paymentTerms: 0,
   defaultNotes: '',
   autoPdfGeneration: true,
+  autoInvoiceNumber: false, // NEW: default to manual for migration
 };
 
 const InvoiceSettingsContext = createContext<InvoiceSettingsContextType | undefined>(undefined);

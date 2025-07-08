@@ -35,6 +35,7 @@ import { Invoice, Sale, PaymentMethodType } from '@/types/index';
 import { formatCurrency, formatDate, formatDateInput, generateInvoiceNumber } from '../../utils/format';
 import { toast } from 'sonner';
 import { useLanguage } from '@/context/LanguageContext';
+import Combobox from '@/components/ui/Combobox';
 
 const paymentMethods = ['cash', 'bank_transfer', 'check', 'term'] as const;
 
@@ -64,8 +65,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
     sales,
     getSalePaymentStatus
   } = useAppContext();
-  const { settings: appSettings, updateSettings } = useAppSettings();
-  const { settings: invoiceSettings } = useInvoiceSettings();
+  const { settings: invoiceSettings, updateSettings: updateInvoiceSettings } = useInvoiceSettings();
   const { t } = useLanguage();
 
   const [clientSales, setClientSales] = useState<Sale[]>([]);
@@ -85,10 +85,10 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
 
   const defaultValues: FormValues = {
     prefix: invoice?.invoiceNumber?.split('-')[0] || invoiceSettings.defaultPrefix,
-    invoiceNumber: invoice?.invoiceNumber || generateInvoiceNumber(invoiceSettings.defaultPrefix, appSettings.invoice.nextNumber),
+    invoiceNumber: invoice?.invoiceNumber || generateInvoiceNumber(invoiceSettings.defaultPrefix, invoiceSettings.nextNumber),
     clientId: invoice?.clientId || '',
     date: formatDateInput(invoice?.date || new Date()),
-    dueDate: formatDateInput(invoice?.dueDate || new Date(new Date().setDate(new Date().getDate() + appSettings.invoice.paymentTerms))),
+    dueDate: formatDateInput(invoice?.dueDate || new Date(new Date().setDate(new Date().getDate() + invoiceSettings.paymentTerms))),
     salesIds: invoice?.salesIds || [],
     paymentMethod: getInitialPaymentMethod() || undefined,
   };
@@ -128,11 +128,11 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
 
   useEffect(() => {
     const prefix = form.watch('prefix');
-    if (!invoice && !isInvoiceNumberManuallyEdited) {
-      const newInvoiceNumber = generateInvoiceNumber(prefix, appSettings.invoice.nextNumber);
+    if (!invoice && !isInvoiceNumberManuallyEdited && invoiceSettings.autoInvoiceNumber) {
+      const newInvoiceNumber = generateInvoiceNumber(prefix, invoiceSettings.nextNumber);
       form.setValue('invoiceNumber', newInvoiceNumber);
     }
-  }, [form, invoice, isInvoiceNumberManuallyEdited, appSettings.invoice.nextNumber, form.watch('prefix')]);
+  }, [form, invoice, isInvoiceNumberManuallyEdited, invoiceSettings.nextNumber, form.watch('prefix'), invoiceSettings.autoInvoiceNumber]);
 
   useEffect(() => {
     const clientId = form.watch('clientId');
@@ -220,16 +220,15 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
       };
 
       // SMART INCREMENT LOGIC
-      const expectedAutoNumber = generateInvoiceNumber(invoiceSettings.defaultPrefix, appSettings.invoice.nextNumber);
-      // Extract the numeric part from the invoice number (assumes format PREFIX-123 or similar)
+      const expectedAutoNumber = generateInvoiceNumber(invoiceSettings.defaultPrefix, invoiceSettings.nextNumber);
       const manualNumberMatch = data.invoiceNumber.match(/(\d+)$/);
       const manualNumber = manualNumberMatch ? parseInt(manualNumberMatch[1], 10) : null;
-      if (data.invoiceNumber === expectedAutoNumber) {
-        // User accepted the automatic number, increment nextNumber
-        updateSettings({ invoice: { ...appSettings.invoice, nextNumber: appSettings.invoice.nextNumber + 1 } });
-      } else if (manualNumber && manualNumber >= appSettings.invoice.nextNumber) {
-        // User entered a manual number higher than nextNumber, update nextNumber to manual+1
-        updateSettings({ invoice: { ...appSettings.invoice, nextNumber: manualNumber + 1 } });
+      if (invoiceSettings.autoInvoiceNumber && data.invoiceNumber === expectedAutoNumber) {
+        // Auto mode: increment nextNumber
+        updateInvoiceSettings({ nextNumber: invoiceSettings.nextNumber + 1 });
+      } else if (!invoiceSettings.autoInvoiceNumber && manualNumber && manualNumber >= invoiceSettings.nextNumber) {
+        // Manual mode: user entered a manual number higher than nextNumber, update nextNumber to manual+1
+        updateInvoiceSettings({ nextNumber: manualNumber + 1 });
       }
 
       if (invoice) {
@@ -257,7 +256,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
             <FormField
               control={form.control}
               name="prefix"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Préfixe</FormLabel>
                   <Select
@@ -269,7 +268,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                     defaultValue={field.value}
                   >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger aria-invalid={!!fieldState.error}>
                         <SelectValue placeholder="Sélectionner un préfixe" />
                       </SelectTrigger>
                     </FormControl>
@@ -296,6 +295,8 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                         field.onChange(e.target.value);
                         setIsInvoiceNumberManuallyEdited(true);
                       }}
+                      readOnly={!!invoiceSettings.autoInvoiceNumber && !invoice}
+                      className={invoiceSettings.autoInvoiceNumber && !invoice ? 'bg-gray-100 cursor-not-allowed' : ''}
                     />
                   </FormControl>
                   <FormMessage />
@@ -311,24 +312,16 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Client</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
+                  <Combobox
                     value={field.value}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner un client" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name} - {client.company}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={field.onChange}
+                    options={clients.map((client) => ({
+                      value: client.id,
+                      label: `${client.name} - ${client.company}`,
+                    }))}
+                    placeholder="Sélectionner un client"
+                    searchPlaceholder="Rechercher un client..."
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -336,7 +329,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
             <FormField
               control={form.control}
               name="paymentMethod"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Mode de paiement</FormLabel>
                   <Select
@@ -345,7 +338,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
                     defaultValue={field.value || ""}
                   >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger aria-invalid={!!fieldState.error}>
                         <SelectValue placeholder="Sélectionner un mode" />
                       </SelectTrigger>
                     </FormControl>
@@ -461,7 +454,7 @@ const InvoiceForm = ({ invoice, onSuccess }: InvoiceFormProps) => {
             </div>
           )}
 
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="flex justify-end space-x-2 pt-4 sticky bottom-0 bg-background z-10 border-t mt-8 pb-4">
             <Button type="button" variant="outline" onClick={onSuccess}>Annuler</Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Enregistrement..." : (invoice ? 'Mettre à jour la facture' : 'Créer la facture')}

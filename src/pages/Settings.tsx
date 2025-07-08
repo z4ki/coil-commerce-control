@@ -33,7 +33,7 @@ const Settings = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const { theme, setTheme } = useTheme();
-  const { settings: invoiceSettings, addPrefix, removePrefix, setDefaultPrefix } = useInvoiceSettings();
+  const { settings: invoiceSettings, updateSettings, addPrefix, removePrefix, setDefaultPrefix } = useInvoiceSettings();
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -426,14 +426,14 @@ const Settings = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  {/* <Switch
-                    id="autoPdfGeneration"
-                    checked={settings.invoice.autoPdfGeneration}
-                    onCheckedChange={(checked) => updateInvoiceSettings({ autoPdfGeneration: checked })}
+                  <Switch
+                    id="autoInvoiceNumber"
+                    checked={!!invoiceSettings.autoInvoiceNumber}
+                    onCheckedChange={(checked) => updateSettings({ autoInvoiceNumber: checked })}
                   />
-                  <Label htmlFor="autoPdfGeneration">
-                    Génération automatique de PDF
-                  </Label> */}
+                  <Label htmlFor="autoInvoiceNumber">
+                    Numérotation automatique des factures
+                  </Label>
                 </div>
               </CardContent>
               <CardFooter>

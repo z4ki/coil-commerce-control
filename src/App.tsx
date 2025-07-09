@@ -8,7 +8,7 @@ import { LanguageProvider } from './context/LanguageContext';
 import { InvoiceSettingsProvider } from './context/InvoiceSettingsContext';
 import { AppSettingsProvider } from './context/AppSettingsContext';
 import ThemeProvider from './components/theme/ThemeProvider';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProductAnalytics } from './components/analytics/ProductAnalytics';
 import { ErrorBoundary } from './components/error/ErrorBoundary';
 import { ProductSearchBar } from './components/products/ProductSearchBar';
@@ -57,7 +57,15 @@ const ClientFormWrapper = () => {
   return <ClientForm client={client} onSuccess={onSuccess} />;
 };
 
-const App = () => {
+function App() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate loading (replace with real data fetch or initialization)
+    const timer = setTimeout(() => setLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [isDarkMode, setIsDarkMode] = useState(false);
   // const { filters, setFilters } = useProductStore();
 
@@ -68,6 +76,35 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {loading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(255,255,255,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <div className="loader" style={{
+            border: '6px solid #e0e0e0',
+            borderTop: '6px solid #0078d4',
+            borderRadius: '50%',
+            width: 48,
+            height: 48,
+            animation: 'spin 1s linear infinite',
+          }} />
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
       <TooltipProvider>
         <LanguageProvider>
           <ThemeProvider>

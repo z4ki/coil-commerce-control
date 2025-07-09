@@ -3,7 +3,7 @@
 
 mod commands;
 
-use sqlx::SqlitePool;
+use sqlx::{SqlitePool, sqlite::SqlitePoolOptions}; // Add SqlitePoolOptions
 use std::fs;
 use std::path::PathBuf;
 use std::path::Path;
@@ -12,6 +12,8 @@ use dotenv::dotenv;
 use shellexpand;
 use tauri_plugin_log::{Target, TargetKind};
 use dirs;
+use tauri::Manager;
+use std::time::Instant;
 
 
 #[tokio::main]
@@ -19,6 +21,8 @@ async fn main() {
     println!("[DEBUG] main.rs: main() started");
     dotenv().ok(); // Loads .env file
     
+    let start_time = Instant::now();
+
     // Always use the current user's AppData directory for the database
     let db_path = dirs::data_local_dir()
         .expect("Could not get local app data dir")
@@ -84,10 +88,14 @@ async fn main() {
         }
     }
     
-    // Connect to database with retry logic
-    let pool = match SqlitePool::connect(&db_url).await {
+    // Connect to database with pool options
+    let pool = match SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(&db_url)
+        .await
+    {
         Ok(pool) => {
-            println!("Successfully connected to database");
+            println!("[PERF] Database connected in {:.2?}", start_time.elapsed());
             pool
         }
         Err(e) => {
@@ -96,19 +104,32 @@ async fn main() {
             panic!("Database connection failed");
         }
     };
-    
+
+    // Enable WAL mode for better performance
+    let wal_start = Instant::now();
+    sqlx::query("PRAGMA journal_mode = WAL;")
+        .execute(&pool)
+        .await
+        .expect("Failed to set WAL mode");
+    println!("[PERF] WAL mode set in {:.2?}", wal_start.elapsed());
+
     // Run migrations
+    let mig_start = Instant::now();
     match sqlx::migrate!("./migrations").run(&pool).await {
-        Ok(_) => println!("Migrations completed successfully"),
+        Ok(_) => println!("[PERF] Migrations completed in {:.2?}", mig_start.elapsed()),
         Err(e) => {
             eprintln!("Migration failed: {}", e);
             panic!("Failed to run migrations");
         }
     }
-    
+
     // Ensure settings row exists
+    let settings_start = Instant::now();
     ensure_settings_row(&pool).await
         .expect("Failed to ensure settings row");
+    println!("[PERF] Settings row ensured in {:.2?}", settings_start.elapsed());
+
+    println!("[PERF] Total DB startup time: {:.2?}", start_time.elapsed());
     
     tauri::Builder::default()
         .manage(pool)
@@ -118,7 +139,8 @@ async fn main() {
             .target(Target::new(TargetKind::Webview))
             .target(Target::new(TargetKind::LogDir { file_name: None }))
             .build())
-        .setup(|app| {
+        .setup(|_app| {
+            // No splashscreen logic needed
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

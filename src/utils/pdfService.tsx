@@ -1,11 +1,8 @@
-import { Client, Invoice, Sale, Payment, CompanySettings, SaleItem } from '../types/index';
+import { Client, Invoice, Sale, Payment, CompanyProfile, SaleItem } from '../types/index';
 import { getSettings } from '../services/settingsService';
 import { formatCurrency, formatDate } from './format';
 import { numberToWords } from './numberToWords';
 import React from 'react';
-import { pdf } from '@react-pdf/renderer';
-import { InvoicePDF } from '../components/invoice/InvoicePDF';
-import { CompanyProfile } from '../types/index';
 
 interface PDFGenerationData {
   documentType: 'invoice' | 'sale';
@@ -13,7 +10,7 @@ interface PDFGenerationData {
   date: string;
   paymentMethod: string;
   paymentTerms: string;
-  companyInfo: CompanySettings;
+  companyInfo: CompanyProfile;
   clientInfo: {
     name: string;
     rc: string;
@@ -48,7 +45,7 @@ export const generateInvoicePDF = async (
   client: Client,
   sales: Sale[] = [],
   payments: Payment[] = [],
-  companySettings: CompanySettings
+  company: CompanyProfile
 ): Promise<Blob> => {
   // Prepare the data for our PDF template
   const items = sales.flatMap(sale => sale.items.map((item: SaleItem) => ({
@@ -83,12 +80,12 @@ export const generateInvoicePDF = async (
     paymentMethod: invoice.paymentMethod || 'Bank Transfer',
     paymentTerms: formatDate(invoice.dueDate),
     companyInfo: {
-      name: companySettings.name,
-      rc: companySettings.rc,
-      ai: companySettings.ai,
-      nif: companySettings.nif,
-      nis: companySettings.nis,
-      address: companySettings.address,
+      name: company.name,
+      rc: company.rc,
+      ai: company.ai,
+      nif: company.nif,
+      nis: company.nis,
+      address: company.address,
     },
     clientInfo: {
       name: client.company || client.name,
@@ -104,14 +101,16 @@ export const generateInvoicePDF = async (
     totalTTC: invoice.totalAmountTTC,
     totalInWords,
     contactInfo: {
-      phone: companySettings.phone,
-      email: companySettings.email,
-      companyName: companySettings.name,
+      phone: company.phone,
+      email: company.email,
+      companyName: company.name,
     },
     slogan: 'Colors that lasts,Quality that endures',
   };
 
   try {
+    const { pdf } = await import('@react-pdf/renderer');
+    const { InvoicePDF } = await import('../components/invoice/InvoicePDF');
     const pdfDoc = await pdf(<InvoicePDF {...invoiceData} />).toBlob();
     return pdfDoc;
   } catch (error) {
@@ -200,6 +199,8 @@ export const generateSalePDF = async (
   };
 
   try {
+    const { pdf } = await import('@react-pdf/renderer');
+    const { InvoicePDF } = await import('../components/invoice/InvoicePDF');
     const pdfDoc = await pdf(<InvoicePDF {...saleData} />).toBlob();
     return pdfDoc;
   } catch (error) {

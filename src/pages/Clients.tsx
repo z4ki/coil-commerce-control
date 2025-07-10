@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import MainLayout from '../components/layout/MainLayout';
@@ -31,6 +31,52 @@ import { toast } from 'sonner';
 import ClientForm from '../components/clients/ClientForm';
 import { Client } from '../types';
 
+const ClientTableRow = memo(({ client, t, getClientDebt, onEdit, onDelete, onView }) => (
+  <TableRow key={client.id}>
+    <TableCell className="font-medium">
+      <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
+        {client.name}
+      </Link>
+    </TableCell>
+    <TableCell>{client.company}</TableCell>
+    <TableCell>
+      <div>{client.email}</div>
+      <div className="text-xs text-muted-foreground">{client.phone}</div>
+    </TableCell>
+    <TableCell className="text-right">
+      <span className={getClientDebt(client.id) > 0 ? 'text-destructive font-medium' : ''}>
+        {formatCurrency(getClientDebt(client.id))}
+      </span>
+    </TableCell>
+    <TableCell>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onEdit(client)}
+        >
+          <Edit className="h-4 w-4" />
+          <span className="sr-only">{t('general.edit')}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(client)}
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="sr-only">{t('general.delete')}</span>
+        </Button>
+        <Link to={`/clients/${client.id}`}>
+          <Button variant="ghost" size="icon">
+            <FileText className="h-4 w-4" />
+            <span className="sr-only">{t('general.view')}</span>
+          </Button>
+        </Link>
+      </div>
+    </TableCell>
+  </TableRow>
+));
+
 const Clients = () => {
   const { clients, deleteClient, getClientDebt } = useAppContext();
   const { t } = useLanguage();
@@ -45,11 +91,12 @@ const Clients = () => {
     }
   };
 
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredClients = useMemo(() =>
+    clients.filter(
+      (client) =>
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.company.toLowerCase().includes(searchTerm.toLowerCase())
+    ), [clients, searchTerm]);
 
   return (
     <MainLayout title={t('clients.title')}>
@@ -94,52 +141,18 @@ const Clients = () => {
                 <TableBody>
                   {filteredClients.length > 0 ? (
                     filteredClients.map((client) => (
-                      <TableRow key={client.id}>
-                        <TableCell className="font-medium">
-                          <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
-                            {client.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{client.company}</TableCell>
-                        <TableCell>
-                          <div>{client.email}</div>
-                          <div className="text-xs text-muted-foreground">{client.phone}</div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={getClientDebt(client.id) > 0 ? 'text-destructive font-medium' : ''}>
-                            {formatCurrency(getClientDebt(client.id))}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedClient(client);
-                                setShowAddDialog(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">{t('general.edit')}</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteClient(client)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">{t('general.delete')}</span>
-                            </Button>
-                            <Link to={`/clients/${client.id}`}>
-                              <Button variant="ghost" size="icon">
-                                <FileText className="h-4 w-4" />
-                                <span className="sr-only">{t('general.view')}</span>
-                              </Button>
-                            </Link>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <ClientTableRow
+                        key={client.id}
+                        client={client}
+                        t={t}
+                        getClientDebt={getClientDebt}
+                        onEdit={() => {
+                          setSelectedClient(client);
+                          setShowAddDialog(true);
+                        }}
+                        onDelete={() => handleDeleteClient(client)}
+                        onView={() => {}}
+                      />
                     ))
                   ) : (
                     <TableRow>

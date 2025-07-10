@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAppSettings } from '@/context/AppSettingsContext';
@@ -40,8 +40,75 @@ import { Invoice } from '@/types';
 import { toast } from 'sonner';
 import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { Link } from 'react-router-dom';
-import { saveInvoicePDF } from '@/utils/pdfService.tsx';
 import { getDeletedInvoices, restoreInvoice } from '@/services/invoiceService';
+
+const InvoiceTableRow = memo(({ invoice, client, paymentStatus, isOverdue, t, onEdit, onDelete, onView, onExport }) => (
+  <TableRow key={invoice.id}>
+    <TableCell className="font-medium">
+      <Link 
+        to={`/invoices/${invoice.id}`}
+        className="text-primary hover:underline"
+      >
+        {invoice.invoiceNumber}
+      </Link>
+    </TableCell>
+    <TableCell>
+      <div>
+        {client && (
+          <Link 
+            to={`/clients/${client.id}`}
+            className="text-primary hover:underline hover:text-primary/80"
+          >
+            {client.name}
+          </Link>
+        )}
+      </div>
+      <div className="text-xs text-muted-foreground">{client?.company}</div>
+    </TableCell>
+    <TableCell>{formatDate(invoice.date)}</TableCell>
+    <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+    <TableCell className="text-right font-medium">
+      {formatCurrency(invoice.totalAmountTTC)}
+    </TableCell>
+    <TableCell>
+      <StatusBadge 
+        status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
+      />
+    </TableCell>
+    <TableCell>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <MoreVertical className="h-4 w-4" />
+            <span className="sr-only">{t('invoices.actions')}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>{t('invoices.actions')}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => onEdit(invoice)}>
+            <Edit className="mr-2 h-4 w-4" />
+            <span>{t('invoices.edit')}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onDelete(invoice)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>{t('invoices.delete')}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to={`/invoices/${invoice.id}`}>
+              <FileText className="mr-2 h-4 w-4" />
+              <span>{t('invoices.viewDetails')}</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onExport(invoice)}>
+            <Download className="mr-2 h-4 w-4" />
+            <span>{t('general.export')}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </TableCell>
+  </TableRow>
+));
 
 const Invoices = () => {
   const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useAppContext();
@@ -72,13 +139,12 @@ const Invoices = () => {
       toast.error(t('invoices.clientNotFound'));
       return;
     }
-
     const sales = invoice.salesIds.map(id => getSaleById(id)).filter(Boolean);
     const paymentStatus = getInvoicePaymentStatus(invoice.id);
     const payments = paymentStatus?.payments || [];
-
     try {
-      await saveInvoicePDF(invoice, client, sales, payments);
+      const pdfService = await import('@/utils/pdfService.tsx');
+      await pdfService.saveInvoicePDF(invoice, client, sales, payments);
       toast.success(t('invoices.pdfGenerated'));
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -167,7 +233,7 @@ const Invoices = () => {
               <CardContent>
                 <div className="rounded-md border">
                   <Table>
-                  <TableHeader className="bg-gray-100">
+                    <TableHeader className="bg-gray-100">
                       <TableRow>
                         <TableHead>{t('invoices.invoiceNumber')}</TableHead>
                         <TableHead>{t('invoices.client')}</TableHead>
@@ -184,78 +250,22 @@ const Invoices = () => {
                           const client = getClientById(invoice.clientId);
                           const paymentStatus = getInvoicePaymentStatus(invoice.id);
                           const isOverdue = !invoice.isPaid && new Date() > invoice.dueDate;
-                          
                           return (
-                            <TableRow key={invoice.id}>
-                              <TableCell className="font-medium">
-                                <Link 
-                                  to={`/invoices/${invoice.id}`}
-                                  className="text-primary hover:underline"
-                                >
-                                  {invoice.invoiceNumber}
-                                </Link>
-                              </TableCell>
-                              <TableCell>
-                                <div>
-                                  {client && (
-                                    <Link 
-                                      to={`/clients/${client.id}`}
-                                      className="text-primary hover:underline hover:text-primary/80"
-                                    >
-                                      {client.name}
-                                    </Link>
-                                  )}
-                                </div>
-                                <div className="text-xs text-muted-foreground">{client?.company}</div>
-                              </TableCell>
-                              <TableCell>{formatDate(invoice.date)}</TableCell>
-                              <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(invoice.totalAmountTTC)}
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge 
-                                  status={invoice.isPaid ? 'paid' : isOverdue ? 'overdue' : 'unpaid'} 
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreVertical className="h-4 w-4" />
-                                      <span className="sr-only">{t('invoices.actions')}</span>
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>{t('invoices.actions')}</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setSelectedInvoice(invoice);
-                                        setShowAddDialog(true);
-                                      }}
-                                    >
-                                      <Edit className="mr-2 h-4 w-4" />
-                                      <span>{t('invoices.edit')}</span>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleDeleteInvoice(invoice)}>
-                                      <Trash2 className="mr-2 h-4 w-4" />
-                                      <span>{t('invoices.delete')}</span>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                      <Link to={`/invoices/${invoice.id}`}>
-                                        <FileText className="mr-2 h-4 w-4" />
-                                        <span>{t('invoices.viewDetails')}</span>
-                                      </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExportPDF(invoice)}>
-                                      <Download className="mr-2 h-4 w-4" />
-                                      <span>{t('general.export')}</span>
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
+                            <InvoiceTableRow
+                              key={invoice.id}
+                              invoice={invoice}
+                              client={client}
+                              paymentStatus={paymentStatus}
+                              isOverdue={isOverdue}
+                              t={t}
+                              onEdit={() => {
+                                setSelectedInvoice(invoice);
+                                setShowAddDialog(true);
+                              }}
+                              onDelete={() => handleDeleteInvoice(invoice)}
+                              onView={() => {}}
+                              onExport={() => handleExportPDF(invoice)}
+                            />
                           );
                         })
                       ) : (

@@ -1,39 +1,36 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Product } from '../../types/products';
 import { useProductStore } from '../../stores/product-store';
 
 export function ProductList() {
   const { products, filters } = useProductStore();
 
-  const filteredProducts = products.filter((product) => {
-    // Filter by search query
-    if (filters.searchQuery && !product.description.toLowerCase().includes(filters.searchQuery.toLowerCase())) {
-      return false;
-    }
-
-    // Filter by product type
-    if (filters.selectedTypes.length > 0 && !filters.selectedTypes.includes(product.productType)) {
-      return false;
-    }
-
-    // Filter by date range
-    if (filters.dateRange.from && new Date(product.createdAt) < new Date(filters.dateRange.from)) {
-      return false;
-    }
-    if (filters.dateRange.to && new Date(product.createdAt) > new Date(filters.dateRange.to)) {
-      return false;
-    }
-
-    // Filter by price range
-    if (filters.priceRange.min && product.pricePerTon < Number(filters.priceRange.min)) {
-      return false;
-    }
-    if (filters.priceRange.max && product.pricePerTon > Number(filters.priceRange.max)) {
-      return false;
-    }
-
-    return true;
-  });
+  const filteredProducts = useMemo(() =>
+    products.filter((product) => {
+      // Filter by search query
+      if (filters.searchQuery && !product.description.toLowerCase().includes(filters.searchQuery.toLowerCase())) {
+        return false;
+      }
+      // Filter by product type
+      if (filters.selectedTypes.length > 0 && !filters.selectedTypes.includes(product.productType)) {
+        return false;
+      }
+      // Filter by date range
+      if (filters.dateRange.from && new Date(product.createdAt) < new Date(filters.dateRange.from)) {
+        return false;
+      }
+      if (filters.dateRange.to && new Date(product.createdAt) > new Date(filters.dateRange.to)) {
+        return false;
+      }
+      // Filter by price range
+      if (filters.priceRange.min && product.pricePerTon < Number(filters.priceRange.min)) {
+        return false;
+      }
+      if (filters.priceRange.max && product.pricePerTon > Number(filters.priceRange.max)) {
+        return false;
+      }
+      return true;
+    }), [products, filters]);
 
   return (
     <div className="mt-4">

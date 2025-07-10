@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { useEffect, memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import DataCard from '../components/ui/DataCard';
@@ -57,6 +57,16 @@ const MemoizedBarChart = memo(({ data }: { data: MonthlySalesData[] }) => (
 
 MemoizedBarChart.displayName = 'MemoizedBarChart';
 
+const DashboardTableRow = memo(({ client, t }: { client: any, t: any }) => (
+  <TableRow key={client.id}>
+    <TableCell className="font-medium">{client.name}</TableCell>
+    <TableCell>{client.salesCount}</TableCell>
+    <TableCell className="text-right">
+      {formatCurrency(client.totalAmount)}
+    </TableCell>
+  </TableRow>
+));
+
 const Dashboard = () => {
   const { 
     clients, 
@@ -111,6 +121,16 @@ const Dashboard = () => {
     })
     .sort((a, b) => b.totalAmount - a.totalAmount)
     .slice(0, 5);
+
+  useEffect(() => {
+    import('../pages/Sales').then(() => {
+      import('../pages/Invoices').then(() => {
+        import('../pages/Clients').then(() => {
+          import('../pages/Reports');
+        });
+      });
+    });
+  }, []);
 
   return (
     <MainLayout title={t('dashboard.title')}>
@@ -192,13 +212,7 @@ const Dashboard = () => {
                 </TableHeader>
                 <TableBody>
                   {topClients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell>{client.salesCount}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(client.totalAmount)}
-                      </TableCell>
-                    </TableRow>
+                    <DashboardTableRow key={client.id} client={client} t={t} />
                   ))}
                 </TableBody>
               </Table>

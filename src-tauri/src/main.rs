@@ -18,6 +18,7 @@ use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
+    println!("Tauri main.rs started");
     println!("[DEBUG] main.rs: main() started");
     dotenv().ok(); // Loads .env file
     
@@ -193,6 +194,11 @@ async fn main() {
             commands::get_sold_products_analytics,
             commands::get_sold_products_summary,
             commands::get_unique_thickness_width,
+            // --- Summary commands ---
+            commands::get_clients_summary,
+            commands::get_sales_summary,
+            commands::get_invoices_summary,
+            commands::get_dashboard_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

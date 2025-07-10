@@ -11,6 +11,8 @@ import * as XLSX from 'xlsx';
 import { useLanguage } from '@/context/LanguageContext';
 import { getClients } from '@/services/clientService';
 import { getUniqueThicknessWidth } from '@/services/soldProductsService';
+import { useInfiniteSoldProducts } from "@/hooks/useInfiniteSoldProducts";
+import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 
 const Chip = ({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
@@ -385,9 +387,31 @@ const SoldProductsAnalytics = () => {
   const [summary, setSummary] = useState<SoldProductsSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [rows, setRows] = useState<SoldProduct[]>([]);
-  const [rowsLoading, setRowsLoading] = useState(false);
-  const [rowsError, setRowsError] = useState<string | null>(null);
+
+  // Infinite scroll for all cases
+  const {
+    rows,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfiniteSoldProducts(filters);
+
+  // Intersection observer for infinite scroll
+  const sentinelRef = useIntersectionObserver(() => {
+    if (hasMore && !loading) loadMore();
+  });
+
+  // Summary logic remains unchanged
+  useEffect(() => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    getSoldProductsSummary(filters)
+      .then(setSummary)
+      .catch(e => setSummaryError(e?.message || 'Failed to load summary'))
+      .finally(() => setSummaryLoading(false));
+  }, [filters]);
 
   // Move summaryConfig inside component so t is in scope
   const summaryConfig = [
@@ -420,24 +444,6 @@ const SoldProductsAnalytics = () => {
     },
   ];
 
-  useEffect(() => {
-    setSummaryLoading(true);
-    setSummaryError(null);
-    getSoldProductsSummary(filters)
-      .then(setSummary)
-      .catch(e => setSummaryError(e?.message || 'Failed to load summary'))
-      .finally(() => setSummaryLoading(false));
-  }, [filters]);
-
-  useEffect(() => {
-    setRowsLoading(true);
-    setRowsError(null);
-    getSoldProductsAnalytics(filters)
-      .then(setRows)
-      .catch(e => setRowsError(e?.message || 'Failed to load data'))
-      .finally(() => setRowsLoading(false));
-  }, [filters]);
-
   return (
     <MainLayout title={t('analytics.title') || 'Sold Products Analytics'}>
       <div className="space-y-6">
@@ -451,7 +457,65 @@ const SoldProductsAnalytics = () => {
         </div>
         <FilterPanel filters={filters} setFilters={setFilters} t={t} />
         <SummaryCards summary={summary} loading={summaryLoading} error={summaryError} productType={filters.productType} t={t} summaryConfig={summaryConfig} />
-        <ProductsTable rows={rows} loading={rowsLoading} error={rowsError} t={t} />
+        <div className="rounded-md border p-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-800">
+                <th className="px-3 py-2 text-left">{t('analytics.productName')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.clientName')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.thickness')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.width')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.quantitySold')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.weight')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.unitPrice')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.totalPrice')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.invoiceNumber')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.saleDate')}</th>
+                <th className="px-3 py-2 text-left">{t('analytics.paymentStatus')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={11} className="text-center py-8 text-gray-500">
+                    {t('general.noResults')}
+                  </td>
+                </tr>
+              )}
+              {rows.map((row, idx) => (
+                <tr key={idx} className="border-b last:border-0">
+                  <td className="px-3 py-2">{row.productName || '-'}</td>
+                  <td className="px-3 py-2">{row.clientName || '-'}</td>
+                  <td className="px-3 py-2">{row.thickness ?? 0}</td>
+                  <td className="px-3 py-2">{row.width ?? 0}</td>
+                  <td className="px-3 py-2">{row.quantity ?? 0}</td>
+                  <td className="px-3 py-2">{row.weight ?? 0}</td>
+                  <td className="px-3 py-2">{row.unitPrice ?? 0}</td>
+                  <td className="px-3 py-2">{row.totalPrice ?? 0}</td>
+                  <td className="px-3 py-2">{row.invoiceNumber || '-'}</td>
+                  <td className="px-3 py-2">{row.saleDate || '-'}</td>
+                  <td className="px-3 py-2">{row.paymentStatus || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div ref={sentinelRef} />
+          {loading && (
+            <div className="flex justify-center py-4">
+              <span className="loader" /> {/* Or your spinner */}
+            </div>
+          )}
+          {!hasMore && rows.length > 0 && !loading && (
+            <div className="text-center py-4 text-gray-400">
+              {t('general.allDataLoaded')}
+            </div>
+          )}
+          {error && (
+            <div className="text-center py-4 text-red-500">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
     </MainLayout>
   );

@@ -45,7 +45,7 @@ export const tauriApi = {
     // update: (id: string, payment: any) => core.invoke('update_payment', { id, payment }), // Commented out, not implemented in backend
   },
   analytics: {
-    getSoldProducts: (filter: any) => core.invoke('get_sold_products_analytics', { filter }),
+    getSoldProducts: (filter: any, page?: number, pageSize?: number) => core.invoke('get_sold_products_analytics', { filter, page, page_size: pageSize }),
     getSoldProductsSummary: (filter: any) => core.invoke('get_sold_products_summary', { filter }),
     getUniqueThicknessWidth: () => core.invoke('get_unique_thickness_width'),
   },

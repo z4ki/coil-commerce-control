@@ -14,7 +14,6 @@ use dirs;
 use tokio::sync::oneshot;
 use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
-use sqlx::Executor;
 
 
 
@@ -1817,12 +1816,23 @@ pub struct SoldProductsSummary {
     pub average_order_value: f64,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct SoldProductsAnalyticsResult {
+    pub rows: Vec<SoldProduct>,
+    pub total: i64,
+}
+
 #[tauri::command]
 pub async fn get_sold_products_analytics(
     filter: SoldProductsFilter,
+    page: Option<u32>,
+    page_size: Option<u32>,
     pool: tauri::State<'_, SqlitePool>,
-) -> Result<Vec<SoldProduct>, String> {
+) -> Result<SoldProductsAnalyticsResult, String> {
     println!("[get_sold_products_analytics] filter: {:?}", filter);
+    let page = page.unwrap_or(1);
+    let page_size = page_size.unwrap_or(5);
+    let offset = (page - 1) * page_size;
     let mut query = String::from(r#"
         SELECT
             si.description as product_name,
@@ -1893,12 +1903,29 @@ pub async fn get_sold_products_analytics(
         }
     }
     query.push_str(" ORDER BY s.date DESC, si.description ASC");
-    println!("[get_sold_products_analytics] SQL: {}", query);
-    println!("[get_sold_products_analytics] params: {:?}", params);
-    let mut q = sqlx::query(&query);
+    // For pagination
+    let paginated_query = format!("{} LIMIT ? OFFSET ?", query);
+    // For total count
+    let count_query = format!("SELECT COUNT(*) as total FROM ({} ) as sub", query);
+    // Fetch total count
+    let mut count_q = sqlx::query(&count_query);
+    for (_k, v) in &params {
+        count_q = count_q.bind(v);
+    }
+    let total: i64 = match count_q.fetch_one(&*pool).await {
+        Ok(row) => row.try_get("total").unwrap_or(0),
+        Err(e) => {
+            println!("[get_sold_products_analytics] COUNT SQL error: {}", e);
+            return Err(e.to_string());
+        }
+    };
+    // Fetch paginated rows
+    let mut q = sqlx::query(&paginated_query);
     for (_k, v) in &params {
         q = q.bind(v);
     }
+    q = q.bind(page_size as i64);
+    q = q.bind(offset as i64);
     let rows = match q.fetch_all(&*pool).await {
         Ok(rows) => rows,
         Err(e) => {
@@ -1919,7 +1946,7 @@ pub async fn get_sold_products_analytics(
         sale_date: row.try_get("sale_date").unwrap_or_default(),
         payment_status: row.try_get("payment_status").unwrap_or_default(),
     }).collect();
-    Ok(products)
+    Ok(SoldProductsAnalyticsResult { rows: products, total })
 }
 
 #[tauri::command]
@@ -2049,5 +2076,199 @@ pub async fn get_unique_thickness_width(
         .filter_map(|row| row.try_get::<f64, _>("coil_width").ok())
         .collect::<Vec<f64>>();
     Ok((thicknesses, widths))
+}
+
+// --- Summary Structs ---
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ClientSummary {
+    pub id: String,
+    pub name: String,
+    pub company: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub address: Option<String>,
+    pub rib: Option<String>,
+    pub credit: Option<f64>,
+    pub created_at: String,
+    pub updated_at: Option<String>,
+    pub total_sales_volume: f64,
+    pub last_sale_date: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SaleSummary {
+    pub id: String,
+    pub client_id: String,
+    pub date: String,
+    pub total_amount: f64,
+    pub payment_method: Option<String>,
+    pub payment_status: Option<String>,
+    pub is_invoiced: bool,
+    pub created_at: String,
+    pub updated_at: Option<String>,
+    pub client_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct InvoiceSummary {
+    pub id: String,
+    pub client_id: String,
+    pub date: String,
+    pub due_date: String,
+    pub total_amount: f64,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: Option<String>,
+    pub client_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct DashboardStats {
+    pub total_revenue: f64,
+    pub sales_count: i64,
+    pub new_clients: i64,
+    pub overdue_invoices: i64,
+    pub unpaid_invoices: i64,
+}
+
+// --- Summary Commands ---
+
+#[tauri::command]
+pub async fn get_clients_summary(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<ClientSummary>, String> {
+    let rows = sqlx::query_as::<_, ClientSummary>(
+        r#"
+        SELECT
+            c.id,
+            c.name,
+            c.company,
+            c.email,
+            c.phone,
+            c.address,
+            c.rib,
+            c.credit_balance as credit,
+            c.created_at,
+            c.updated_at,
+            COALESCE(SUM(s.total_amount), 0.0) AS total_sales_volume,
+            MAX(s.date) AS last_sale_date
+        FROM
+            clients c
+        LEFT JOIN
+            sales s ON c.id = s.client_id AND s.deleted_at IS NULL
+        WHERE
+            c.deleted_at IS NULL
+        GROUP BY
+            c.id
+        ORDER BY
+            c.name ASC
+        "#
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+#[tauri::command]
+pub async fn get_sales_summary(pool: tauri::State<'_, SqlitePool>, limit: i64, offset: i64) -> Result<Vec<SaleSummary>, String> {
+    let rows = sqlx::query_as::<_, SaleSummary>(
+        r#"
+        SELECT
+            s.id,
+            s.client_id,
+            s.date,
+            s.total_amount,
+            s.payment_method,
+            s.payment_status,
+            s.is_invoiced,
+            s.created_at,
+            s.updated_at,
+            c.name as client_name
+        FROM
+            sales s
+        JOIN
+            clients c ON s.client_id = c.id
+        WHERE
+            s.deleted_at IS NULL
+        ORDER BY
+            s.date DESC
+        LIMIT ? OFFSET ?
+        "#
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+#[tauri::command]
+pub async fn get_invoices_summary(pool: tauri::State<'_, SqlitePool>, limit: i64, offset: i64) -> Result<Vec<InvoiceSummary>, String> {
+    let rows = sqlx::query_as::<_, InvoiceSummary>(
+        r#"
+        SELECT
+            i.id,
+            i.client_id,
+            i.date,
+            i.due_date,
+            i.total_amount_ttc as total_amount,
+            i.status,
+            i.created_at,
+            i.updated_at,
+            c.name as client_name
+        FROM
+            invoices i
+        JOIN
+            clients c ON i.client_id = c.id
+        WHERE
+            i.deleted_at IS NULL
+        ORDER BY
+            i.date DESC
+        LIMIT ? OFFSET ?
+        "#
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+#[tauri::command]
+pub async fn get_dashboard_stats(pool: tauri::State<'_, SqlitePool>) -> Result<DashboardStats, String> {
+    let stats = sqlx::query_as::<_, DashboardStats>(
+        r#"
+        WITH MonthlySales AS (
+          SELECT
+            COALESCE(SUM(total_amount), 0.0) AS total_revenue,
+            COUNT(id) AS sales_count
+          FROM sales
+          WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime') AND deleted_at IS NULL
+        ),
+        NewClients AS (
+          SELECT COUNT(id) AS new_clients
+          FROM clients
+          WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime') AND deleted_at IS NULL
+        ),
+        InvoiceStats AS (
+          SELECT
+            COUNT(CASE WHEN status = 'Overdue' THEN 1 END) AS overdue_invoices,
+            COUNT(CASE WHEN status = 'Unpaid' THEN 1 END) AS unpaid_invoices
+          FROM invoices
+          WHERE deleted_at IS NULL
+        )
+        SELECT
+          (SELECT total_revenue FROM MonthlySales) AS total_revenue,
+          (SELECT sales_count FROM MonthlySales) AS sales_count,
+          (SELECT new_clients FROM NewClients) AS new_clients,
+          (SELECT overdue_invoices FROM InvoiceStats) AS overdue_invoices,
+          (SELECT unpaid_invoices FROM InvoiceStats) AS unpaid_invoices
+        "#
+    )
+    .fetch_one(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(stats)
 }
     

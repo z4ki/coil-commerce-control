@@ -35,6 +35,11 @@ export interface SoldProductsSummary {
   averageOrderValue: number;
 }
 
+export interface SoldProductsAnalyticsResult {
+  rows: SoldProduct[];
+  total: number;
+}
+
 // Helper to convert camelCase filter keys to snake_case for backend
 function toBackendFilter(filter: SoldProductsFilter): any {
   const mapping: Record<string, string> = {
@@ -57,23 +62,35 @@ function toBackendFilter(filter: SoldProductsFilter): any {
   return backend;
 }
 
-export const getSoldProductsAnalytics = async (filters: SoldProductsFilter): Promise<SoldProduct[]> => {
+export const getSoldProductsAnalytics = async (
+  filters: SoldProductsFilter,
+  page: number = 1,
+  pageSize: number = 5
+): Promise<SoldProductsAnalyticsResult> => {
   try {
-    console.log('Calling Tauri analytics with filter:', filters);
-    const result = await tauriApi.analytics.getSoldProducts(toBackendFilter(filters));
-    return (result as any[]).map(row => ({
-      productName: row.product_name ?? '-',
-      clientName: row.client_name ?? '-',
-      thickness: row.thickness ?? 0,
-      width: row.width ?? 0,
-      quantity: row.quantity ?? 0,
-      weight: row.weight ?? 0,
-      unitPrice: row.unit_price ?? 0,
-      totalPrice: row.total_price ?? 0,
-      invoiceNumber: row.invoice_number ?? '-',
-      saleDate: row.sale_date ?? '-',
-      paymentStatus: row.payment_status ?? '-',
-    }));
+    console.log('Calling Tauri analytics with filter:', filters, 'page:', page, 'pageSize:', pageSize);
+    const result = await tauriApi.analytics.getSoldProducts(
+      toBackendFilter(filters),
+      page,
+      pageSize
+    ) as SoldProductsAnalyticsResult;
+    // result: { rows, total }
+    return {
+      rows: result.rows.map(row => ({
+        productName: row.productName ?? '-',
+        clientName: row.clientName ?? '-',
+        thickness: row.thickness ?? 0,
+        width: row.width ?? 0,
+        quantity: row.quantity ?? 0,
+        weight: row.weight ?? 0,
+        unitPrice: row.unitPrice ?? 0,
+        totalPrice: row.totalPrice ?? 0,
+        invoiceNumber: row.invoiceNumber ?? '-',
+        saleDate: row.saleDate ?? '-',
+        paymentStatus: row.paymentStatus ?? '-',
+      })),
+      total: result.total ?? 0,
+    };
   } catch (e) {
     throw new Error((e as Error).message || 'Failed to fetch sold products analytics');
   }

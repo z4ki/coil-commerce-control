@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, memo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import MainLayout from '@/components/layout/MainLayout';
@@ -15,6 +15,38 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/utils/format';
 import type { Invoice, Sale } from '@/types/index';
 import { getDeletedPayments, restorePayment } from '@/services/paymentService';
+
+const ClientDetailTableRow = memo(({ row, type, t }) => {
+  if (type === 'sale') {
+    return (
+      <TableRow key={row.id}>
+        <TableCell>{formatDate(row.date)}</TableCell>
+        <TableCell>{row.description}</TableCell>
+        <TableCell>{formatCurrency(row.totalAmountTTC)}</TableCell>
+        <TableCell>{row.isInvoiced ? t('status.invoiced') : t('status.notInvoiced')}</TableCell>
+      </TableRow>
+    );
+  } else if (type === 'invoice') {
+    return (
+      <TableRow key={row.id}>
+        <TableCell>{formatDate(row.date)}</TableCell>
+        <TableCell>{row.invoiceNumber}</TableCell>
+        <TableCell>{formatCurrency(row.totalAmountTTC)}</TableCell>
+        <TableCell>{row.isPaid ? t('status.paid') : t('status.unpaid')}</TableCell>
+      </TableRow>
+    );
+  } else if (type === 'payment') {
+    return (
+      <TableRow key={row.id}>
+        <TableCell>{formatDate(row.date)}</TableCell>
+        <TableCell>{row.amount}</TableCell>
+        <TableCell>{row.method}</TableCell>
+        <TableCell>{row.sale?.description || ''}</TableCell>
+      </TableRow>
+    );
+  }
+  return null;
+});
 
 const ClientDetail = () => {
   // ========== ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL LOGIC ==========
@@ -273,26 +305,7 @@ const ClientDetail = () => {
                     <TableBody>
                       {clientSales.length > 0 ? (
                         clientSales.map((sale) => (
-                          <TableRow key={sale.id}>
-                            <TableCell>{formatDate(sale.date)}</TableCell>
-                            <TableCell>{sale.items.length} {t('general.items')}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(sale.totalAmountTTC)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <StatusBadge status={getSaleStatus(sale)} />
-                                {sale.isInvoiced && sale.invoiceId && (
-                                  <Link 
-                                    to={`/invoices/${sale.invoiceId}`}
-                                    className="text-primary hover:underline hover:text-primary/80"
-                                  >
-                                    {t('sales.viewInvoice')}
-                                  </Link>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                          <ClientDetailTableRow key={sale.id} row={sale} type="sale" t={t} />
                         ))
                       ) : (
                         <TableRow>
@@ -327,31 +340,9 @@ const ClientDetail = () => {
                     </TableHeader>
                     <TableBody>
                       {clientInvoices.length > 0 ? (
-                        clientInvoices.map((invoice) => {
-                          const isOverdue = !invoice.isPaid && new Date() > invoice.dueDate;
-                          return (
-                            <TableRow key={invoice.id}>
-                              <TableCell>
-                                <Link 
-                                  to={`/invoices/${invoice.id}`}
-                                  className="text-primary hover:underline"
-                                >
-                                  {invoice.invoiceNumber}
-                                </Link>
-                              </TableCell>
-                              <TableCell>{formatDate(invoice.date)}</TableCell>
-                              <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(invoice.totalAmountTTC)}
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge 
-                                  status={getInvoiceStatus(invoice)} 
-                                />
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
+                        clientInvoices.map((invoice) => (
+                          <ClientDetailTableRow key={invoice.id} row={invoice} type="invoice" t={t} />
+                        ))
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} className="h-24 text-center">
@@ -394,36 +385,7 @@ const ClientDetail = () => {
                           deletedPayments.map((payment) => {
                             const sale = payment.sale;
                             return (
-                              <TableRow key={payment.id}>
-                                <TableCell>{formatDate(payment.date)}</TableCell>
-                                <TableCell>
-                                  {sale && (
-                                    <div>
-                                      <div className="font-medium">
-                                        {formatDate(sale.date)}
-                                      </div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {sale.items.length} {t('general.items')} - {formatCurrency(sale.totalAmountTTC) }
-                                      </div>
-                                    </div>
-                                  )}
-                                </TableCell>
-                                <TableCell>{t(`payments.methods.${payment.method}`)}</TableCell>
-                                <TableCell>{payment.notes}</TableCell>
-                                <TableCell>
-                                  {payment.method === 'check' ? payment.checkNumber : 'N/A'}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {formatCurrency(payment.amount)}
-                                </TableCell>
-                                <TableCell>
-                                  <Button size="sm" onClick={async () => {
-                                    await restorePayment(payment.id);
-                                    toast.success(t('payments.restored') || 'Payment restored');
-                                    setDeletedPayments((prev) => prev.filter((p) => p.id !== payment.id));
-                                  }}>{t('general.restore') || 'Restore'}</Button>
-                                </TableCell>
-                              </TableRow>
+                              <ClientDetailTableRow key={payment.id} row={payment} type="payment" t={t} />
                             );
                           })
                         ) : (
@@ -452,20 +414,7 @@ const ClientDetail = () => {
                       <TableBody>
                         {clientPayments.length > 0 ? (
                           clientPayments.map((payment: any) => (
-                            <TableRow key={payment.id}>
-                              <TableCell>{formatDate(payment.date)}</TableCell>
-                              <TableCell>
-                                <Link to={`/sales/${payment.saleId}`} className="text-primary hover:underline">
-                                  {payment.sale?.id?.substring(0, 8) || payment.saleId?.substring(0, 8)}...
-                                </Link>
-                              </TableCell>
-                              <TableCell>{t(`payments.methods.${payment.method}`) || payment.method}</TableCell>
-                              <TableCell>{payment.notes || '—'}</TableCell>
-                              <TableCell>{payment.method === 'check' && payment.checkNumber ? payment.checkNumber : '—'}</TableCell>
-                              <TableCell className="text-right font-bold">
-                                {formatCurrency(payment.amount)}
-                              </TableCell>
-                            </TableRow>
+                            <ClientDetailTableRow key={payment.id} row={payment} type="payment" t={t} />
                           ))
                         ) : (
                           <TableRow>

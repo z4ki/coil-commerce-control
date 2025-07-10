@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { BarChart2, DollarSign, Download } from 'lucide-react';
+import { BarChart2, DollarSign, Download, FileText } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import StatusBadge from '../components/ui/StatusBadge';
 import { useLanguage } from '../context/LanguageContext';
@@ -98,6 +98,22 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent }: Label
     </text>
   );
 };
+
+const ReportTableRow = memo(({ client, t, onView }) => (
+  <TableRow key={client.id}>
+    <TableCell className="font-medium">{client.name}</TableCell>
+    <TableCell>{client.salesCount}</TableCell>
+    <TableCell className="text-right">
+      {formatCurrency(client.totalAmount)}
+    </TableCell>
+    <TableCell>
+      <Button variant="ghost" size="icon" onClick={() => onView(client)}>
+        <FileText className="h-4 w-4" />
+        <span className="sr-only">{t('general.view')}</span>
+      </Button>
+    </TableCell>
+  </TableRow>
+));
 
 const Reports = () => {
   const { 

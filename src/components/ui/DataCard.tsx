@@ -46,4 +46,4 @@ const DataCard = ({ title, value, icon, description, trend, className }: DataCar
   );
 };
 
-export default DataCard;
+export default React.memo(DataCard);

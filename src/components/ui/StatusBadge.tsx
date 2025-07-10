@@ -56,4 +56,4 @@ const StatusBadge = ({ status, className }: StatusBadgeProps) => {
   );
 };
 
-export default StatusBadge;
+export default React.memo(StatusBadge);

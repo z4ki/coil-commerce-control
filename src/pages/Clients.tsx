@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import MainLayout from '../components/layout/MainLayout';
@@ -29,16 +29,35 @@ import { formatCurrency } from '../utils/format';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import ClientForm from '../components/clients/ClientForm';
-import { Client } from '../types';
+import { Client } from '@/types/index';
+import { useInfiniteClients } from '@/hooks/useInfiniteClients';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
+import Spinner from '@/components/ui/Spinner';
 
-const ClientTableRow = memo(({ client, t, getClientDebt, onEdit, onDelete, onView }) => (
+type ClientTableRowProps = {
+  client: Client;
+  t: (key: string) => string;
+  getClientDebt: (clientId: string) => number;
+  onEdit: () => void;
+  onDelete: () => void;
+  onView: () => void;
+};
+
+const ClientTableRow = memo(({
+  client,
+  t,
+  getClientDebt,
+  onEdit,
+  onDelete,
+  onView
+}: ClientTableRowProps) => (
   <TableRow key={client.id}>
     <TableCell className="font-medium">
       <Link to={`/clients/${client.id}`} className="text-primary hover:underline hover:text-primary/80">
         {client.name}
       </Link>
     </TableCell>
-    <TableCell>{client.company}</TableCell>
+    <TableCell>{client.company ?? ''}</TableCell>
     <TableCell>
       <div>{client.email}</div>
       <div className="text-xs text-muted-foreground">{client.phone}</div>
@@ -53,7 +72,7 @@ const ClientTableRow = memo(({ client, t, getClientDebt, onEdit, onDelete, onVie
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => onEdit(client)}
+          onClick={onEdit}
         >
           <Edit className="h-4 w-4" />
           <span className="sr-only">{t('general.edit')}</span>
@@ -61,7 +80,7 @@ const ClientTableRow = memo(({ client, t, getClientDebt, onEdit, onDelete, onVie
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => onDelete(client)}
+          onClick={onDelete}
         >
           <Trash2 className="h-4 w-4" />
           <span className="sr-only">{t('general.delete')}</span>
@@ -78,11 +97,30 @@ const ClientTableRow = memo(({ client, t, getClientDebt, onEdit, onDelete, onVie
 ));
 
 const Clients = () => {
-  const { clients, deleteClient, getClientDebt } = useAppContext();
+  // Remove: const { clients, deleteClient, getClientDebt } = useAppContext();
+  const { deleteClient, getClientDebt } = useAppContext();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  // Infinite scroll
+  const {
+    rows: clients,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfiniteClients();
+  const sentinelRef = useIntersectionObserver(() => {
+    if (hasMore && !loading) loadMore();
+  });
+
+  // Reset on search
+  useEffect(() => {
+    reload();
+  }, [searchTerm, reload]);
 
   const handleDeleteClient = (client: Client) => {
     if (window.confirm(t('clients.deleteConfirm').replace('{0}', client.name))) {
@@ -161,6 +199,21 @@ const Clients = () => {
                       </TableCell>
                     </TableRow>
                   )}
+                  {/* Infinite scroll sentinel row */}
+                  <TableRow ref={sentinelRef as any}>
+                    <TableCell colSpan={5} className="text-center py-2">
+                      {loading && hasMore && (
+                        <div className="flex justify-center items-center py-2">
+                          <Spinner size={24} />
+                          <span className="ml-2">{t('general.loading')}</span>
+                        </div>
+                      )}
+                      {!hasMore && !loading && filteredClients.length > 0 && (
+                        <span className="text-muted-foreground text-xs">{t('general.endOfList') || 'No more clients'}</span>
+                      )}
+                      {error && <span className="text-destructive text-xs">{error}</span>}
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>

@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Sale, Invoice } from '@/types/index';
 import type { Client, Payment, BulkPayment, CreditTransaction, AppSettings } from '@/types/index';
 import { tauriApi } from '@/lib/tauri-api';
+import { Sale, SaleItem } from '@/types/index';
 
 // Mock data storage
 let mockClients: Client[] = [
@@ -59,10 +60,7 @@ let mockSales: Sale[] = [
         quantity: 10,
         pricePerTon: 1200,
         totalAmountHT: 30000,
-        totalAmountTTC: 35700,
-        createdAt: undefined,
-        productType: undefined,
-        updatedAt: undefined
+        totalAmountTTC: 35700
       }
     ],
     totalAmountHT: 30000,
@@ -95,10 +93,7 @@ let mockSales: Sale[] = [
         quantity: 5,
         pricePerTon: 1400,
         totalAmountHT: 22400,
-        totalAmountTTC: 26656,
-        createdAt: undefined,
-        productType: undefined,
-        updatedAt: undefined
+        totalAmountTTC: 26656
       }
     ],
     totalAmountHT: 22400,
@@ -341,7 +336,6 @@ export const localDB = {
             quantity: typeof item.quantity === 'number' ? item.quantity : 0,
             price_per_ton: typeof item.pricePerTon === 'number' ? item.pricePerTon : 0,
             total_amount: typeof item.totalAmountHT === 'number' ? item.totalAmountHT : 0,
-            product_type: item.productType ?? 'coil',
           }))
         };
         console.log('[createSale] Payload to backend:', JSON.stringify(backendSale, null, 2));
@@ -599,50 +593,51 @@ export const mockData = {
   settings: mockSettings
 };
 
-export const getSales = async (): Promise<Sale[]> => {
-  const backendSales = await tauriApi.sales.getAll() as any[];
-  if (!Array.isArray(backendSales)) return [];
-  return backendSales.map((sale: any) => ({
-    id: sale.id,
-    clientId: sale.client_id,
-    date: new Date(sale.date),
-    items: (sale.items || []).map((item: any) => ({
-      id: item.id,
-      description: item.description,
-      coilRef: item.coil_ref,
-      coilThickness: item.coil_thickness,
-      coilWidth: item.coil_width,
-      topCoatRAL: item.top_coat_ral,
-      backCoatRAL: item.back_coat_ral,
-      coilWeight: item.coil_weight,
-      quantity: Number(item.quantity),
-      pricePerTon: Number(item.price_per_ton),
-      totalAmountHT: Number(item.total_amount_ht ?? item.total_amount),
-      totalAmountTTC: Number(item.total_amount_ttc),
-      createdAt: undefined,
-      updatedAt: undefined,
-      productType:
-        item.productType ||
-        item.product_type ||
-        (item.description?.toLowerCase().includes('slitting') ? 'steel_slitting'
-        : item.description?.toLowerCase().includes('coil') ? 'coil'
-        : item.description?.toLowerCase().includes('corrugated') ? 'corrugated_sheet'
-        : undefined),
-    })),
-    totalAmountHT: Number(sale.total_amount_ht ?? sale.total_amount),
-    totalAmountTTC: Number(sale.total_amount_ttc),
-    isInvoiced: !!sale.is_invoiced,
-    invoiceId: sale.invoice_id,
-    notes: sale.notes,
-    paymentMethod: sale.payment_method,
-    transportationFee: sale.transportation_fee,
-    taxRate: sale.tax_rate,
-    createdAt: new Date(sale.created_at),
-    updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
-    isPaid: !!sale.is_paid,
-    paidAt: sale.paid_at ? new Date(sale.paid_at) : undefined
-  }));
-};
+// Remove getSales (which uses tauriApi.sales.getAll) and update all usages to use getSalesPaginated.
+// export const getSales = async (): Promise<Sale[]> => {
+//   const backendSales = await tauriApi.sales.getAll() as any[];
+//   if (!Array.isArray(backendSales)) return [];
+//   return backendSales.map((sale: any) => ({
+//     id: sale.id,
+//     clientId: sale.client_id,
+//     date: new Date(sale.date),
+//     items: (sale.items || []).map((item: any) => ({
+//       id: item.id,
+//       description: item.description,
+//       coilRef: item.coil_ref,
+//       coilThickness: item.coil_thickness,
+//       coilWidth: item.coil_width,
+//       topCoatRAL: item.top_coat_ral,
+//       backCoatRAL: item.back_coat_ral,
+//       coilWeight: item.coil_weight,
+//       quantity: Number(item.quantity),
+//       pricePerTon: Number(item.price_per_ton),
+//       totalAmountHT: Number(item.total_amount_ht ?? item.total_amount),
+//       totalAmountTTC: Number(item.total_amount_ttc),
+//       createdAt: undefined,
+//       updatedAt: undefined,
+//       productType:
+//         item.productType ||
+//         item.product_type ||
+//         (item.description?.toLowerCase().includes('slitting') ? 'steel_slitting'
+//         : item.description?.toLowerCase().includes('coil') ? 'coil'
+//         : item.description?.toLowerCase().includes('corrugated') ? 'corrugated_sheet'
+//         : undefined),
+//     })),
+//     totalAmountHT: Number(sale.total_amount_ht ?? sale.total_amount),
+//     totalAmountTTC: Number(sale.total_amount_ttc),
+//     isInvoiced: !!sale.is_invoiced,
+//     invoiceId: sale.invoice_id,
+//     notes: sale.notes,
+//     paymentMethod: sale.payment_method,
+//     transportationFee: sale.transportation_fee,
+//     taxRate: sale.tax_rate,
+//     createdAt: new Date(sale.created_at),
+//     updatedAt: sale.updated_at ? new Date(sale.updated_at) : undefined,
+//     isPaid: !!sale.is_paid,
+//     paidAt: sale.paid_at ? new Date(sale.paid_at) : undefined
+//   }));
+// };
 
 export const getDeletedSales = async (): Promise<Sale[]> => {
   const backendSales = await tauriApi.sales.getDeleted() as any[];
@@ -754,7 +749,6 @@ export const createSale = async (sale: Omit<Sale, 'id' | 'createdAt' | 'updatedA
         quantity: typeof item.quantity === 'number' ? item.quantity : 0,
         price_per_ton: typeof item.pricePerTon === 'number' ? item.pricePerTon : 0,
         total_amount: typeof item.totalAmountHT === 'number' ? item.totalAmountHT : 0,
-        product_type: item.productType ?? 'coil',
       }))
     };
     console.log('[createSale] Payload to backend:', JSON.stringify(backendSale, null, 2));
@@ -795,9 +789,7 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
     if (typeof item.totalAmountTTC !== 'number') {
       throw new Error(`Sale item at index ${idx} is missing totalAmountTTC`);
     }
-    if (!item.productType) {
-      throw new Error(`Sale item at index ${idx} is missing productType`);
-    }
+    // Remove productType if not in backend
     return {
       description: item.description,
       coil_ref: item.coilRef ?? null,
@@ -808,8 +800,7 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale>
       coil_weight: item.coilWeight ?? null,
       quantity: item.quantity,
       price_per_ton: item.pricePerTon,
-      total_amount: item.totalAmountHT,
-      product_type: item.productType,
+      total_amount: item.totalAmountHT
     };
   });
   function flattenAndClean(obj: Record<string, any>) {
@@ -875,6 +866,61 @@ export const unmarkSaleAsInvoiced = async (saleId: string): Promise<void> => {
     console.error('Error unmarking sale as invoiced:', error);
     throw error;
   }
+};
+
+export interface PaginatedSalesResult {
+  rows: Sale[];
+  total: number;
+}
+
+function mapDbSaleToSale(row: any): Sale {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    date: row.date ? new Date(row.date) : new Date(),
+    items: Array.isArray(row.items)
+      ? row.items.map((item: any) => ({
+          id: item.id,
+          description: item.description,
+          coilRef: item.coil_ref,
+          coilThickness: item.coil_thickness,
+          coilWidth: item.coil_width,
+          topCoatRAL: item.top_coat_ral,
+          backCoatRAL: item.back_coat_ral,
+          coilWeight: item.coil_weight,
+          quantity: item.quantity,
+          pricePerTon: item.price_per_ton,
+          totalAmountHT: item.total_amount, // backend uses total_amount
+          totalAmountTTC: item.total_amount, // fallback, adjust if needed
+          productType: item.product_type,
+        }))
+      : [],
+    totalAmountHT: row.total_amount,
+    totalAmountTTC: row.total_amount_ttc,
+    isInvoiced: row.is_invoiced,
+    invoiceId: row.invoice_id,
+    notes: row.notes,
+    paymentMethod: row.payment_method,
+    transportationFee: row.transportation_fee,
+    taxRate: row.tax_rate,
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+    isDeleted: false,
+    deletedAt: undefined,
+    isPaid: row.is_paid,
+    paidAt: row.paid_at ? new Date(row.paid_at) : undefined,
+  };
+}
+
+export const getSalesPaginated = async (
+  page: number = 1,
+  pageSize: number = 5
+): Promise<PaginatedSalesResult> => {
+  const result = await tauriApi.sales.getSales(page, pageSize) as any;
+  return {
+    rows: result.rows.map((row: any) => mapDbSaleToSale(row)),
+    total: result.total,
+  };
 };
 
 // TODO: Implement updateSale and other advanced sale operations when backend support is available.

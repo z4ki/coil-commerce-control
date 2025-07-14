@@ -10,6 +10,11 @@ export interface AuditLog {
   details?: string | null;
 }
 
-export async function getAuditLog(): Promise<AuditLog[]> {
-  return await core.invoke<AuditLog[]>('get_audit_log');
+export interface PaginatedAuditLogResult {
+  rows: AuditLog[];
+  total: number;
+}
+
+export async function getAuditLog(page: number = 1, pageSize: number = 50): Promise<PaginatedAuditLogResult> {
+  return await core.invoke<PaginatedAuditLogResult>('get_audit_log', { page, page_size: pageSize });
 } 

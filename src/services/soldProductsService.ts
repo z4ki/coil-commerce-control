@@ -28,7 +28,9 @@ export interface SoldProduct {
 
 export interface SoldProductsSummary {
   totalWeight: number;
-  totalRevenue: number;
+  totalRevenue: number; // legacy, item-level
+  officialTotalRevenue: number;
+  itemTotalRevenue: number;
   totalQuantity: number;
   uniqueProducts: number;
   uniqueClients: number;
@@ -73,21 +75,21 @@ export const getSoldProductsAnalytics = async (
       toBackendFilter(filters),
       page,
       pageSize
-    ) as SoldProductsAnalyticsResult;
+    ) as any; // Use any for backend response
     // result: { rows, total }
     return {
-      rows: result.rows.map(row => ({
-        productName: row.productName ?? '-',
-        clientName: row.clientName ?? '-',
+      rows: result.rows.map((row: any) => ({
+        productName: row.product_name ?? '-',
+        clientName: row.client_name ?? '-',
         thickness: row.thickness ?? 0,
         width: row.width ?? 0,
         quantity: row.quantity ?? 0,
         weight: row.weight ?? 0,
-        unitPrice: row.unitPrice ?? 0,
-        totalPrice: row.totalPrice ?? 0,
-        invoiceNumber: row.invoiceNumber ?? '-',
-        saleDate: row.saleDate ?? '-',
-        paymentStatus: row.paymentStatus ?? '-',
+        unitPrice: row.unit_price ?? 0,
+        totalPrice: row.total_price ?? 0,
+        invoiceNumber: row.invoice_number ?? '-',
+        saleDate: row.sale_date ?? '-',
+        paymentStatus: row.payment_status ?? '-',
       })),
       total: result.total ?? 0,
     };
@@ -103,7 +105,9 @@ export const getSoldProductsSummary = async (filters: SoldProductsFilter): Promi
     // Map snake_case to camelCase for frontend
     return {
       totalWeight: data.total_weight ?? 0,
-      totalRevenue: data.total_revenue ?? 0,
+      totalRevenue: data.total_revenue ?? 0, // legacy
+      officialTotalRevenue: data.official_total_revenue ?? 0,
+      itemTotalRevenue: data.item_total_revenue ?? 0,
       totalQuantity: data.total_quantity ?? 0,
       uniqueProducts: data.unique_products ?? 0,
       uniqueClients: data.unique_clients ?? 0,

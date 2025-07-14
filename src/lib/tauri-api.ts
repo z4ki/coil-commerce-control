@@ -3,14 +3,14 @@ import { core } from '@tauri-apps/api';
 
 export const tauriApi = {
   clients: {
-    getAll: () => core.invoke('get_clients'),
+    getClients: (page?: number, pageSize?: number) => core.invoke('get_clients', { page, page_size: pageSize }),
     getById: (id: string) => core.invoke('get_client_by_id', { id }),
     create: (client: any) => core.invoke('create_client', { client }),
     update: (id: string, client: any) => core.invoke('update_client', { id, client }),
     delete: (id: string) => core.invoke('delete_client', { id }),
   },
   sales: {
-    getAll: () => core.invoke('get_sales'),
+    getSales: (page?: number, pageSize?: number) => core.invoke('get_sales', { page, page_size: pageSize }),
     getById: (id: string) => core.invoke('get_sale_by_id', { id }),
     create: (sale: any) => core.invoke('create_sale', { sale }),
     delete: (id: string) => core.invoke('delete_sale', { id }),
@@ -30,7 +30,7 @@ export const tauriApi = {
     },
   },
   invoices: {
-    getAll: () => core.invoke('get_invoices'),
+    getInvoices: (page?: number, pageSize?: number) => core.invoke('get_invoices', { page, page_size: pageSize }),
     create: (invoice: any) => core.invoke('create_invoice', { invoice }),
     delete: (id: string) => core.invoke('delete_invoice', { id }),
     restore: (id: string) => core.invoke('restore_invoice', { id }),
@@ -55,4 +55,8 @@ export const tauriApi = {
     export_db: (export_path?: string) => core.invoke('export_db', { export_path }),
     import_db: (import_path: string) => core.invoke('import_db', { import_path }),
   },
+  dashboard: {
+    getDashboardStats: () => core.invoke('get_dashboard_stats'),
+  },
 };
+

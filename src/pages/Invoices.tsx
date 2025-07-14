@@ -36,13 +36,39 @@ import {
 import { Plus, Search, Edit, Trash2, FileText, MoreVertical, Download } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/utils/format';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { Invoice } from '@/types';
+import { Invoice, Client } from '@/types/index';
 import { toast } from 'sonner';
 import InvoiceForm from '@/components/invoices/InvoiceForm';
 import { Link } from 'react-router-dom';
 import { getDeletedInvoices, restoreInvoice } from '@/services/invoiceService';
+import { useInfiniteInvoices } from '@/hooks/useInfiniteInvoices';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
+import { Sale } from '@/types/index';
+import Spinner from '@/components/ui/Spinner';
 
-const InvoiceTableRow = memo(({ invoice, client, paymentStatus, isOverdue, t, onEdit, onDelete, onView, onExport }) => (
+type InvoiceTableRowProps = {
+  invoice: Invoice;
+  client: Client | undefined;
+  paymentStatus: any;
+  isOverdue: boolean;
+  t: (key: string) => string;
+  onEdit: (invoice: Invoice) => void;
+  onDelete: (invoice: Invoice) => void;
+  onView: (invoice: Invoice) => void;
+  onExport: (invoice: Invoice) => void;
+};
+
+const InvoiceTableRow = memo(({
+  invoice,
+  client,
+  paymentStatus,
+  isOverdue,
+  t,
+  onEdit,
+  onDelete,
+  onView,
+  onExport
+}: InvoiceTableRowProps) => (
   <TableRow key={invoice.id}>
     <TableCell className="font-medium">
       <Link 
@@ -111,7 +137,7 @@ const InvoiceTableRow = memo(({ invoice, client, paymentStatus, isOverdue, t, on
 ));
 
 const Invoices = () => {
-  const { invoices, deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus } = useAppContext();
+  const { deleteInvoice, getClientById, getSaleById, getInvoicePaymentStatus, ensureClientsLoaded } = useAppContext();
   const { settings } = useAppSettings();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
@@ -119,6 +145,30 @@ const Invoices = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [deletedInvoices, setDeletedInvoices] = useState<Invoice[]>([]);
+
+  // Infinite scroll
+  const {
+    rows: invoices,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfiniteInvoices();
+  const sentinelRef = useIntersectionObserver(() => {
+    if (hasMore && !loading) loadMore();
+  });
+
+  // Ensure all clients for loaded invoices are present
+  useEffect(() => {
+    const clientIds = Array.from(new Set(invoices.map(inv => inv.clientId)));
+    ensureClientsLoaded(clientIds);
+  }, [invoices, ensureClientsLoaded]);
+
+  // Reset on search
+  useEffect(() => {
+    reload();
+  }, [searchTerm, reload]);
 
   useEffect(() => {
     if (showArchive) {
@@ -139,7 +189,7 @@ const Invoices = () => {
       toast.error(t('invoices.clientNotFound'));
       return;
     }
-    const sales = invoice.salesIds.map(id => getSaleById(id)).filter(Boolean);
+    const sales = invoice.salesIds.map(id => getSaleById(id)).filter((s): s is Sale => Boolean(s));
     const paymentStatus = getInvoicePaymentStatus(invoice.id);
     const payments = paymentStatus?.payments || [];
     try {
@@ -182,15 +232,17 @@ const Invoices = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button className="mr-0" onClick={() => setShowArchive(a => !a)} variant="outline">
-            {showArchive ? t('invoices.showActive') || 'Show Active' : t('invoices.showArchive') || 'Show Archive'}
-          </Button>
-          <Button onClick={() => {
-            setSelectedInvoice(null);
-            setShowAddDialog(true);
-          }}>
-            <Plus className="mr-1 h-4 w-4" /> {t('invoices.create')}
-          </Button>
+          <div className="flex gap-2 ml-auto">
+            <Button onClick={() => setShowArchive(a => !a)} variant="outline">
+              {showArchive ? t('invoices.showActive') || 'Show Active' : t('invoices.showArchive') || 'Show Archive'}
+            </Button>
+            <Button onClick={() => {
+              setSelectedInvoice(null);
+              setShowAddDialog(true);
+            }}>
+              <Plus className="mr-1 h-4 w-4" /> {t('invoices.create')}
+            </Button>
+          </div>
         </div>
 
         {showArchive ? (
@@ -246,28 +298,20 @@ const Invoices = () => {
                     </TableHeader>
                     <TableBody>
                       {filteredInvoices.length > 0 ? (
-                        filteredInvoices.map((invoice) => {
-                          const client = getClientById(invoice.clientId);
-                          const paymentStatus = getInvoicePaymentStatus(invoice.id);
-                          const isOverdue = !invoice.isPaid && new Date() > invoice.dueDate;
-                          return (
-                            <InvoiceTableRow
-                              key={invoice.id}
-                              invoice={invoice}
-                              client={client}
-                              paymentStatus={paymentStatus}
-                              isOverdue={isOverdue}
-                              t={t}
-                              onEdit={() => {
-                                setSelectedInvoice(invoice);
-                                setShowAddDialog(true);
-                              }}
-                              onDelete={() => handleDeleteInvoice(invoice)}
-                              onView={() => {}}
-                              onExport={() => handleExportPDF(invoice)}
-                            />
-                          );
-                        })
+                        filteredInvoices.map((invoice) => (
+                          <InvoiceTableRow
+                            key={invoice.id}
+                            invoice={invoice}
+                            client={getClientById(invoice.clientId)}
+                            paymentStatus={getInvoicePaymentStatus(invoice.id)}
+                            isOverdue={!invoice.isPaid && new Date(invoice.dueDate) < new Date()}
+                            t={t}
+                            onEdit={() => { setSelectedInvoice(invoice); setShowAddDialog(true); }}
+                            onDelete={() => handleDeleteInvoice(invoice)}
+                            onView={() => setSelectedInvoice(invoice)}
+                            onExport={handleExportPDF}
+                          />
+                        ))
                       ) : (
                         <TableRow>
                           <TableCell colSpan={7} className="h-24 text-center">
@@ -277,6 +321,20 @@ const Invoices = () => {
                           </TableCell>
                         </TableRow>
                       )}
+                      <TableRow ref={sentinelRef as any}>
+                        <TableCell colSpan={7} className="text-center py-2">
+                          {loading && hasMore && (
+                            <div className="flex justify-center items-center py-2">
+                              <Spinner size={24} />
+                              <span className="ml-2">{t('general.loading')}</span>
+                            </div>
+                          )}
+                          {!hasMore && !loading && filteredInvoices.length > 0 && (
+                            <span className="text-muted-foreground text-xs">{t('general.endOfList') || 'No more invoices'}</span>
+                          )}
+                          {error && <span className="text-destructive text-xs">{error}</span>}
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>

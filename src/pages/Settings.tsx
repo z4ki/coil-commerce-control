@@ -28,6 +28,7 @@ import type { AppSettings, CompanyProfile } from '@/types/index';
 import { useInvoiceSettings } from '@/context/InvoiceSettingsContext';
 import { exportDb, importDb } from '@/services/settingsService';
 import { core } from '@tauri-apps/api';
+import { useLanguage } from '@/context/LanguageContext';
 
 const Settings = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -37,6 +38,7 @@ const Settings = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+  const { language, setLanguage, t } = useLanguage();
 
   useEffect(() => {
     loadSettings();
@@ -213,6 +215,19 @@ const Settings = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Language Toggle */}
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="languageToggle">{t('general.language')}</Label>
+                  <select
+                    id="languageToggle"
+                    value={language}
+                    onChange={e => setLanguage(e.target.value as 'en' | 'fr')}
+                    className="input input-sm w-32"
+                  >
+                    <option value="fr">Français</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
                 <div className="flex items-center space-x-2">
                   <Switch 
                     id="darkMode" 

@@ -85,6 +85,9 @@ const translations: { [key in Language]: Translations } = {
       'allTypes': 'All Types',
       'allStatuses': 'All Statuses',
       'delete': 'Delete',
+      'endOfList': 'No more results',
+      'noResults': 'No results found',
+      'allDataLoaded': 'All data has been loaded',
     },
 
     auditLog: {
@@ -124,7 +127,12 @@ const translations: { [key in Language]: Translations } = {
       'quantity': 'Quantity',
       'invoiceIssued': 'Invoice issued #{invoiceNumber} ({amount})',
       'paymentFrom': 'Payment from {client} ({amount})',
-      'saleTo': 'Sale to {client} ({amount})'
+      'saleTo': 'Sale to {client} ({amount})',
+      'newClients': 'New Clients',
+      'overdueInvoices': 'Overdue Invoices',
+      'unpaidInvoices': 'Unpaid Invoices',
+      'totalSalesCount': 'Total Sales Count',
+      'monthlySalesCount': 'Monthly Sales Count',
     },
 
     // Sales
@@ -673,7 +681,11 @@ const translations: { [key in Language]: Translations } = {
       invoiceNumber: 'Invoice Number',
       saleDate: 'Sale Date',
       loadingSummary: 'Loading summary...',
-      loadingData: 'Loading data...'
+      loadingData: 'Loading data...',
+      officialTotalRevenue: 'Official Total Revenue',
+      itemTotalRevenue: 'Product Total Revenue',
+      officialTotalRevenueTooltip: 'Sum of sales (invoices) with tax (TTC). Matches official accounting.',
+      itemTotalRevenueTooltip: 'Sum of sold product amounts (with VAT). Useful for product-level analysis.',
     },
   },
   fr: {
@@ -742,6 +754,10 @@ const translations: { [key in Language]: Translations } = {
       'allTypes': 'All Types',
       'allStatuses': 'All Statuses',
       'delete': 'Supprimer',
+      'endOfList': 'Plus de résultats',
+      'noResults': 'Aucun résultat trouvé',
+      'allDataLoaded': 'Toutes les données ont été chargées',
+
     },
 
     auditLog: {
@@ -781,7 +797,12 @@ const translations: { [key in Language]: Translations } = {
       'quantity': 'Quantité',
       'invoiceIssued': 'Facture émise n°{invoiceNumber} ({amount})',
       'paymentFrom': 'Paiement de {client} ({amount})',
-      'saleTo': 'Vente à {client} ({amount})'
+      'saleTo': 'Vente à {client} ({amount})',
+      'newClients': 'Nouveaux clients',
+      'overdueInvoices': 'Factures en retard',
+      'unpaidInvoices': 'Factures impayées',
+      'totalSalesCount': 'Nombre total de ventes',
+      'monthlySalesCount': 'Nombre de ventes ce mois',
     },
 
     // Sales
@@ -1316,7 +1337,7 @@ const translations: { [key in Language]: Translations } = {
       unitPriceMax: 'P.U max',
       paymentStatus: 'Statut de paiement',
       totalWeightSold: 'Poids total vendu',
-      totalRevenue: 'Chiffre d\'affaires total',
+      totalRevenue: 'Total',
       totalQuantitySold: 'Quantité totale vendue',
       uniqueClients: 'Clients uniques',
       productName: 'Nom du produit',
@@ -1328,7 +1349,11 @@ const translations: { [key in Language]: Translations } = {
       invoiceNumber: 'Numéro de facture',
       saleDate: 'Date de vente',
       loadingSummary: 'Chargement du résumé...',
-      loadingData: 'Chargement des données...'
+      loadingData: 'Chargement des données...',
+      officialTotalRevenue: 'Chiffre d\'affaires officiel',
+      itemTotalRevenue: 'Chiffre d\'affaires produits',
+      officialTotalRevenueTooltip: 'Somme des ventes TTC (factures officielles). Correspond à la comptabilité.',
+      itemTotalRevenueTooltip: 'Somme des montants des produits vendus (avec TVA). Utile pour l\'analyse par produit.',
     },
   }
 };

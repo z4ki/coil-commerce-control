@@ -117,19 +117,13 @@ export interface BulkPayment {
 
 // Define the type for dashboard stats
 export interface DashboardStats {
-  totalSales: number;
-  totalInvoices: number;
-  paidInvoices: number;
-  unpaidInvoices: number;
-  overdueInvoices: number;
-  totalRevenue: number;
-  revenueCollected: number;
-  outstandingAmount: number;
-  paymentMethodTotals: {
-    cash: number;
-    bank_transfer: number;
-    check: number;
-  };
+  total_revenue: number;
+  sales_count: number;
+  monthly_revenue: number;
+  monthly_sales_count: number;
+  new_clients: number;
+  overdue_invoices: number;
+  unpaid_invoices: number;
 }
 
 // CompanyProfile is the canonical type for company info

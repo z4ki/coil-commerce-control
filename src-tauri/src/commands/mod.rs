@@ -140,22 +140,36 @@ pub struct CreateSaleItemRequest {
 }
 
 // Client commands
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct PaginatedClientsResult {
+    pub rows: Vec<Client>,
+    pub total: i64,
+}
+
 #[tauri::command]
-pub async fn get_clients(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Client>, String> {
+pub async fn get_clients(
+    page: Option<u32>,
+    page_size: Option<u32>,
+    pool: tauri::State<'_, SqlitePool>
+) -> Result<PaginatedClientsResult, String> {
+    let page = page.unwrap_or(1);
+    let page_size = page_size.unwrap_or(5);
+    let offset = (page - 1) * page_size;
+    // Total count
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM clients WHERE 1=1")
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Paginated rows
     let clients = sqlx::query(
-        r#"
-        SELECT 
-            id, name, company, email, phone, address, notes, nif, nis, rc, ai, rib,
-            credit_balance, created_at, updated_at
-        FROM clients 
-        ORDER BY name
-        "#
+        r#"SELECT id, name, company, email, phone, address, notes, nif, nis, rc, ai, rib, credit_balance, created_at, updated_at FROM clients ORDER BY name LIMIT ? OFFSET ?"#
     )
+    .bind(page_size as i64)
+    .bind(offset as i64)
     .fetch_all(&*pool)
     .await
     .map_err(|e| e.to_string())?;
-    
-    let clients: Vec<Client> = clients
+    let rows: Vec<Client> = clients
         .into_iter()
         .map(|row| Client {
             id: row.get("id"),
@@ -175,8 +189,7 @@ pub async fn get_clients(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Clien
             updated_at: row.get("updated_at"),
         })
         .collect();
-    
-    Ok(clients)
+    Ok(PaginatedClientsResult { rows, total })
 }
 
 #[tauri::command]
@@ -321,17 +334,36 @@ pub async fn delete_client(
 }
 
 // Sale commands
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct PaginatedSalesResult {
+    pub rows: Vec<Sale>,
+    pub total: i64,
+}
+
 #[tauri::command]
-pub async fn get_sales(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Sale>, String> {
-    
+pub async fn get_sales(
+    page: Option<u32>,
+    page_size: Option<u32>,
+    pool: tauri::State<'_, SqlitePool>
+) -> Result<PaginatedSalesResult, String> {
+    let page = page.unwrap_or(1);
+    let page_size = page_size.unwrap_or(5);
+    let offset = (page - 1) * page_size;
+    // Total count
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sales WHERE is_deleted = 0 OR is_deleted IS NULL")
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Paginated sales
     let sales_rows = sqlx::query(
-        r#"SELECT * FROM sales WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY date DESC"#
+        r#"SELECT * FROM sales WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY date DESC LIMIT ? OFFSET ?"#
     )
+    .bind(page_size as i64)
+    .bind(offset as i64)
     .fetch_all(&*pool)
     .await
     .map_err(|e| e.to_string())?;
-
-    let mut sales = Vec::new();
+    let mut rows = Vec::new();
     for sale_row in sales_rows {
         let sale_id: String = sale_row.get("id");
         let items_rows = sqlx::query(
@@ -358,7 +390,7 @@ pub async fn get_sales(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Sale>, 
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
         }).collect();
-        sales.push(Sale {
+        rows.push(Sale {
             id: sale_row.get("id"),
             client_id: sale_row.get("client_id"),
             date: sale_row.get("date"),
@@ -377,7 +409,7 @@ pub async fn get_sales(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Sale>, 
             items,
         });
     }
-    Ok(sales)
+    Ok(PaginatedSalesResult { rows, total })
 }
 
 #[tauri::command]
@@ -803,8 +835,27 @@ pub struct CreateInvoiceRequest {
     pub sales_ids: Vec<String>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct PaginatedInvoicesResult {
+    pub rows: Vec<serde_json::Value>,
+    pub total: i64,
+}
+
 #[tauri::command]
-pub async fn get_invoices(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn get_invoices(
+    page: Option<u32>,
+    page_size: Option<u32>,
+    pool: tauri::State<'_, SqlitePool>
+) -> Result<PaginatedInvoicesResult, String> {
+    let page = page.unwrap_or(1);
+    let page_size = page_size.unwrap_or(5);
+    let offset = (page - 1) * page_size;
+    // Total count
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM invoices WHERE is_deleted = 0 OR is_deleted IS NULL")
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Paginated rows
     let invoices = sqlx::query(
         r#"
         SELECT i.id, i.invoice_number, i.client_id, i.date, i.due_date, 
@@ -816,20 +867,21 @@ pub async fn get_invoices(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<serd
         WHERE i.is_deleted = 0 OR i.is_deleted IS NULL
         GROUP BY i.id
         ORDER BY i.date DESC
+        LIMIT ? OFFSET ?
         "#
     )
+    .bind(page_size as i64)
+    .bind(offset as i64)
     .fetch_all(&*pool)
     .await
     .map_err(|e| e.to_string())?;
-
-    let invoices: Vec<serde_json::Value> = invoices
+    let rows: Vec<serde_json::Value> = invoices
         .into_iter()
         .map(|row| {
             let sales_ids: Option<String> = row.get("sales_ids");
             let sales_ids_array = sales_ids
                 .map(|s| s.split(',').filter(|s| !s.is_empty()).map(String::from).collect::<Vec<_>>())
                 .unwrap_or_default();
-            
             serde_json::json!({
                 "id": row.get::<String, _>("id"),
                 "invoice_number": row.get::<String, _>("invoice_number"),
@@ -846,8 +898,7 @@ pub async fn get_invoices(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<serd
             })
         })
         .collect();
-
-    Ok(invoices)
+    Ok(PaginatedInvoicesResult { rows, total })
 }
 
 #[tauri::command]
@@ -1752,15 +1803,35 @@ pub async fn import_db(app: tauri::AppHandle, import_path: Option<String>) -> Re
     ))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct PaginatedAuditLogResult {
+    pub rows: Vec<AuditLog>,
+    pub total: i64,
+}
+
 #[tauri::command]
-pub async fn get_audit_log(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<AuditLog>, String> {
+pub async fn get_audit_log(
+    page: Option<u32>,
+    page_size: Option<u32>,
+    pool: tauri::State<'_, SqlitePool>
+) -> Result<PaginatedAuditLogResult, String> {
+    let page = page.unwrap_or(1);
+    let page_size = page_size.unwrap_or(50);
+    let offset = (page - 1) * page_size;
+    // Total count
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM audit_log")
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Paginated rows
     let rows = sqlx::query(
-        "SELECT id, action, entity_type, entity_id, user_id, timestamp, details FROM audit_log ORDER BY timestamp DESC"
+        "SELECT id, action, entity_type, entity_id, user_id, timestamp, details FROM audit_log ORDER BY timestamp DESC LIMIT ? OFFSET ?"
     )
+    .bind(page_size as i64)
+    .bind(offset as i64)
     .fetch_all(&*pool)
     .await
     .map_err(|e| e.to_string())?;
-
     let logs = rows.into_iter().map(|row| AuditLog {
         id: row.get("id"),
         action: row.get("action"),
@@ -1770,7 +1841,7 @@ pub async fn get_audit_log(pool: tauri::State<'_, SqlitePool>) -> Result<Vec<Aud
         timestamp: row.get("timestamp"),
         details: row.get("details"),
     }).collect();
-    Ok(logs)
+    Ok(PaginatedAuditLogResult { rows: logs, total })
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1809,7 +1880,9 @@ pub struct SoldProduct {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SoldProductsSummary {
     pub total_weight: f64,
-    pub total_revenue: f64,
+    pub total_revenue: f64, // item-level total (legacy)
+    pub official_total_revenue: f64, // sum of sales.total_amount_ttc
+    pub item_total_revenue: f64, // sum of sale_items.total_amount * 1.19
     pub total_quantity: f64,
     pub unique_products: i64,
     pub unique_clients: i64,
@@ -1829,7 +1902,7 @@ pub async fn get_sold_products_analytics(
     page_size: Option<u32>,
     pool: tauri::State<'_, SqlitePool>,
 ) -> Result<SoldProductsAnalyticsResult, String> {
-    println!("[get_sold_products_analytics] filter: {:?}", filter);
+    // println!("[get_sold_products_analytics] filter: {:?}", filter);
     let page = page.unwrap_or(1);
     let page_size = page_size.unwrap_or(5);
     let offset = (page - 1) * page_size;
@@ -1915,7 +1988,7 @@ pub async fn get_sold_products_analytics(
     let total: i64 = match count_q.fetch_one(&*pool).await {
         Ok(row) => row.try_get("total").unwrap_or(0),
         Err(e) => {
-            println!("[get_sold_products_analytics] COUNT SQL error: {}", e);
+            // println!("[get_sold_products_analytics] COUNT SQL error: {}", e);
             return Err(e.to_string());
         }
     };
@@ -1929,7 +2002,7 @@ pub async fn get_sold_products_analytics(
     let rows = match q.fetch_all(&*pool).await {
         Ok(rows) => rows,
         Err(e) => {
-            println!("[get_sold_products_analytics] SQL error: {}", e);
+            // println!("[get_sold_products_analytics] SQL error: {}", e);
             return Err(e.to_string());
         }
     };
@@ -1954,11 +2027,63 @@ pub async fn get_sold_products_summary(
     filter: SoldProductsFilter,
     pool: tauri::State<'_, SqlitePool>,
 ) -> Result<SoldProductsSummary, String> {
-    println!("[get_sold_products_summary] filter: {:?}", filter);
-    let mut query = String::from(r#"
+    // Build WHERE clause and params as before
+    let mut where_clause = String::from("WHERE 1=1");
+    let mut params: Vec<String> = Vec::new();
+    if let Some(ref start) = filter.start_date {
+        where_clause.push_str(" AND s.date >= ?");
+        params.push(start.clone());
+    }
+    if let Some(ref end) = filter.end_date {
+        where_clause.push_str(" AND s.date <= ?");
+        params.push(end.clone());
+    }
+    if let Some(ref pt) = filter.product_type {
+        where_clause.push_str(" AND si.product_type = ?");
+        params.push(pt.clone());
+    }
+    if let Some(ref cid) = filter.client_id {
+        where_clause.push_str(" AND s.client_id = ?");
+        params.push(cid.clone());
+    }
+    if let Some(ref thicknesses) = filter.thickness {
+        if !thicknesses.is_empty() {
+            let placeholders = vec!["?"; thicknesses.len()].join(", ");
+            where_clause.push_str(&format!(" AND si.coil_thickness IN ({})", placeholders));
+            for t in thicknesses {
+                params.push(t.to_string());
+            }
+        }
+    }
+    if let Some(ref widths) = filter.width {
+        if !widths.is_empty() {
+            let placeholders = vec!["?"; widths.len()].join(", ");
+            where_clause.push_str(&format!(" AND si.coil_width IN ({})", placeholders));
+            for w in widths {
+                params.push(w.to_string());
+            }
+        }
+    }
+    if let Some(min) = filter.unit_price_min {
+        where_clause.push_str(" AND si.price_per_ton >= ?");
+        params.push(min.to_string());
+    }
+    if let Some(max) = filter.unit_price_max {
+        where_clause.push_str(" AND si.price_per_ton <= ?");
+        params.push(max.to_string());
+    }
+    if let Some(ref status) = filter.payment_status {
+        if status == "paid" {
+            where_clause.push_str(" AND i.is_paid = 1");
+        } else if status == "unpaid" {
+            where_clause.push_str(" AND (i.is_paid = 0 OR i.is_paid IS NULL)");
+        }
+    }
+    // Item-level total (legacy)
+    let item_query = format!(r#"
         SELECT
             SUM(si.coil_weight) as total_weight,
-            SUM(si.total_amount * 1.19) as total_revenue,
+            SUM(si.total_amount * 1.19) as item_total_revenue,
             SUM(si.quantity) as total_quantity,
             COUNT(DISTINCT si.description) as unique_products,
             COUNT(DISTINCT s.client_id) as unique_clients,
@@ -1967,88 +2092,80 @@ pub async fn get_sold_products_summary(
         JOIN sales s ON si.sale_id = s.id
         JOIN clients c ON s.client_id = c.id
         LEFT JOIN invoices i ON s.invoice_id = i.id
-        WHERE 1=1
-    "#);
-    let mut params: Vec<(String, String)> = Vec::new();
+        {}
+    "#, where_clause);
+    let mut item_q = sqlx::query(&item_query);
+    for v in &params {
+        item_q = item_q.bind(v);
+    }
+    let item_row = item_q.fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+    let total_weight: f64 = item_row.try_get("total_weight").unwrap_or(0.0);
+    let item_total_revenue: f64 = item_row.try_get("item_total_revenue").unwrap_or(0.0);
+    let total_quantity: f64 = item_row.try_get("total_quantity").unwrap_or(0.0);
+    let unique_products: i64 = item_row.try_get("unique_products").unwrap_or(0);
+    let unique_clients: i64 = item_row.try_get("unique_clients").unwrap_or(0);
+    let average_order_value: f64 = item_row.try_get("average_order_value").unwrap_or(0.0);
+    // Official total: sum sales.total_amount_ttc for matching sales
+    let mut sales_where = String::from("WHERE is_deleted = 0 OR is_deleted IS NULL");
+    let mut sales_params: Vec<String> = Vec::new();
     if let Some(ref start) = filter.start_date {
-        query.push_str(" AND s.date >= ?");
-        params.push(("start_date".to_string(), start.clone()));
+        sales_where.push_str(" AND date >= ?");
+        sales_params.push(start.clone());
     }
     if let Some(ref end) = filter.end_date {
-        query.push_str(" AND s.date <= ?");
-        params.push(("end_date".to_string(), end.clone()));
-    }
-    if let Some(ref pt) = filter.product_type {
-        query.push_str(" AND si.product_type = ?");
-        params.push(("product_type".to_string(), pt.clone()));
+        sales_where.push_str(" AND date <= ?");
+        sales_params.push(end.clone());
     }
     if let Some(ref cid) = filter.client_id {
-        query.push_str(" AND s.client_id = ?");
-        params.push(("client_id".to_string(), cid.clone()));
+        sales_where.push_str(" AND client_id = ?");
+        sales_params.push(cid.clone());
     }
-    if let Some(ref thicknesses) = filter.thickness {
-        if !thicknesses.is_empty() {
-            let placeholders = vec!["?"; thicknesses.len()].join(", ");
-            query.push_str(&format!(" AND si.coil_thickness IN ({})", placeholders));
-            for t in thicknesses {
-                params.push(("thickness".to_string(), t.to_string()));
+    // If product/thickness/width filters are present, restrict to sales that have at least one matching item
+    let mut restrict_to_sales = false;
+    if filter.product_type.is_some() || (filter.thickness.is_some() && !filter.thickness.as_ref().unwrap().is_empty()) || (filter.width.is_some() && !filter.width.as_ref().unwrap().is_empty()) {
+        restrict_to_sales = true;
+    }
+    let official_total_revenue = if restrict_to_sales {
+        // Find sale_ids matching the item filters
+        let mut sale_ids_query = format!("SELECT DISTINCT s.id FROM sales s JOIN sale_items si ON si.sale_id = s.id {}", where_clause);
+        let mut sale_ids_q = sqlx::query(&sale_ids_query);
+        for v in &params {
+            sale_ids_q = sale_ids_q.bind(v);
+        }
+        let sale_ids_rows = sale_ids_q.fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+        let sale_ids: Vec<String> = sale_ids_rows.into_iter().filter_map(|row| row.try_get::<String, _>("id").ok()).collect();
+        if sale_ids.is_empty() {
+            0.0
+        } else {
+            // Build a query to sum total_amount_ttc for these sales
+            let placeholders = sale_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+            let sum_query = format!("SELECT SUM(total_amount_ttc) as official_total_revenue FROM sales WHERE id IN ({})", placeholders);
+            let mut sum_q = sqlx::query(&sum_query);
+            for id in &sale_ids {
+                sum_q = sum_q.bind(id);
             }
+            let sum_row = sum_q.fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+            sum_row.try_get("official_total_revenue").unwrap_or(0.0)
         }
-    }
-    if let Some(ref widths) = filter.width {
-        if !widths.is_empty() {
-            let placeholders = vec!["?"; widths.len()].join(", ");
-            query.push_str(&format!(" AND si.coil_width IN ({})", placeholders));
-            for w in widths {
-                params.push(("width".to_string(), w.to_string()));
-            }
+    } else {
+        // No product/thickness/width filter: sum all matching sales
+        let sum_query = format!("SELECT SUM(total_amount_ttc) as official_total_revenue FROM sales {}", sales_where);
+        let mut sum_q = sqlx::query(&sum_query);
+        for v in &sales_params {
+            sum_q = sum_q.bind(v);
         }
-    }
-    if let Some(min) = filter.unit_price_min {
-        query.push_str(" AND si.price_per_ton >= ?");
-        params.push(("unit_price_min".to_string(), min.to_string()));
-    }
-    if let Some(max) = filter.unit_price_max {
-        query.push_str(" AND si.price_per_ton <= ?");
-        params.push(("unit_price_max".to_string(), max.to_string()));
-    }
-    if let Some(ref status) = filter.payment_status {
-        if status == "paid" {
-            query.push_str(" AND i.is_paid = 1");
-        } else if status == "unpaid" {
-            query.push_str(" AND (i.is_paid = 0 OR i.is_paid IS NULL)");
-        }
-    }
-    query.push_str(" ORDER BY s.date DESC, si.description ASC");
-    println!("[get_sold_products_summary] SQL: {}", query);
-    println!("[get_sold_products_summary] params: {:?}", params);
-    let mut q = sqlx::query(&query);
-    for (_k, v) in &params {
-        q = q.bind(v);
-    }
-    let row = match q.fetch_one(&*pool).await {
-        Ok(row) => {
-            let total_weight: Option<f64> = row.try_get("total_weight").ok();
-            let total_revenue: Option<f64> = row.try_get("total_revenue").ok();
-            let total_quantity: Option<f64> = row.try_get("total_quantity").ok();
-            let unique_products: Option<i64> = row.try_get("unique_products").ok();
-            let unique_clients: Option<i64> = row.try_get("unique_clients").ok();
-            let average_order_value: Option<f64> = row.try_get("average_order_value").ok();
-            println!("[get_sold_products_summary] raw fields: total_weight={:?}, total_revenue={:?}, total_quantity={:?}, unique_products={:?}, unique_clients={:?}, average_order_value={:?}", total_weight, total_revenue, total_quantity, unique_products, unique_clients, average_order_value);
-            row
-        },
-        Err(e) => {
-            println!("[get_sold_products_summary] SQL error: {}", e);
-            return Err(e.to_string());
-        }
+        let sum_row = sum_q.fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+        sum_row.try_get("official_total_revenue").unwrap_or(0.0)
     };
     Ok(SoldProductsSummary {
-        total_weight: row.try_get("total_weight").unwrap_or(Some(0.0)).unwrap_or(0.0),
-        total_revenue: row.try_get("total_revenue").unwrap_or(Some(0.0)).unwrap_or(0.0),
-        total_quantity: row.try_get("total_quantity").unwrap_or(Some(0.0)).unwrap_or(0.0),
-        unique_products: row.try_get("unique_products").unwrap_or(Some(0)).unwrap_or(0),
-        unique_clients: row.try_get("unique_clients").unwrap_or(Some(0)).unwrap_or(0),
-        average_order_value: row.try_get("average_order_value").unwrap_or(Some(0.0)).unwrap_or(0.0),
+        total_weight,
+        total_revenue: item_total_revenue, // legacy
+        official_total_revenue,
+        item_total_revenue,
+        total_quantity,
+        unique_products,
+        unique_clients,
+        average_order_value,
     })
 }
 
@@ -2126,6 +2243,8 @@ pub struct InvoiceSummary {
 pub struct DashboardStats {
     pub total_revenue: f64,
     pub sales_count: i64,
+    pub monthly_revenue: f64,
+    pub monthly_sales_count: i64,
     pub new_clients: i64,
     pub overdue_invoices: i64,
     pub unpaid_invoices: i64,
@@ -2235,40 +2354,63 @@ pub async fn get_invoices_summary(pool: tauri::State<'_, SqlitePool>, limit: i64
     Ok(rows)
 }
 
+
+
+
 #[tauri::command]
 pub async fn get_dashboard_stats(pool: tauri::State<'_, SqlitePool>) -> Result<DashboardStats, String> {
+    // This query now uses `is_deleted` which matches your schema.
+    // It also uses `query_as!` for safe, direct mapping to the struct.
     let stats = sqlx::query_as::<_, DashboardStats>(
         r#"
-        WITH MonthlySales AS (
-          SELECT
-            COALESCE(SUM(total_amount), 0.0) AS total_revenue,
-            COUNT(id) AS sales_count
-          FROM sales
-          WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime') AND deleted_at IS NULL
-        ),
-        NewClients AS (
-          SELECT COUNT(id) AS new_clients
-          FROM clients
-          WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime') AND deleted_at IS NULL
-        ),
-        InvoiceStats AS (
-          SELECT
-            COUNT(CASE WHEN status = 'Overdue' THEN 1 END) AS overdue_invoices,
-            COUNT(CASE WHEN status = 'Unpaid' THEN 1 END) AS unpaid_invoices
-          FROM invoices
-          WHERE deleted_at IS NULL
-        )
+        WITH
+          AllTimeSales AS (
+            SELECT
+              COALESCE(SUM(total_amount_ttc), 0.0) AS total_revenue,
+              COUNT(id) AS sales_count
+            FROM sales
+            WHERE is_deleted = 0 OR is_deleted IS NULL
+          ),
+          MonthlySales AS (
+            SELECT
+              COALESCE(SUM(total_amount_ttc), 0.0) AS monthly_revenue,
+              COUNT(id) AS monthly_sales_count
+            FROM sales
+            WHERE (strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime'))
+              AND (is_deleted = 0 OR is_deleted IS NULL)
+          ),
+          NewClients AS (
+            SELECT COUNT(id) AS new_clients
+            FROM clients
+            WHERE (strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime'))
+              AND (is_deleted = 0 OR is_deleted IS NULL)
+          ),
+          InvoiceStats AS (
+            SELECT
+              COUNT(CASE WHEN is_paid = 0 AND due_date < date('now', 'localtime') THEN 1 END) AS overdue_invoices,
+              COUNT(CASE WHEN is_paid = 0 AND due_date >= date('now', 'localtime') THEN 1 END) AS unpaid_invoices
+            FROM invoices
+            WHERE is_deleted = 0 OR is_deleted IS NULL
+          )
         SELECT
-          (SELECT total_revenue FROM MonthlySales) AS total_revenue,
-          (SELECT sales_count FROM MonthlySales) AS sales_count,
-          (SELECT new_clients FROM NewClients) AS new_clients,
-          (SELECT overdue_invoices FROM InvoiceStats) AS overdue_invoices,
-          (SELECT unpaid_invoices FROM InvoiceStats) AS unpaid_invoices
+          AllTimeSales.total_revenue,
+          AllTimeSales.sales_count,
+          MonthlySales.monthly_revenue,
+          MonthlySales.monthly_sales_count,
+          NewClients.new_clients,
+          InvoiceStats.overdue_invoices,
+          InvoiceStats.unpaid_invoices
+        FROM AllTimeSales, MonthlySales, NewClients, InvoiceStats
         "#
     )
     .fetch_one(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        println!("[DEBUG][get_dashboard_stats] SQL error: {:?}", e);
+        e.to_string()
+    })?;
+
     Ok(stats)
 }
+
     

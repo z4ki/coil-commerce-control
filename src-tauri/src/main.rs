@@ -30,7 +30,8 @@ async fn main() {
         .join("HA-SALES-MANAGER")
         .join("groupeha-dev.db");
     let db_url = format!("sqlite://{}", db_path.display());
-    println!("[DEBUG] Using DATABASE_URL: {}", db_url);
+    println!("[DEBUG][main.rs] Resolved db_path: {:?}", db_path);
+    println!("[DEBUG][main.rs] Using DATABASE_URL: {}", db_url);
     // Ensure the directory exists
     std::fs::create_dir_all(
         db_path.parent().unwrap()
@@ -135,7 +136,7 @@ async fn main() {
     tauri::Builder::default()
         .manage(pool)
         .plugin(tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Debug)
+            .level(log::LevelFilter::Info)
             .target(Target::new(TargetKind::Stdout))
             .target(Target::new(TargetKind::Webview))
             .target(Target::new(TargetKind::LogDir { file_name: None }))

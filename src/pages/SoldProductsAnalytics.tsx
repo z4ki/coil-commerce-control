@@ -9,10 +9,11 @@ import {
 } from '@/services/soldProductsService';
 import * as XLSX from 'xlsx';
 import { useLanguage } from '@/context/LanguageContext';
-import { getClients } from '@/services/clientService';
 import { getUniqueThicknessWidth } from '@/services/soldProductsService';
 import { useInfiniteSoldProducts } from "@/hooks/useInfiniteSoldProducts";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
+import { getClientsPaginated } from '@/services/clientService';
+import Spinner from '@/components/ui/Spinner';
 
 const Chip = ({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
@@ -38,10 +39,22 @@ function formatDateToDisplay(dateStr?: string) {
   return y && m && d ? `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}` : '';
 }
 
-const FilterPanel = ({ filters, setFilters, t }: {
+// Helper to format sale date as date only (no time)
+function formatSaleDate(dateStr?: string) {
+  if (!dateStr) return '-';
+  // Try to handle ISO or yyyy-mm-ddTHH:mm:ss or yyyy-mm-dd HH:mm:ss
+  const dateOnly = dateStr.split('T')[0]?.split(' ')[0] || dateStr;
+  // Optionally, format as dd/mm/yyyy for display
+  const [y, m, d] = dateOnly.split('-');
+  if (y && m && d) return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  return dateOnly;
+}
+
+const FilterPanel = ({ filters, setFilters, t, onExport }: {
   filters: SoldProductsFilter;
   setFilters: React.Dispatch<React.SetStateAction<SoldProductsFilter>>;
   t: (key: string) => string;
+  onExport: () => void;
 }) => {
   const [clientQuery, setClientQuery] = React.useState('');
   const [clientOptions, setClientOptions] = React.useState<{ id: string; name: string }[]>([]);
@@ -49,8 +62,8 @@ const FilterPanel = ({ filters, setFilters, t }: {
   const [thicknessOptions, setThicknessOptions] = React.useState<number[] | null>(null);
   const [widthOptions, setWidthOptions] = React.useState<number[] | null>(null);
   React.useEffect(() => {
-    getClients().then(clients => {
-      setClientOptions(clients.map(c => ({ id: c.id, name: c.name })));
+    getClientsPaginated(1, 1000).then(({ rows: clients }) => {
+      setClientOptions(clients.map((c: any) => ({ id: c.id, name: c.name })));
     });
   }, []);
   React.useEffect(() => {
@@ -233,25 +246,33 @@ const FilterPanel = ({ filters, setFilters, t }: {
           />
         </div>
       </div>
-      {/* Payment Status Filter */}
-      <div className="mt-4">
-        <label className="block text-xs font-medium mb-1">{t('analytics.paymentStatus')}</label>
-        <div className="flex gap-2">
-          {[
-            { value: 'all', label: t('general.all'), color: 'bg-gray-300 dark:bg-gray-700' },
-            { value: 'paid', label: t('status.paid'), color: 'bg-green-500' },
-            { value: 'unpaid', label: t('status.unpaid'), color: 'bg-red-500' },
-          ].map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${filters.paymentStatus === opt.value || (!filters.paymentStatus && opt.value === 'all') ? `${opt.color} text-white border-transparent` : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-200'}`}
-              onClick={() => setFilters(f => ({ ...f, paymentStatus: opt.value as 'all' | 'paid' | 'unpaid' }))}
-            >
-              {opt.label}
-            </button>
-          ))}
+      {/* Payment Status Filter and Export Button Row */}
+      <div className="mt-4 flex items-center justify-between">
+        <div>
+          <label className="block text-xs font-medium mb-1">{t('analytics.paymentStatus')}</label>
+          <div className="flex gap-2">
+            {[
+              { value: 'all', label: t('general.all'), color: 'bg-gray-300 dark:bg-gray-700' },
+              { value: 'paid', label: t('status.paid'), color: 'bg-green-500' },
+              { value: 'unpaid', label: t('status.unpaid'), color: 'bg-red-500' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${filters.paymentStatus === opt.value || (!filters.paymentStatus && opt.value === 'all') ? `${opt.color} text-white border-transparent` : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-200'}`}
+                onClick={() => setFilters(f => ({ ...f, paymentStatus: opt.value as 'all' | 'paid' | 'unpaid' }))}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
+        <button
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          onClick={onExport}
+        >
+          {t('general.export') || 'Exporter en Excel'}
+        </button>
       </div>
     </div>
   );
@@ -297,7 +318,7 @@ const ProductsTable = ({ rows, loading, error, t }: {
               <td className="px-3 py-2">{row.unitPrice ?? 0}</td>
               <td className="px-3 py-2">{row.totalPrice ?? 0}</td>
               <td className="px-3 py-2">{row.invoiceNumber || '-'}</td>
-              <td className="px-3 py-2">{row.saleDate || '-'}</td>
+              <td className="px-3 py-2">{formatSaleDate(row.saleDate)}</td>
               <td className="px-3 py-2">{row.paymentStatus || '-'}</td>
             </tr>
           ))}
@@ -333,7 +354,7 @@ function exportToExcel(rows: SoldProduct[], summary: SoldProductsSummary | null,
     [headers.unitPrice]: row.unitPrice,
     [headers.totalPrice]: row.totalPrice,
     [headers.invoiceNumber]: row.invoiceNumber,
-    [headers.saleDate]: row.saleDate,
+    [headers.saleDate]: formatSaleDate(row.saleDate),
     [headers.paymentStatus]: row.paymentStatus,
   }));
   // French summary labels
@@ -343,8 +364,10 @@ function exportToExcel(rows: SoldProduct[], summary: SoldProductsSummary | null,
   const totalValue = productType === "corrugated_sheet"
     ? (summary?.totalQuantity ?? 0).toLocaleString() + " m"
     : (summary?.totalWeight ?? 0).toLocaleString() + " tonne";
-  const revenueLabel = "Chiffre d'affaires total";
-  const revenueValue = (summary?.totalRevenue ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'DZD' });
+  const revenueLabel = "Chiffre d'affaires total (produits)";
+  const revenueValue = (summary?.itemTotalRevenue ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'DZD' });
+  const officialRevenueLabel = "Chiffre d'affaires officiel (ventes TTC)";
+  const officialRevenueValue = (summary?.officialTotalRevenue ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'DZD' });
   // Add summary rows at the bottom
   const summaryRows = [
     {
@@ -363,6 +386,19 @@ function exportToExcel(rows: SoldProduct[], summary: SoldProductsSummary | null,
     {
       [headers.productName]: revenueLabel,
       [headers.clientName]: revenueValue,
+      [headers.thickness]: '',
+      [headers.width]: '',
+      [headers.quantity]: '',
+      [headers.weight]: '',
+      [headers.unitPrice]: '',
+      [headers.totalPrice]: '',
+      [headers.invoiceNumber]: '',
+      [headers.saleDate]: '',
+      [headers.paymentStatus]: ''
+    },
+    {
+      [headers.productName]: officialRevenueLabel,
+      [headers.clientName]: officialRevenueValue,
       [headers.thickness]: '',
       [headers.width]: '',
       [headers.quantity]: '',
@@ -413,7 +449,7 @@ const SoldProductsAnalytics = () => {
       .finally(() => setSummaryLoading(false));
   }, [filters]);
 
-  // Move summaryConfig inside component so t is in scope
+  // Add summaryConfig for both official and item-level total revenue
   const summaryConfig = [
     {
       label: (productType: string | undefined) =>
@@ -425,16 +461,18 @@ const SoldProductsAnalytics = () => {
       bg: "bg-blue-50",
     },
     {
-      label: () => t('analytics.totalRevenue'),
+      label: () => t('analytics.officialTotalRevenue') || "Chiffre d'affaires officiel",
       value: (summary: SoldProductsSummary) =>
-        (summary.totalRevenue ?? 0).toLocaleString("fr-FR") + " DA",
-      bg: "bg-green-50",
+        (summary.officialTotalRevenue ?? 0).toLocaleString("fr-FR") + " DA",
+      bg: "bg-green-100",
+      tooltip: t('analytics.officialTotalRevenueTooltip') || "Somme des ventes TTC (factures officielles)",
     },
     {
-      label: () => t('analytics.totalQuantitySold'),
+      label: () => t('analytics.itemTotalRevenue') || "Chiffre d'affaires produits",
       value: (summary: SoldProductsSummary) =>
-        (summary.totalQuantity ?? 0).toLocaleString(),
-      bg: "bg-purple-50",
+        (summary.itemTotalRevenue ?? 0).toLocaleString("fr-FR") + " DA",
+      bg: "bg-green-50",
+      tooltip: t('analytics.itemTotalRevenueTooltip') || "Somme des montants des produits vendus (avec TVA)",
     },
     {
       label: () => t('analytics.uniqueClients'),
@@ -447,15 +485,7 @@ const SoldProductsAnalytics = () => {
   return (
     <MainLayout title={t('analytics.title') || 'Sold Products Analytics'}>
       <div className="space-y-6">
-        <div className="flex justify-end items-center mb-2">
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            onClick={() => exportToExcel(rows, summary, filters.productType)}
-          >
-            {t('general.export') || 'Exporter en Excel'}
-          </button>
-        </div>
-        <FilterPanel filters={filters} setFilters={setFilters} t={t} />
+        <FilterPanel filters={filters} setFilters={setFilters} t={t} onExport={() => exportToExcel(rows, summary, filters.productType)} />
         <SummaryCards summary={summary} loading={summaryLoading} error={summaryError} productType={filters.productType} t={t} summaryConfig={summaryConfig} />
         <div className="rounded-md border p-4 overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -493,16 +523,17 @@ const SoldProductsAnalytics = () => {
                   <td className="px-3 py-2">{row.unitPrice ?? 0}</td>
                   <td className="px-3 py-2">{row.totalPrice ?? 0}</td>
                   <td className="px-3 py-2">{row.invoiceNumber || '-'}</td>
-                  <td className="px-3 py-2">{row.saleDate || '-'}</td>
+                  <td className="px-3 py-2">{formatSaleDate(row.saleDate)}</td>
                   <td className="px-3 py-2">{row.paymentStatus || '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div ref={sentinelRef} />
-          {loading && (
-            <div className="flex justify-center py-4">
-              <span className="loader" /> {/* Or your spinner */}
+          {loading && hasMore && (
+            <div className="flex justify-center items-center py-4">
+              <Spinner size={24} />
+              <span className="ml-2">{t('general.loading')}</span>
             </div>
           )}
           {!hasMore && rows.length > 0 && !loading && (
@@ -521,7 +552,7 @@ const SoldProductsAnalytics = () => {
   );
 };
 
-// Update SummaryCards to accept summaryConfig as a prop
+// Update SummaryCards to show tooltips if present
 const SummaryCards = ({ summary, loading, error, productType, t, summaryConfig }: {
   summary: SoldProductsSummary | null;
   loading: boolean;
@@ -541,6 +572,7 @@ const SummaryCards = ({ summary, loading, error, productType, t, summaryConfig }
           <div
             key={idx}
             className={`rounded-xl shadow-md p-3 flex flex-col items-center ${conf.bg} border border-gray-100 transition-all duration-200`}
+            title={conf.tooltip || ''}
           >
             <span className="text-sm text-gray-500 mb-1 text-center font-medium tracking-wide">{conf.label(productType)}</span>
             <span className="text-xl font-extrabold text-gray-900 text-center">{conf.value(summary, productType)}</span>

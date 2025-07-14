@@ -75,28 +75,29 @@ const mapDbInvoiceToInvoice = (dbInvoice: DbInvoice, salesIds: string[] = [], ex
   deletedAt: extra.deleted_at ? new Date(extra.deleted_at) : undefined,
 });
 
-export const getInvoices = async (): Promise<Invoice[]> => {
-  try {
-    const backendInvoices = await tauriApi.invoices.getAll() as any[];
-    if (!Array.isArray(backendInvoices)) return [];
-    return backendInvoices.map((inv: any) => mapDbInvoiceToInvoice({
-      id: inv.id,
-      invoice_number: inv.invoice_number,
-      client_id: inv.client_id,
-      date: inv.date,
-      due_date: inv.due_date,
-      total_amount_ht: inv.total_amount_ht,
-      total_amount_ttc: inv.total_amount_ttc,
-      is_paid: inv.is_paid,
-      paid_at: inv.paid_at,
-      created_at: inv.created_at,
-      updated_at: inv.updated_at,
-    }, inv.sales_ids || [], inv));
-  } catch (error) {
-    console.error('Error fetching invoices:', error);
-    throw error;
-  }
-};
+// Remove getInvoices (which uses tauriApi.invoices.getAll) and update all usages to use getInvoicesPaginated.
+// export const getInvoices = async (): Promise<Invoice[]> => {
+//   try {
+//     const backendInvoices = await tauriApi.invoices.getAll() as any[];
+//     if (!Array.isArray(backendInvoices)) return [];
+//     return backendInvoices.map((inv: any) => mapDbInvoiceToInvoice({
+//       id: inv.id,
+//       invoice_number: inv.invoice_number,
+//       client_id: inv.client_id,
+//       date: inv.date,
+//       due_date: inv.due_date,
+//       total_amount_ht: inv.total_amount_ht,
+//       total_amount_ttc: inv.total_amount_ttc,
+//       is_paid: inv.is_paid,
+//       paid_at: inv.paid_at,
+//       created_at: inv.created_at,
+//       updated_at: inv.updated_at,
+//     }, inv.sales_ids || [], inv));
+//   } catch (error) {
+//     console.error('Error fetching invoices:', error);
+//     throw error;
+//   }
+// };
 
 export const getDeletedInvoices = async (): Promise<Invoice[]> => {
   try {
@@ -171,6 +172,44 @@ export const createInvoice = async (
     console.error('Error creating invoice:', error);
     throw error;
   }
+};
+
+export interface PaginatedInvoicesResult {
+  rows: Invoice[];
+  total: number;
+}
+
+export const getInvoicesPaginated = async (
+  page: number = 1,
+  pageSize: number = 5
+): Promise<PaginatedInvoicesResult> => {
+  const result = await tauriApi.invoices.getInvoices(page, pageSize) as any;
+  return {
+    rows: result.rows.map((row: any) => {
+      // Defensive: ensure sales_ids is always an array
+      let salesIds: string[] = [];
+      if (Array.isArray(row.sales_ids)) {
+        salesIds = row.sales_ids;
+      } else if (typeof row.sales_ids === 'string') {
+        salesIds = row.sales_ids.split(',').filter(Boolean);
+      } // else leave as []
+      return mapDbInvoiceToInvoice({
+        id: row.id,
+        invoice_number: row.invoice_number,
+        client_id: row.client_id,
+        date: row.date,
+        due_date: row.due_date,
+        total_amount_ht: row.total_amount_ht,
+        total_amount_ttc: row.total_amount_ttc,
+        is_paid: row.is_paid,
+        paid_at: row.paid_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+      }, salesIds, row);
+    }),
+    total: result.total,
+  };
 };
 
 // TODO: Implement updateInvoice when backend support is available.

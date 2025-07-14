@@ -18,6 +18,8 @@ import {
 } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { useLanguage } from '../context/LanguageContext';
+import { useInfiniteAuditLog } from '@/hooks/useInfiniteAuditLog';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
@@ -25,18 +27,25 @@ function formatDate(dateString: string) {
 }
 
 const AuditLogPage: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Remove: const [logs, setLogs] = useState<AuditLog[]>([]);
+  // Remove: const [loading, setLoading] = useState(true);
+  // Remove: const [error, setError] = useState<string | null>(null);
+  // Remove: useEffect(() => { getAuditLog().then(setLogs)... }, []);
   const [search, setSearch] = useState('');
   const { t } = useLanguage();
 
-  useEffect(() => {
-    getAuditLog()
-      .then(setLogs)
-      .catch((err) => setError(String(err)))
-      .finally(() => setLoading(false));
-  }, []);
+  // Infinite scroll
+  const {
+    rows: logs,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfiniteAuditLog(50);
+  const sentinelRef = useIntersectionObserver(() => {
+    if (hasMore && !loading) loadMore();
+  });
 
   const filteredLogs = useMemo(() => {
     if (!search.trim()) return logs;
@@ -64,7 +73,7 @@ const AuditLogPage: React.FC = () => {
               className="max-w-xs"
             />
           </div>
-          {loading && <p>{t('general.loading')}</p>}
+          {loading && filteredLogs.length === 0 && <p>{t('general.loading')}</p>}
           {error && <p className="text-red-600">{t('general.error')}: {error}</p>}
           {!loading && !error && filteredLogs.length === 0 && (
             <div className="text-center text-muted-foreground py-8">{t('auditLog.empty')}</div>
@@ -92,6 +101,14 @@ const AuditLogPage: React.FC = () => {
                     <TableCell>{log.details || '-'}</TableCell>
                   </TableRow>
                 ))}
+                <TableRow ref={sentinelRef as any}>
+                  <TableCell colSpan={6} className="text-center py-2">
+                    {loading && <span>{t('general.loading')}</span>}
+                    {!hasMore && !loading && logs.length > 0 && (
+                      <span className="text-gray-400">{t('general.allDataLoaded')}</span>
+                    )}
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           )}

@@ -27,7 +27,7 @@ import {
 import { Plus, Search, Edit, Trash2, FileCheck, FileX, ChevronDown, ChevronRight, FileText, Download, MoreVertical, Trash, DollarSign } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/utils/format';
 import StatusBadge from '@/components/ui/StatusBadge';
-import type { Sale } from '@/types/index';
+import { Sale, Client } from '@/types/index';
 import { toast } from 'sonner';
 import SaleForm from '@/components/sales/SaleForm';
 import { PaymentForm } from '@/components/invoices/PaymentForm';
@@ -41,7 +41,10 @@ import {
 import { Link } from 'react-router-dom';
 import { getDeletedSales, restoreSale } from '@/services/saleService';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useInfiniteSales } from '@/hooks/useInfiniteSales';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 // REMOVE: import { useVirtualizer } from '@tanstack/react-virtual';
+import Spinner from '@/components/ui/Spinner';
 
 interface SaleDialogProps {
   open: boolean;
@@ -71,7 +74,31 @@ const SaleDialog = ({ open, onOpenChange, sale }: SaleDialogProps) => {
   );
 };
 
-const SaleTableRow = memo(({ sale, client, isExpanded, paymentStatus, t, onEdit, onDelete, onView, onToggleExpand, onExport }) => (
+type SaleTableRowProps = {
+  sale: Sale;
+  client: Client | undefined;
+  isExpanded: boolean;
+  paymentStatus: any;
+  t: (key: string) => string;
+  onEdit: (sale: Sale) => void;
+  onDelete: (sale: Sale) => void;
+  onView: (sale: Sale) => void;
+  onToggleExpand: (saleId: string) => void;
+  onExport: (sale: Sale) => void;
+};
+
+const SaleTableRow = memo(({
+  sale,
+  client,
+  isExpanded,
+  paymentStatus,
+  t,
+  onEdit,
+  onDelete,
+  onView,
+  onToggleExpand,
+  onExport
+}: SaleTableRowProps) => (
   <React.Fragment key={sale.id}>
     <TableRow>
       <TableCell className="p-0 pl-4">
@@ -275,7 +302,8 @@ const SaleTableRow = memo(({ sale, client, isExpanded, paymentStatus, t, onEdit,
 ));
 
 const Sales = () => {
-  const { sales, clients, deleteSale, updateSale, getClientById, getSalePaymentStatus } = useAppContext();
+  // Remove: const { sales, clients, ... } = useAppContext();
+  const { clients, deleteSale, updateSale, getClientById, getSalePaymentStatus, ensureClientsLoaded } = useAppContext();
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -288,6 +316,30 @@ const Sales = () => {
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [invoicedFilter, setInvoicedFilter] = useState<string>('all');
+
+  // Infinite scroll
+  const {
+    rows: sales,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    reload,
+  } = useInfiniteSales();
+  const sentinelRef = useIntersectionObserver(() => {
+    if (hasMore && !loading) loadMore();
+  });
+
+  // Ensure all clients for loaded sales are present
+  useEffect(() => {
+    const clientIds = Array.from(new Set(sales.map(sale => sale.clientId)));
+    ensureClientsLoaded(clientIds);
+  }, [sales, ensureClientsLoaded]);
+
+  // Reset on search/filter
+  useEffect(() => {
+    reload();
+  }, [searchTerm, productTypeFilter, paymentStatusFilter, invoicedFilter, reload]);
 
   // Debug log to check what sales are loaded
   React.useEffect(() => {
@@ -533,29 +585,21 @@ const Sales = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredSales.length > 0 ? (
-                    filteredSales.map((sale) => {
-                      const client = getClientById(sale.clientId);
-                      const isExpanded = expandedSales[sale.id] || false;
-                      const paymentStatus = getSalePaymentStatus(sale.id);
-                      return (
-                        <SaleTableRow
-                          key={sale.id}
-                          sale={sale}
-                          client={client}
-                          isExpanded={isExpanded}
-                          paymentStatus={paymentStatus}
-                          t={t}
-                          onEdit={() => {
-                                    setSelectedSale(sale);
-                                    setShowAddDialog(true);
-                          }}
-                          onDelete={() => handleDeleteSale(sale)}
-                          onView={() => {}}
-                          onToggleExpand={toggleSaleExpansion}
-                          onExport={() => handleExportPDF(sale)}
-                        />
-                      );
-                    })
+                    filteredSales.map((sale) => (
+                      <SaleTableRow
+                        key={sale.id}
+                        sale={sale}
+                        client={getClientById(sale.clientId)}
+                        isExpanded={!!expandedSales[sale.id]}
+                        paymentStatus={getSalePaymentStatus(sale.id)}
+                        t={t}
+                        onEdit={() => setSelectedSale(sale)}
+                        onDelete={() => handleDeleteSale(sale)}
+                        onView={() => setSelectedSale(sale)}
+                        onToggleExpand={toggleSaleExpansion}
+                        onExport={handleExportPDF}
+                      />
+                    ))
                   ) : (
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 text-center">
@@ -563,6 +607,20 @@ const Sales = () => {
                       </TableCell>
                     </TableRow>
                   )}
+                  <TableRow ref={sentinelRef as any}>
+                    <TableCell colSpan={7} className="text-center py-2">
+                      {loading && hasMore && (
+                        <div className="flex justify-center items-center py-2">
+                          <Spinner size={24} />
+                          <span className="ml-2">{t('general.loading')}</span>
+                        </div>
+                      )}
+                      {!hasMore && !loading && filteredSales.length > 0 && (
+                        <span className="text-muted-foreground text-xs">{t('general.endOfList') || 'No more sales'}</span>
+                      )}
+                      {error && <span className="text-destructive text-xs">{error}</span>}
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>

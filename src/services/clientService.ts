@@ -3,14 +3,20 @@
 import { tauriApi } from '@/lib/tauri-api';
 import { Client } from '@/types/index';
 
-export const getClients = async (): Promise<Client[]> => {
-  try {
-    return await tauriApi.clients.getAll() as Client[];
-  } catch (error) {
-    console.error('Error fetching clients:', error);
-    throw error;
-  }
-};
+export interface PaginatedClientsResult {
+  rows: Client[];
+  total: number;
+}
+
+// Remove getClients (which uses tauriApi.clients.getAll) and update all usages to use getClientsPaginated.
+// export const getClients = async (): Promise<Client[]> => {
+//   try {
+//     return await tauriApi.clients.getAll() as Client[];
+//   } catch (error) {
+//     console.error('Error fetching clients:', error);
+//     throw error;
+//   }
+// };
 
 export const getClientById = async (id: string): Promise<Client | null> => {
   try {
@@ -19,6 +25,14 @@ export const getClientById = async (id: string): Promise<Client | null> => {
     console.error('Error fetching client:', error);
     throw error;
   }
+};
+
+export const getClientsPaginated = async (
+  page: number = 1,
+  pageSize: number = 5
+): Promise<PaginatedClientsResult> => {
+  const result = await tauriApi.clients.getClients(page, pageSize) as PaginatedClientsResult;
+  return result;
 };
 
 export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {

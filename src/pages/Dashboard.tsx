@@ -1,4 +1,4 @@
-import React, { useEffect, memo } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import MainLayout from '../components/layout/MainLayout';
 import DataCard from '../components/ui/DataCard';
@@ -8,6 +8,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { formatCurrency } from '../utils/format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useLanguage } from '../context/LanguageContext';
+import { getDashboardStats } from '../services/dashboardService';
+import type { DashboardStats } from '@/types/index';
 
 interface MonthlySalesData {
   month: string;
@@ -87,9 +89,23 @@ const Dashboard = () => {
   // END OF ADDED CONSOLE LOGS
   const { t } = useLanguage();
   
-  const salesSummary = getSalesSummary();
-  const debtSummary = getDebtSummary();
-  
+  // Dashboard stats state
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((stats) => {
+        setDashboardStats(stats);
+        setStatsLoading(false);
+      })
+      .catch((err) => {
+        setStatsError(err.message || 'Error loading dashboard stats');
+        setStatsLoading(false);
+      });
+  }, []);
+
   // Calculate payment method totals
   const paymentMethodTotals = {
     cash: payments.filter(p => p.method === 'cash').reduce((sum, p) => sum + (p.amount || 0), 0),
@@ -101,12 +117,6 @@ const Dashboard = () => {
   
   // Count unpaid invoices
   const unpaidInvoices = invoices.filter(inv => !inv.isPaid).length;
-  
-  // Calculate total sales amount (TTC)
-  const totalSalesAmount = sales.reduce((sum, sale) => sum + sale.totalAmountTTC, 0);
-  
-  // Calculate average sale amount (TTC)
-  const averageSaleAmount = sales.length > 0 ? totalSalesAmount / sales.length : 0;
   
   // Get top clients by sales amount (TTC)
   const topClients = clients
@@ -132,6 +142,17 @@ const Dashboard = () => {
     });
   }, []);
 
+  // UI rendering
+  if (statsLoading) {
+    return <MainLayout title={t('dashboard.title')}><div className="p-8 text-center">{t('general.loading') || 'Loading...'}</div></MainLayout>;
+  }
+  if (statsError) {
+    return <MainLayout title={t('dashboard.title')}><div className="p-8 text-center text-red-500">{statsError}</div></MainLayout>;
+  }
+  if (!dashboardStats) {
+    return <MainLayout title={t('dashboard.title')}><div className="p-8 text-center text-red-500">{t('general.error') || 'Error loading dashboard stats.'}</div></MainLayout>;
+  }
+
   return (
     <MainLayout title={t('dashboard.title')}>
       <div className="space-y-6">
@@ -139,60 +160,47 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <DataCard
             title={t('dashboard.totalSales')}
-            value={formatCurrency(totalSalesAmount)}
+            value={dashboardStats.total_revenue ? formatCurrency(dashboardStats.total_revenue) : '-'}
             icon={<DollarSign className="h-4 w-4" />}
-            description={t('dashboard.average').replace('{0}', formatCurrency(averageSaleAmount))}
+            description={t('dashboard.totalSalesCount').replace('{0}', String(dashboardStats.sales_count))}
           />
+          <DataCard
+            title={t('dashboard.monthlySales')}
+            value={dashboardStats.monthly_revenue ? formatCurrency(dashboardStats.monthly_revenue) : '-'}
+            icon={<BarChart2 className="h-4 w-4" />}
+            description={t('dashboard.monthlySalesCount').replace('{0}', String(dashboardStats.monthly_sales_count))}
+          />
+          <DataCard
+            title={t('dashboard.newClients')}
+            value={dashboardStats.new_clients}
+            icon={<Users className="h-4 w-4" />}
+          />
+          <DataCard
+            title={t('dashboard.overdueInvoices')}
+            value={dashboardStats.overdue_invoices}
+            icon={<AlertCircle className="h-4 w-4" />}
+            description={t('dashboard.unpaidInvoices').replace('{0}', String(dashboardStats.unpaid_invoices))}
+          />
+          {/* New cards for debts, cash, and bank account */}
           <DataCard
             title={t('dashboard.outstandingDebt')}
-            value={formatCurrency(debtSummary.totalDebtTTC)}
-            icon={<AlertCircle className="h-4 w-4" />}
-            description={t('dashboard.overdue').replace('{0}', formatCurrency(debtSummary.overdueDebtTTC))}
+            value={formatCurrency(getDebtSummary().totalDebtTTC)}
+            icon={<AlertTriangle className="h-4 w-4 text-destructive" />}
           />
           <DataCard
-            title={t('payments.methods.cash')}
+            title={t('dashboard.cash')}
             value={formatCurrency(paymentMethodTotals.cash)}
-            icon={<Wallet className="h-4 w-4" />}
+            icon={<Wallet className="h-4 w-4 text-green-600" />}
           />
           <DataCard
-            title={t('dashboard.bankAccountBalance')}
+            title={t('dashboard.bankAndCheck')}
             value={formatCurrency(paymentMethodTotals.bank_account)}
-            icon={<CreditCard className="h-4 w-4" />}
-            description={t('dashboard.bankAndCheck')}
+            icon={<CreditCard className="h-4 w-4 text-blue-600" />}
           />
         </div>
 
         {/* Charts */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Monthly Sales Chart */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BarChart2 className="h-5 w-5 text-muted-foreground" />
-                  <span>{t('dashboard.monthlySales')}</span>
-                </CardTitle>
-                <span className="text-xl font-bold">{formatCurrency(salesSummary.totalAmount)}</span>
-              </div>
-              <CardDescription>{t('dashboard.salesOverTime')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesSummary.monthlySales}>
-                    <XAxis dataKey="month" />
-                    <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                    <Tooltip 
-                      formatter={(value) => [formatCurrency(value as number), t('dashboard.amount')]}
-                      labelFormatter={(label) => t('dashboard.month').replace('{0}', label)}
-                    />
-                    <Bar dataKey="amountTTC" fill="#3b82f6" name={t('dashboard.amount')} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          
           {/* Top Clients by Debt */}
           <Card className="hoverable-card">
             <CardHeader>
